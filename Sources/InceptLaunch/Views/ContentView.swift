@@ -1,9 +1,14 @@
 import SwiftUI
 
 struct ContentView: View {
+    let scrollModel: OverlayScrollModel
     @State private var viewModel = LaunchpadViewModel()
     @State private var openFolder: LaunchpadDisplayItem?
     @FocusState private var searchFocused: Bool
+
+    private var isSearching: Bool {
+        !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         ZStack {
@@ -22,17 +27,27 @@ struct ContentView: View {
                 SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
                     .padding(.top, 60)
                 Spacer(minLength: 0)
-                LaunchpadGridView(
-                    pages: viewModel.visiblePages,
-                    rows: viewModel.gridRows,
-                    onLaunch: { item in handleTap(item) },
-                    onDropItem: { sourceID, target in
-                        viewModel.handleDrop(sourceID: sourceID, onto: target)
-                    },
-                    onTrash: { item in
-                        Task { await viewModel.moveToTrash(item.id) }
-                    }
-                )
+                if isSearching {
+                    SearchResultsView(
+                        results: viewModel.visiblePages.first ?? [],
+                        onLaunch: { item in handleTap(item) },
+                        onTrash: { item in
+                            Task { await viewModel.moveToTrash(item.id) }
+                        }
+                    )
+                } else {
+                    LaunchpadGridView(
+                        pages: viewModel.visiblePages,
+                        rows: viewModel.gridRows,
+                        onLaunch: { item in handleTap(item) },
+                        onDropItem: { sourceID, target in
+                            viewModel.handleDrop(sourceID: sourceID, onto: target)
+                        },
+                        onTrash: { item in
+                            Task { await viewModel.moveToTrash(item.id) }
+                        }
+                    )
+                }
                 Spacer(minLength: 40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -78,7 +93,16 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 searchFocused = true
             }
+            syncScrollHijack()
         }
+        .onChange(of: viewModel.searchText) { syncScrollHijack() }
+        .onChange(of: openFolder?.id) { syncScrollHijack() }
+    }
+
+    /// Tell the global scroll monitor whether to flip pages or let scrolling
+    /// pass through to the active ScrollView (search results / folder popup).
+    private func syncScrollHijack() {
+        scrollModel.update(isSearching: isSearching, isFolderOpen: openFolder != nil)
     }
 
     private func handleTap(_ item: LaunchpadDisplayItem) {

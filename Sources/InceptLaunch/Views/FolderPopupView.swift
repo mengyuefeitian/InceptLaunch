@@ -14,7 +14,7 @@ struct FolderPopupView: View {
     @State private var draftName = ""
     @FocusState private var nameFieldFocused: Bool
 
-    private let columns = Array(repeating: GridItem(.fixed(120), spacing: 24), count: 4)
+    private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
 
     var body: some View {
         ZStack {
@@ -34,7 +34,7 @@ struct FolderPopupView: View {
                                 id: member.id,
                                 title: member.name,
                                 kind: .app(member)
-                            ))
+                            ), iconSize: 88, tileHeight: 128)
                             .modifier(TileTrashMenu(
                                 item: LaunchpadDisplayItem(
                                     id: member.id,
@@ -49,9 +49,9 @@ struct FolderPopupView: View {
                     .padding(.horizontal, 26)
                     .padding(.bottom, 26)
                 }
-                .frame(maxHeight: 400)
+                .frame(maxHeight: 560)
             }
-            .frame(width: 580)
+            .frame(width: 780)
             .background(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .fill(.ultraThickMaterial)

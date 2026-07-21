@@ -25,6 +25,7 @@ final class OverlayWindowController {
     private var window: OverlayWindow?
     private var dismissObserver: NSObjectProtocol?
     private var scrollMonitor: Any?
+    private let scrollModel = OverlayScrollModel()
 
     init() {
         dismissObserver = NotificationCenter.default.addObserver(
@@ -63,7 +64,8 @@ final class OverlayWindowController {
         window.backgroundColor = .clear
         window.hasShadow = false
         window.ignoresMouseEvents = false
-        window.contentView = NSHostingView(rootView: ContentView())
+        scrollModel.update(isSearching: false, isFolderOpen: false)
+        window.contentView = NSHostingView(rootView: ContentView(scrollModel: scrollModel))
         window.setFrame(frame, display: true)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -83,7 +85,11 @@ final class OverlayWindowController {
     private func installScrollMonitor() {
         removeScrollMonitor()
         var lastFlip = Date.distantPast
-        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            // While searching or with a folder popup open, scrolling belongs to
+            // the SwiftUI ScrollView underneath — let it through untouched.
+            let hijacks = MainActor.assumeIsolated { self?.scrollModel.hijacksScrollWheel ?? false }
+            guard hijacks else { return event }
             let now = Date()
             guard now.timeIntervalSince(lastFlip) > 0.3 else { return nil }
             let deltaY = event.scrollingDeltaY
