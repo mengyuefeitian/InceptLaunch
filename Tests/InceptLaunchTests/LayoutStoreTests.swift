@@ -293,3 +293,22 @@ import Testing
     #expect(folder.name == "苹果")
     #expect(folder.items.contains("com.apple.Notes"))
 }
+
+@Test func syncAppleFolderExcludesHiddenApps() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: ["com.apple.Mail"],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    // Mail is hidden; only Safari and Notes are eligible, so the folder is
+    // still created (two eligible apps) but must not contain the hidden Mail.
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari", "com.apple.Notes"])
+
+    guard let folder = store.layout.folders.first(where: { $0.id == "folder:apple" }) else {
+        Issue.record("expected folder:apple to be created")
+        return
+    }
+    #expect(!folder.items.contains("com.apple.Mail"))
+    #expect(folder.items.sorted() == ["com.apple.Notes", "com.apple.Safari"])
+}
