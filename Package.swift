@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "InceptLaunch",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(name: "InceptLaunch", targets: ["InceptLaunch"])
