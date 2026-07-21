@@ -3,6 +3,7 @@ import SwiftUI
 struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let onLaunch: (LaunchpadDisplayItem) -> Void
+    let onDropItem: (String, LaunchpadDisplayItem) -> Void
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -46,6 +47,12 @@ struct LaunchpadGridView: View {
                 AppIconView(item: item)
                     .onTapGesture {
                         onLaunch(item)
+                    }
+                    .draggable(item.id)
+                    .dropDestination(for: String.self) { droppedIDs, _ in
+                        guard let sourceID = droppedIDs.first, sourceID != item.id else { return false }
+                        onDropItem(sourceID, item)
+                        return true
                     }
             }
         }

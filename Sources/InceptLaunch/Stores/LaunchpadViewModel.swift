@@ -10,6 +10,7 @@ struct LaunchpadDisplayItem: Identifiable, Equatable {
     var id: String
     var title: String
     var kind: Kind
+    var members: [AppRecord] = []
 }
 
 @Observable
@@ -23,6 +24,7 @@ final class LaunchpadViewModel {
     private let launcher: AppLauncher
     private let scanner: AppScanner
     private let preferencesStore: PreferencesStore
+    private let layoutPersistence: LayoutPersistenceStore
 
     init(
         appIndex: AppIndexStore = AppIndexStore(),
@@ -30,7 +32,8 @@ final class LaunchpadViewModel {
         matcher: SearchMatcher = SearchMatcher(),
         launcher: AppLauncher = AppLauncher(),
         scanner: AppScanner = AppScanner(),
-        preferencesStore: PreferencesStore = PreferencesStore()
+        preferencesStore: PreferencesStore = PreferencesStore(),
+        layoutPersistence: LayoutPersistenceStore = LayoutPersistenceStore()
     ) {
         self.appIndex = appIndex
         self.layoutStore = layoutStore
@@ -38,6 +41,7 @@ final class LaunchpadViewModel {
         self.launcher = launcher
         self.scanner = scanner
         self.preferencesStore = preferencesStore
+        self.layoutPersistence = layoutPersistence
     }
 
     var visiblePages: [[LaunchpadDisplayItem]] {
@@ -57,15 +61,23 @@ final class LaunchpadViewModel {
                     return LaunchpadDisplayItem(id: id, title: record.name, kind: .app(record))
                 case .folder(let id):
                     guard let folder = layoutStore.layout.folders.first(where: { $0.id == id }) else { return nil }
-                    return LaunchpadDisplayItem(id: id, title: folder.name, kind: .folder(folder))
+                    let members = folder.items
+                        .compactMap { recordsByID[$0] }
+                        .filter { !$0.isHidden && !$0.isMissing }
+                    return LaunchpadDisplayItem(id: id, title: folder.name, kind: .folder(folder), members: members)
                 }
             }
         }
     }
 
-    func refreshFromScanResults(_ records: [AppRecord]) {
-        appIndex.merge(scanResults: records)
-        layoutStore.appendNewApps(records.map(\.id))
+    func applyScanResult(_ result: ScanResult) {
+        appIndex.merge(scanResults: result.records)
+        layoutStore.syncDirectoryFolders(result.directoryFolders)
+        layoutStore.pruneApps(notIn: Set(result.records.map(\.id)))
+
+        let folderMemberIDs = Set(result.directoryFolders.flatMap(\.appIDs))
+        let topLevelIDs = result.records.map(\.id).filter { !folderMemberIDs.contains($0) }
+        layoutStore.appendNewApps(topLevelIDs)
     }
 
     func launchSelected() -> LaunchResult? {
@@ -82,7 +94,49 @@ final class LaunchpadViewModel {
         let urls = preferences.scanDirectories.map { path in
             URL(fileURLWithPath: NSString(string: path).expandingTildeInPath)
         }
-        let records = scanner.scan(directories: urls)
-        refreshFromScanResults(records)
+        // Start from the saved layout so user folders and positions persist.
+        layoutStore = LayoutStore(layout: layoutPersistence.load())
+        let result = scanner.scanAll(directories: urls)
+        applyScanResult(result)
+        persistLayout()
+    }
+
+    /// Handles dropping one item onto another in the grid. Dropping an app onto
+    /// another app creates a folder containing both; dropping an app onto an
+    /// existing folder adds it to that folder.
+    func handleDrop(sourceID: String, onto target: LaunchpadDisplayItem) {
+        // Only plain apps can be dragged for now (not directory/user folders).
+        guard !Self.isFolderID(sourceID), sourceID != target.id else { return }
+
+        switch target.kind {
+        case .app:
+            let name = defaultFolderName()
+            _ = layoutStore.createFolder(name: name, appIDs: [sourceID, target.id], now: Date())
+        case .folder(let folder):
+            layoutStore.addAppToFolder(appID: sourceID, folderID: folder.id)
+        }
+        persistLayout()
+    }
+
+    func renameFolder(id: String, name: String) {
+        layoutStore.renameFolder(id: id, name: name)
+        persistLayout()
+    }
+
+    private func defaultFolderName() -> String {
+        let base = "新文件夹"
+        let existing = Set(layoutStore.layout.folders.map(\.name))
+        guard existing.contains(base) else { return base }
+        var suffix = 2
+        while existing.contains("\(base) \(suffix)") { suffix += 1 }
+        return "\(base) \(suffix)"
+    }
+
+    private static func isFolderID(_ id: String) -> Bool {
+        id.hasPrefix("folder:") || id.hasPrefix("dir:")
+    }
+
+    private func persistLayout() {
+        layoutPersistence.save(layoutStore.layout)
     }
 }

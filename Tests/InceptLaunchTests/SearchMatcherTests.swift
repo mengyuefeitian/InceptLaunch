@@ -12,6 +12,19 @@ import Testing
     #expect(results.map(\.name) == ["Calculator", "Calendar", "Super Calendar"])
 }
 
+@Test func pinyinMatchesChineseAppName() {
+    let records = [
+        record("计算器"),
+        record("Calendar")
+    ]
+
+    let full = SearchMatcher().ranked(query: "jisuanqi", records: records)
+    #expect(full.map(\.name) == ["计算器"])
+
+    let initials = SearchMatcher().ranked(query: "jsq", records: records)
+    #expect(initials.map(\.name) == ["计算器"])
+}
+
 private func record(_ name: String) -> AppRecord {
     AppRecord(
         id: "bundle:com.example.\(name)",
