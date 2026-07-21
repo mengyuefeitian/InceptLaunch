@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import Foundation
 
 /// The result of a full scan: every discovered app record plus any on-disk
@@ -9,6 +10,34 @@ struct ScanResult: Equatable {
 }
 
 struct AppScanner {
+    /// Returns the name Finder shows for an app: Spotlight's
+    /// `kMDItemDisplayName` with the ".app" suffix removed. Bundle metadata
+    /// (`CFBundleDisplayName`) is not enough because duplicate bundles share
+    /// it — two WeChat installs both report "WeChat"/"微信" while Finder shows
+    /// "微信" and "WeChat2". Injectable so tests stay deterministic.
+    var finderNameProvider: @Sendable (URL) -> String? = AppScanner.spotlightDisplayName
+
+    /// Spotlight-backed lookup of the raw Finder display name for a bundle
+    /// (e.g. "微信.app"). Returns nil when the file is not indexed yet.
+    static let spotlightDisplayName: @Sendable (URL) -> String? = { url in
+        guard let item = MDItemCreate(nil, url.path as CFString) else { return nil }
+        return MDItemCopyAttribute(item, kMDItemDisplayName) as? String
+    }
+
+    /// Resolves the display name for a bundle: the Finder name (with any
+    /// ".app" suffix stripped) when available, otherwise the bundle metadata
+    /// name.
+    private func resolvedName(for appURL: URL, bundleName: String) -> String {
+        if let raw = finderNameProvider(appURL) {
+            var name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if name.lowercased().hasSuffix(".app") {
+                name = String(name.dropLast(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if !name.isEmpty { return name }
+        }
+        return bundleName
+    }
+
     /// Flat list of every discovered app, sorted by display name.
     func scan(directories: [URL], now: Date = Date()) -> [AppRecord] {
         scanAll(directories: directories, now: now).records
@@ -141,7 +170,8 @@ struct AppScanner {
         if let bundle = Bundle(url: appURL),
            let info = bundle.infoDictionary ?? bundle.localizedInfoDictionary {
             let localized = bundle.localizedInfoDictionary ?? [:]
-            let name = displayName(localized: localized, base: info, fallback: appURL.deletingPathExtension().lastPathComponent)
+            let bundleName = displayName(localized: localized, base: info, fallback: appURL.deletingPathExtension().lastPathComponent)
+            let name = resolvedName(for: appURL, bundleName: bundleName)
             let version = (info["CFBundleShortVersionString"] as? String)
                 ?? (localized["CFBundleShortVersionString"] as? String)
             return AppRecord(
@@ -189,7 +219,8 @@ struct AppScanner {
         }
 
         let bundleID = plist["CFBundleIdentifier"] as? String
-        let name = displayName(localized: [:], base: plist, fallback: appURL.deletingPathExtension().lastPathComponent)
+        let bundleName = displayName(localized: [:], base: plist, fallback: appURL.deletingPathExtension().lastPathComponent)
+        let name = resolvedName(for: appURL, bundleName: bundleName)
 
         return AppRecord(
             id: "path:\(appURL.path)",

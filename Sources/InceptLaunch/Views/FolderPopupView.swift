@@ -7,6 +7,7 @@ struct FolderPopupView: View {
     let item: LaunchpadDisplayItem
     let onLaunch: (AppRecord) -> Void
     let onRename: (String) -> Void
+    let onTrash: (AppRecord) -> Void
     let onClose: () -> Void
 
     @State private var isEditingName = false
@@ -33,6 +34,14 @@ struct FolderPopupView: View {
                                 id: member.id,
                                 title: member.name,
                                 kind: .app(member)
+                            ))
+                            .modifier(TileTrashMenu(
+                                item: LaunchpadDisplayItem(
+                                    id: member.id,
+                                    title: member.name,
+                                    kind: .app(member)
+                                ),
+                                onTrash: { _ in onTrash(member) }
                             ))
                             .onTapGesture { onLaunch(member) }
                         }

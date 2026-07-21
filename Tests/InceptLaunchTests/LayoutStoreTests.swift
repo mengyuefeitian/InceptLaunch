@@ -56,6 +56,26 @@ import Testing
     #expect(store.layout.pages[0] == [.folder(folder.id), .app("c")])
 }
 
+@Test func removeAppEverywhereClearsPagesAndFolderMembers() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a"), .app("b")], [.app("c")]],
+        folders: [
+            LaunchpadFolder(
+                id: "folder:1",
+                name: "Work",
+                items: ["a", "c"],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )
+        ],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.removeAppEverywhere("a")
+    #expect(store.layout.pages == [[.app("b")], [.app("c")]])
+    #expect(store.layout.folders[0].items == ["c"])
+}
+
 @Test func hideAndUnhideApp() {
     var store = LayoutStore(layout: .init(
         pages: [[.app("a")]],

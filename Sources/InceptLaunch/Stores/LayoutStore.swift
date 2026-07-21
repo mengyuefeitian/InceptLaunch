@@ -116,6 +116,16 @@ struct LayoutStore {
         return folder
     }
 
+    /// Removes an app from every page and from all folder member lists after
+    /// it has been moved to the Trash, so its tile disappears immediately.
+    mutating func removeAppEverywhere(_ appID: String) {
+        removeItem(id: "app:\(appID)")
+        for folderIndex in layout.folders.indices {
+            layout.folders[folderIndex].items.removeAll { $0 == appID }
+        }
+        removeEmptyTrailingPages()
+    }
+
     mutating func hideApp(id: String) {
         layout.hiddenAppIDs.insert(id)
         removeItem(id: "app:\(id)")

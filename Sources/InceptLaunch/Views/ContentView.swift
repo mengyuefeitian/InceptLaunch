@@ -25,6 +25,9 @@ struct ContentView: View {
                     onLaunch: { item in handleTap(item) },
                     onDropItem: { sourceID, target in
                         viewModel.handleDrop(sourceID: sourceID, onto: target)
+                    },
+                    onTrash: { item in
+                        Task { await viewModel.moveToTrash(item.id) }
                     }
                 )
                 Spacer(minLength: 40)
@@ -42,6 +45,13 @@ struct ContentView: View {
                     onRename: { newName in
                         viewModel.renameFolder(id: folder.id, name: newName)
                         openFolder?.title = newName
+                    },
+                    onTrash: { record in
+                        Task { await viewModel.moveToTrash(record.id) }
+                        openFolder?.members.removeAll { $0.id == record.id }
+                        if openFolder?.members.isEmpty == true {
+                            openFolder = nil
+                        }
                     },
                     onClose: { openFolder = nil }
                 )

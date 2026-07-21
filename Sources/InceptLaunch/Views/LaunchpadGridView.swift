@@ -4,6 +4,7 @@ struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
+    let onTrash: (LaunchpadDisplayItem) -> Void
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -45,6 +46,9 @@ struct LaunchpadGridView: View {
         LazyVGrid(columns: columns, spacing: 34) {
             ForEach(page) { item in
                 AppIconView(item: item)
+                    // Long-press must be the innermost gesture or the tap
+                    // gesture swallows every press before it can complete.
+                    .modifier(TileTrashMenu(item: item, onTrash: onTrash))
                     .onTapGesture {
                         onLaunch(item)
                     }

@@ -13,6 +13,7 @@ struct LaunchpadDisplayItem: Identifiable, Equatable {
     var members: [AppRecord] = []
 }
 
+@MainActor
 @Observable
 final class LaunchpadViewModel {
     var searchText = ""
@@ -25,6 +26,7 @@ final class LaunchpadViewModel {
     private let scanner: AppScanner
     private let preferencesStore: PreferencesStore
     private let layoutPersistence: LayoutPersistenceStore
+    private let trasher: AppTrashing
 
     init(
         appIndex: AppIndexStore = AppIndexStore(),
@@ -33,7 +35,8 @@ final class LaunchpadViewModel {
         launcher: AppLauncher = AppLauncher(),
         scanner: AppScanner = AppScanner(),
         preferencesStore: PreferencesStore = PreferencesStore(),
-        layoutPersistence: LayoutPersistenceStore = LayoutPersistenceStore()
+        layoutPersistence: LayoutPersistenceStore = LayoutPersistenceStore(),
+        trasher: AppTrashing = SystemAppTrasher()
     ) {
         self.appIndex = appIndex
         self.layoutStore = layoutStore
@@ -42,6 +45,7 @@ final class LaunchpadViewModel {
         self.scanner = scanner
         self.preferencesStore = preferencesStore
         self.layoutPersistence = layoutPersistence
+        self.trasher = trasher
     }
 
     var visiblePages: [[LaunchpadDisplayItem]] {
@@ -120,6 +124,16 @@ final class LaunchpadViewModel {
 
     func renameFolder(id: String, name: String) {
         layoutStore.renameFolder(id: id, name: name)
+        persistLayout()
+    }
+
+    /// Moves an app's bundle to the system Trash (recoverable) and, once that
+    /// succeeds, removes it from the grid and folders and persists the layout.
+    func moveToTrash(_ itemID: String) async {
+        guard let record = appIndex.records[itemID] else { return }
+        let success = await trasher.moveToTrash(path: record.path)
+        guard success else { return }
+        layoutStore.removeAppEverywhere(record.id)
         persistLayout()
     }
 
