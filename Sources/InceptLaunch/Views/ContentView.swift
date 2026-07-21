@@ -1,15 +1,19 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var viewModel = LaunchpadViewModel()
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "square.grid.3x3.fill")
-                .font(.system(size: 48))
-            Text("InceptLaunch")
-                .font(.largeTitle)
-            Text("Launchpad replacement prototype")
-                .foregroundStyle(.secondary)
+        VStack(spacing: 28) {
+            SearchFieldView(text: $viewModel.searchText)
+            LaunchpadGridView(pages: viewModel.visiblePages) { item in
+                if case .app(let record) = item.kind {
+                    _ = AppLauncher().launch(record)
+                }
+            }
         }
-        .frame(minWidth: 720, minHeight: 480)
+        .padding(32)
+        .frame(minWidth: 900, minHeight: 640)
+        .background(.ultraThinMaterial)
     }
 }
