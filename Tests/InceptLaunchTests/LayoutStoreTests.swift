@@ -27,3 +27,31 @@ import Testing
     let decoded = try JSONDecoder.inceptLaunch.decode(LaunchpadLayout.self, from: data)
     #expect(decoded == layout)
 }
+
+@Test func appendNewAppsDoesNotDuplicateExistingItems() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 2, rows: 1, iconSize: 72)
+    ))
+    store.appendNewApps(["a", "b", "c"])
+    #expect(store.layout.pages == [[.app("a"), .app("b")], [.app("c")]])
+}
+
+@Test func createFolderRemovesAppsFromPagesAndAddsFolder() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a"), .app("b"), .app("c")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    let folder = store.createFolder(
+        name: "Work",
+        appIDs: ["a", "b"],
+        now: Date(timeIntervalSince1970: 1)
+    )
+    #expect(folder.name == "Work")
+    #expect(folder.items == ["a", "b"])
+    #expect(store.layout.pages[0] == [.folder(folder.id), .app("c")])
+}
