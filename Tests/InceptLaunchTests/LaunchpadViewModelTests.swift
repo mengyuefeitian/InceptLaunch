@@ -273,6 +273,68 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+@MainActor @Test func bootstrapRescanKeepsDraggedOutAppleAppOnGrid() throws {
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: scanDir, name: "Mail", bundleID: "com.apple.Mail")
+    try makeBundle(in: scanDir, name: "Safari", bundleID: "com.apple.Safari")
+    try makeBundle(in: scanDir, name: "ThirdParty", bundleID: "com.example.ThirdParty")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+
+    // First scan: the two Apple apps are collected into folder:apple.
+    viewModel.bootstrapScan()
+
+    // Simulate the user dragging Mail out of the folder onto the grid, then
+    // persisting that change (as the app does after a drag).
+    let mailID = "bundle:com.apple.Mail"
+    var saved = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
+    )
+    if let idx = saved.folders.firstIndex(where: { $0.id == "folder:apple" }) {
+        saved.folders[idx].items.removeAll { $0 == mailID }
+    }
+    saved.pages[0].append(.app(mailID))
+    try JSONEncoder.inceptLaunch.encode(saved).write(to: layoutURL)
+
+    // Second scan: must NOT yank Mail back into the folder or duplicate it.
+    viewModel.bootstrapScan()
+
+    let final = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
+    )
+    let folder = final.folders.first(where: { $0.id == "folder:apple" })
+    #expect(folder != nil)
+    // Mail was not re-added; only Safari remains in the folder.
+    #expect(folder?.items == ["bundle:com.apple.Safari"])
+    // Mail is still on the grid exactly once; the third-party app too.
+    let gridApps = final.pages.flatMap { $0 }.compactMap { item -> String? in
+        if case .app(let id) = item { return id }
+        return nil
+    }
+    #expect(gridApps.filter { $0 == mailID }.count == 1)
+    #expect(gridApps.contains("bundle:com.example.ThirdParty"))
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true
