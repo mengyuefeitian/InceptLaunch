@@ -15,9 +15,16 @@ struct LaunchpadGridView: View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
+                // Size tiles so the busiest page always fits vertically: five
+                // full rows at the 150pt design height (886pt with spacing)
+                // overflow shorter screens, which used to clip the bottom
+                // row's labels. Shrink tiles proportionally when needed.
+                let rowCount = min(5, max(1, pages.map { ($0.count + 6) / 7 }.max() ?? 1))
+                let tileHeight = min(150, max(96, (geo.size.height - CGFloat(rowCount - 1) * 34) / CGFloat(rowCount)))
+                let iconSize = 104 * (tileHeight / 150)
                 HStack(spacing: 0) {
                     ForEach(pages.indices, id: \.self) { index in
-                        pageGrid(pages[index])
+                        pageGrid(pages[index], iconSize: iconSize, tileHeight: tileHeight)
                             .frame(width: width, height: geo.size.height, alignment: .top)
                     }
                 }
@@ -42,10 +49,10 @@ struct LaunchpadGridView: View {
     }
 
     @ViewBuilder
-    private func pageGrid(_ page: [LaunchpadDisplayItem]) -> some View {
+    private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileHeight: CGFloat) -> some View {
         LazyVGrid(columns: columns, spacing: 34) {
             ForEach(page) { item in
-                AppIconView(item: item)
+                AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
                     // Long-press must be the innermost gesture or the tap
                     // gesture swallows every press before it can complete.
                     .modifier(TileTrashMenu(item: item, onTrash: onTrash))

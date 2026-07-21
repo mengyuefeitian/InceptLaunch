@@ -3,18 +3,20 @@ import SwiftUI
 
 struct AppIconView: View {
     let item: LaunchpadDisplayItem
+    var iconSize: CGFloat = 104
+    var tileHeight: CGFloat = 150
 
     var body: some View {
         VStack(spacing: 10) {
             iconView
-                .frame(width: 104, height: 104)
+                .frame(width: iconSize, height: iconSize)
             Text(item.title)
                 .font(.callout)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white)
         }
-        .frame(width: 132, height: 150)
+        .frame(width: 132, height: tileHeight)
         .contentShape(Rectangle())
     }
 
