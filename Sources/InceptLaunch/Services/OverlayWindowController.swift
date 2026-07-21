@@ -3,6 +3,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let inceptLaunchDismiss = Notification.Name("inceptLaunchDismiss")
+    static let inceptLaunchPageScroll = Notification.Name("inceptLaunchPageScroll")
 }
 
 struct OverlayState {
@@ -23,6 +24,7 @@ final class OverlayWindow: NSWindow {
 final class OverlayWindowController {
     private var window: OverlayWindow?
     private var dismissObserver: NSObjectProtocol?
+    private var scrollMonitor: Any?
 
     init() {
         dismissObserver = NotificationCenter.default.addObserver(
@@ -66,11 +68,39 @@ final class OverlayWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+        installScrollMonitor()
     }
 
     func hide() {
+        removeScrollMonitor()
         window?.orderOut(nil)
         // Return focus to whatever app the user was in before.
         NSApp.hide(nil)
+    }
+
+    /// Turn mouse-wheel / trackpad scrolling into page flips while the overlay
+    /// is up. A continuous scroll gesture flips at most one page per interval.
+    private func installScrollMonitor() {
+        removeScrollMonitor()
+        var lastFlip = Date.distantPast
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            let now = Date()
+            guard now.timeIntervalSince(lastFlip) > 0.3 else { return nil }
+            let deltaY = event.scrollingDeltaY
+            let deltaX = event.scrollingDeltaX
+            let delta = abs(deltaY) >= abs(deltaX) ? deltaY : deltaX
+            guard abs(delta) > 0.5 else { return nil }
+            let direction = delta < 0 ? 1 : -1
+            NotificationCenter.default.post(name: .inceptLaunchPageScroll, object: direction)
+            lastFlip = now
+            return nil
+        }
+    }
+
+    private func removeScrollMonitor() {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
     }
 }

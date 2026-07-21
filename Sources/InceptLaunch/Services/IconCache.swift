@@ -13,7 +13,7 @@ final class AppIconCache {
         let path = record.path
         let image = await Task.detached(priority: .userInitiated) {
             let icon = NSWorkspace.shared.icon(forFile: path)
-            icon.size = NSSize(width: 144, height: 144)
+            icon.size = NSSize(width: 256, height: 256)
             return icon
         }.value
         cache[record.iconCacheKey] = image

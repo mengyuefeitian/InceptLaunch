@@ -4,22 +4,104 @@ struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let onLaunch: (LaunchpadDisplayItem) -> Void
 
-    private let columns = Array(repeating: GridItem(.fixed(112), spacing: 18), count: 7)
+    @State private var currentPage = 0
+    @State private var dragOffset: CGFloat = 0
+
+    private let columns = Array(repeating: GridItem(.fixed(132), spacing: 36), count: 7)
 
     var body: some View {
-        TabView {
-            ForEach(Array(pages.enumerated()), id: \.offset) { _, page in
-                LazyVGrid(columns: columns, spacing: 22) {
-                    ForEach(page) { item in
-                        AppIconView(item: item)
-                            .onTapGesture {
-                                onLaunch(item)
-                            }
+        VStack(spacing: 18) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                HStack(spacing: 0) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        pageGrid(pages[index])
+                            .frame(width: width, height: geo.size.height, alignment: .top)
                     }
                 }
-                .padding(40)
+                .offset(x: -CGFloat(currentPage) * width + dragOffset)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentPage)
+                .gesture(dragGesture(width: width))
+            }
+            .clipped()
+
+            PageDots(count: pages.count, current: currentPage) { index in
+                currentPage = clamp(index)
+            }
+            .opacity(pages.count > 1 ? 1 : 0)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchPageScroll)) { note in
+            let direction = (note.object as? Int) ?? 0
+            goTo(currentPage + direction)
+        }
+        .onChange(of: pages.count) {
+            currentPage = clamp(currentPage)
+        }
+    }
+
+    @ViewBuilder
+    private func pageGrid(_ page: [LaunchpadDisplayItem]) -> some View {
+        LazyVGrid(columns: columns, spacing: 34) {
+            ForEach(page) { item in
+                AppIconView(item: item)
+                    .onTapGesture {
+                        onLaunch(item)
+                    }
             }
         }
-        .tabViewStyle(.automatic)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, 24)
+    }
+
+    private func dragGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                dragOffset = value.translation.width
+            }
+            .onEnded { value in
+                let threshold = width * 0.12
+                var target = currentPage
+                if value.translation.width < -threshold {
+                    target += 1
+                } else if value.translation.width > threshold {
+                    target -= 1
+                }
+                currentPage = clamp(target)
+                dragOffset = 0
+            }
+    }
+
+    private func goTo(_ page: Int) {
+        let target = clamp(page)
+        guard target != currentPage else { return }
+        currentPage = target
+    }
+
+    private func clamp(_ value: Int) -> Int {
+        guard pages.count > 0 else { return 0 }
+        return min(max(0, value), pages.count - 1)
+    }
+}
+
+/// Launchpad-style page indicator: a row of dots, the active page enlarged and
+/// brightened. Each dot is tappable to jump straight to that page.
+struct PageDots: View {
+    let count: Int
+    let current: Int
+    let onSelect: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ForEach(0..<max(count, 1), id: \.self) { index in
+                Circle()
+                    .fill(index == current ? Color.white.opacity(0.95) : Color.white.opacity(0.28))
+                    .frame(width: 9, height: 9)
+                    .scaleEffect(index == current ? 1.25 : 1.0)
+                    .contentShape(Circle().inset(by: -6))
+                    .onTapGesture { onSelect(index) }
+            }
+        }
+        .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.2), value: current)
     }
 }

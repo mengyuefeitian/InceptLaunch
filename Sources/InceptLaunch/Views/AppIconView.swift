@@ -5,16 +5,16 @@ struct AppIconView: View {
     let item: LaunchpadDisplayItem
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             iconView
-                .frame(width: 72, height: 72)
+                .frame(width: 104, height: 104)
             Text(item.title)
-                .font(.caption)
+                .font(.callout)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white)
         }
-        .frame(width: 112, height: 112)
+        .frame(width: 132, height: 150)
         .contentShape(Rectangle())
     }
 
@@ -25,7 +25,7 @@ struct AppIconView: View {
             RealAppIcon(record: record)
         case .folder:
             Image(systemName: "folder.fill")
-                .font(.system(size: 54))
+                .font(.system(size: 76))
                 .foregroundStyle(.white.opacity(0.7))
         }
     }
