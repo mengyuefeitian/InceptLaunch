@@ -55,3 +55,29 @@ import Testing
     #expect(folder.items == ["a", "b"])
     #expect(store.layout.pages[0] == [.folder(folder.id), .app("c")])
 }
+
+@Test func hideAndUnhideApp() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.hideApp(id: "a")
+    #expect(store.layout.hiddenAppIDs.contains("a"))
+    #expect(store.layout.pages == [[]])
+    store.unhideApp(id: "a")
+    #expect(!store.layout.hiddenAppIDs.contains("a"))
+}
+
+@Test func resetLayoutCanKeepHiddenApps() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: ["secret"],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.resetLayout(keepingHiddenApps: true)
+    #expect(store.layout.pages == [[]])
+    #expect(store.layout.hiddenAppIDs == ["secret"])
+}

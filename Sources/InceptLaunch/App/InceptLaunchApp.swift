@@ -18,8 +18,7 @@ struct InceptLaunchApp: App {
         }
 
         Settings {
-            Text("InceptLaunch Settings")
-                .frame(width: 420, height: 260)
+            SettingsView()
         }
     }
 }

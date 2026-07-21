@@ -62,6 +62,21 @@ struct LayoutStore {
         removeItem(id: "app:\(id)")
     }
 
+    mutating func unhideApp(id: String) {
+        layout.hiddenAppIDs.remove(id)
+    }
+
+    mutating func resetLayout(keepingHiddenApps: Bool) {
+        let hidden = keepingHiddenApps ? layout.hiddenAppIDs : []
+        let grid = layout.grid
+        layout = LaunchpadLayout(
+            pages: [[]],
+            folders: [],
+            hiddenAppIDs: hidden,
+            grid: grid
+        )
+    }
+
     private mutating func removeItem(id: String) {
         for pageIndex in layout.pages.indices {
             layout.pages[pageIndex].removeAll { $0.id == id }
