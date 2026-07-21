@@ -91,16 +91,17 @@ final class LaunchpadViewModel {
 
         // Collect Apple's own apps into the managed "Apple" folder before adding
         // the rest to the grid, so freshly installed Apple apps land in the
-        // folder rather than on a page.
+        // folder rather than on a page. Apps already placed (on a page or in a
+        // folder) are left where they are; appendNewApps skips anything already
+        // foldered, so only genuinely new non-Apple apps reach the grid here.
         let appleIDs = result.records
             .filter { $0.bundleID?.hasPrefix("com.apple.") == true }
             .map(\.id)
         layoutStore.syncAppleFolder(appleAppIDs: appleIDs)
 
         let folderMemberIDs = Set(result.directoryFolders.flatMap(\.appIDs))
-        let appleIDSet = Set(appleIDs)
         let topLevelIDs = result.records.map(\.id).filter {
-            !folderMemberIDs.contains($0) && !appleIDSet.contains($0)
+            !folderMemberIDs.contains($0)
         }
         layoutStore.appendNewApps(topLevelIDs)
     }

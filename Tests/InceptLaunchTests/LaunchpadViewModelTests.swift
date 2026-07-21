@@ -231,6 +231,48 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+@MainActor @Test func bootstrapKeepsLoneAppleAppOnGrid() throws {
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    // Only one Apple app: below the folder threshold, so it must stay on the grid.
+    try makeBundle(in: scanDir, name: "Mail", bundleID: "com.apple.Mail")
+    try makeBundle(in: scanDir, name: "ThirdParty", bundleID: "com.example.ThirdParty")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    viewModel.bootstrapScan()
+
+    let saved = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
+    )
+    // No Apple folder for a single Apple app.
+    #expect(saved.folders.first(where: { $0.id == "folder:apple" }) == nil)
+    // Both apps appear as top-level grid items.
+    let topLevelApps = Set(saved.pages.flatMap { $0 }.compactMap { item -> String? in
+        if case .app(let id) = item { return id }
+        return nil
+    })
+    #expect(topLevelApps == ["bundle:com.apple.Mail", "bundle:com.example.ThirdParty"])
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true
