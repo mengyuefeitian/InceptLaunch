@@ -128,7 +128,10 @@ struct LayoutStore {
         layout.folders.append(folder)
         if layout.pages.isEmpty { layout.pages = [[]] }
         layout.pages[0].insert(.folder(folder.id), at: 0)
-        removeEmptyTrailingPages()
+        // Removing the Apple apps leaves gaps across the pages; flow the
+        // remaining apps forward into dense pages so the grid is not left
+        // paginated half-empty.
+        compactPages()
     }
 
     mutating func addAppToFolder(appID: String, folderID: String, now: Date = Date()) {
@@ -258,5 +261,28 @@ struct LayoutStore {
         while layout.pages.count > 1 && layout.pages.last?.isEmpty == true {
             layout.pages.removeLast()
         }
+    }
+
+    /// Flattens every page (preserving item order) and re-chunks the items into
+    /// dense pages at the current capacity, filling gaps left by removed items
+    /// so the grid paginates with the fewest pages.
+    private mutating func compactPages() {
+        let capacity = max(1, layout.effectivePageCapacity)
+        let items = layout.pages.flatMap { $0 }
+        guard !items.isEmpty else {
+            layout.pages = [[]]
+            return
+        }
+        var pages: [[LaunchpadItem]] = []
+        var current: [LaunchpadItem] = []
+        for item in items {
+            if current.count >= capacity {
+                pages.append(current)
+                current = []
+            }
+            current.append(item)
+        }
+        pages.append(current)
+        layout.pages = pages
     }
 }

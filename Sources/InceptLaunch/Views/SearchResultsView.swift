@@ -10,6 +10,7 @@ struct SearchResultsView: View {
     let results: [LaunchpadDisplayItem]
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
+    let onDismiss: () -> Void
 
     private let columns = Array(
         repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: GridMetrics.columnSpacing),
@@ -34,5 +35,11 @@ struct SearchResultsView: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
+        // Tapping empty space (around/below the results) dismisses the overlay,
+        // just like clicking the backdrop on the plain grid. The full-frame hit
+        // shape makes the blank area inside the scroll view respond to taps;
+        // each tile's own tap gesture still wins for hits on an app.
+        .contentShape(Rectangle())
+        .onTapGesture { onDismiss() }
     }
 }

@@ -33,7 +33,8 @@ struct ContentView: View {
                         onLaunch: { item in handleTap(item) },
                         onTrash: { item in
                             Task { await viewModel.moveToTrash(item.id) }
-                        }
+                        },
+                        onDismiss: { dismiss() }
                     )
                 } else {
                     LaunchpadGridView(

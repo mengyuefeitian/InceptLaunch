@@ -337,3 +337,28 @@ import Testing
     #expect(pageApps == ["x"])
     #expect(store.layout.pages.flatMap { $0 }.contains(.folder("folder:apple")))
 }
+
+@Test func syncAppleFolderCompactsRemainingAppsIntoDensePages() {
+    // Apple apps are scattered across several underfilled pages. After they are
+    // gathered into the folder, the remaining apps must flow forward into dense
+    // pages so the user is not left flipping through pages full of gaps.
+    var store = LayoutStore(layout: .init(
+        pages: [
+            [.app("com.apple.Mail"), .app("a")],
+            [.app("b")],
+            [.app("com.apple.Safari"), .app("c")],
+        ],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72),
+        pageCapacity: 2
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari"])
+
+    // Apple folder + a, b, c = 4 items at capacity 2 -> exactly 2 dense pages.
+    let items = store.layout.pages.flatMap { $0 }
+    #expect(items.count == 4)
+    #expect(store.layout.pages.count == 2)
+    #expect(store.layout.pages.allSatisfy { $0.count == 2 })
+    #expect(items.contains(.folder("folder:apple")))
+}
