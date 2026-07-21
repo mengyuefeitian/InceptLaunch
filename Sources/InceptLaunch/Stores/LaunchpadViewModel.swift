@@ -21,17 +21,23 @@ final class LaunchpadViewModel {
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher
     private let launcher: AppLauncher
+    private let scanner: AppScanner
+    private let preferencesStore: PreferencesStore
 
     init(
         appIndex: AppIndexStore = AppIndexStore(),
         layoutStore: LayoutStore = LayoutStore(),
         matcher: SearchMatcher = SearchMatcher(),
-        launcher: AppLauncher = AppLauncher()
+        launcher: AppLauncher = AppLauncher(),
+        scanner: AppScanner = AppScanner(),
+        preferencesStore: PreferencesStore = PreferencesStore()
     ) {
         self.appIndex = appIndex
         self.layoutStore = layoutStore
         self.matcher = matcher
         self.launcher = launcher
+        self.scanner = scanner
+        self.preferencesStore = preferencesStore
     }
 
     var visiblePages: [[LaunchpadDisplayItem]] {
@@ -69,5 +75,14 @@ final class LaunchpadViewModel {
             return nil
         }
         return launcher.launch(record)
+    }
+
+    func bootstrapScan() {
+        let preferences = (try? preferencesStore.load()) ?? .default
+        let urls = preferences.scanDirectories.map { path in
+            URL(fileURLWithPath: NSString(string: path).expandingTildeInPath)
+        }
+        let records = scanner.scan(directories: urls)
+        refreshFromScanResults(records)
     }
 }

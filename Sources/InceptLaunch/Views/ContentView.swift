@@ -15,5 +15,8 @@ struct ContentView: View {
         .padding(32)
         .frame(minWidth: 900, minHeight: 640)
         .background(.ultraThinMaterial)
+        .task {
+            viewModel.bootstrapScan()
+        }
     }
 }
