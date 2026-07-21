@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -27,6 +28,13 @@ final class LaunchpadViewModel {
     private let preferencesStore: PreferencesStore
     private let layoutPersistence: LayoutPersistenceStore
     private let trasher: AppTrashing
+    private let screenHeight: CGFloat
+
+    /// Rows per page for the current display: full-size tiles, never
+    /// compressed — 1080p gets 4 rows, taller 4K/5K layouts get more.
+    var gridRows: Int {
+        GridMetrics.rows(forScreenHeight: screenHeight)
+    }
 
     init(
         appIndex: AppIndexStore = AppIndexStore(),
@@ -36,7 +44,8 @@ final class LaunchpadViewModel {
         scanner: AppScanner = AppScanner(),
         preferencesStore: PreferencesStore = PreferencesStore(),
         layoutPersistence: LayoutPersistenceStore = LayoutPersistenceStore(),
-        trasher: AppTrashing = SystemAppTrasher()
+        trasher: AppTrashing = SystemAppTrasher(),
+        screenHeight: CGFloat = NSScreen.main?.frame.height ?? 1080
     ) {
         self.appIndex = appIndex
         self.layoutStore = layoutStore
@@ -46,6 +55,7 @@ final class LaunchpadViewModel {
         self.preferencesStore = preferencesStore
         self.layoutPersistence = layoutPersistence
         self.trasher = trasher
+        self.screenHeight = screenHeight
     }
 
     var visiblePages: [[LaunchpadDisplayItem]] {
@@ -100,6 +110,10 @@ final class LaunchpadViewModel {
         }
         // Start from the saved layout so user folders and positions persist.
         layoutStore = LayoutStore(layout: layoutPersistence.load())
+        // The rows-per-page follows the screen height; re-chunk layouts saved
+        // with a different capacity (e.g. legacy 35-item pages, or pages from
+        // another display) before merging in newly installed apps.
+        layoutStore.repaginate(capacity: GridMetrics.pageCapacity(rows: gridRows))
         let result = scanner.scanAll(directories: urls)
         applyScanResult(result)
         persistLayout()

@@ -133,6 +133,60 @@ import Testing
     try? FileManager.default.removeItem(at: tempURL)
 }
 
+@MainActor @Test func gridRowsFollowScreenHeight() {
+    let small = LaunchpadViewModel(screenHeight: 1080)
+    let tall = LaunchpadViewModel(screenHeight: 1440)
+    #expect(small.gridRows == 4)
+    #expect(tall.gridRows == 6)
+}
+
+@MainActor @Test func bootstrapRepaginatesLegacyLayoutForScreen() throws {
+    // Legacy layout saved before adaptive rows: 45 items on 35-item pages,
+    // no recorded page capacity.
+    let legacyItems = (0..<45).map { LaunchpadItem.app("app\($0)") }
+    let legacy = LaunchpadLayout(
+        pages: [Array(legacyItems.prefix(35)), Array(legacyItems.suffix(10))],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    )
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+    persistence.save(legacy)
+
+    // Scan an empty directory so bootstrap stays fast and deterministic.
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: scanDir, withIntermediateDirectories: true)
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    viewModel.bootstrapScan()
+
+    let saved = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self,
+        from: Data(contentsOf: layoutURL)
+    )
+    // A 1080p screen paginates at 4 x 7 = 28; the stale apps are pruned but
+    // the migrated capacity must be persisted.
+    #expect(saved.pageCapacity == 28)
+    #expect(saved.pages.allSatisfy { $0.count <= 28 })
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true

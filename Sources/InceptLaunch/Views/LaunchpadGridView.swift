@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
+    let rows: Int
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
@@ -9,19 +10,25 @@ struct LaunchpadGridView: View {
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
 
-    private let columns = Array(repeating: GridItem(.fixed(132), spacing: 36), count: 7)
+    private let columns = Array(
+        repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: GridMetrics.columnSpacing),
+        count: GridMetrics.columns
+    )
 
     var body: some View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                // Size tiles so the busiest page always fits vertically: five
-                // full rows at the 150pt design height (886pt with spacing)
-                // overflow shorter screens, which used to clip the bottom
-                // row's labels. Shrink tiles proportionally when needed.
-                let rowCount = min(5, max(1, pages.map { ($0.count + 6) / 7 }.max() ?? 1))
-                let tileHeight = min(150, max(96, (geo.size.height - CGFloat(rowCount - 1) * 34) / CGFloat(rowCount)))
-                let iconSize = 104 * (tileHeight / 150)
+                // Tiles keep their full design height for the screen's row
+                // count (4 rows on 1080p, more on taller displays) — the grid
+                // adapts by paginating, never by compressing. Only pages with
+                // more rows than the screen count (long search results)
+                // shrink tiles so nothing gets clipped.
+                let maxPageRows = pages.map { ($0.count + GridMetrics.columns - 1) / GridMetrics.columns }.max() ?? 1
+                let sizingRows = max(rows, maxPageRows)
+                let fitted = (geo.size.height - CGFloat(sizingRows - 1) * GridMetrics.rowSpacing) / CGFloat(sizingRows)
+                let tileHeight = min(GridMetrics.tileHeight, max(96, fitted))
+                let iconSize = GridMetrics.iconSize * (tileHeight / GridMetrics.tileHeight)
                 HStack(spacing: 0) {
                     ForEach(pages.indices, id: \.self) { index in
                         pageGrid(pages[index], iconSize: iconSize, tileHeight: tileHeight)
@@ -50,7 +57,7 @@ struct LaunchpadGridView: View {
 
     @ViewBuilder
     private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileHeight: CGFloat) -> some View {
-        LazyVGrid(columns: columns, spacing: 34) {
+        LazyVGrid(columns: columns, spacing: GridMetrics.rowSpacing) {
             ForEach(page) { item in
                 AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
                     // Long-press must be the innermost gesture or the tap

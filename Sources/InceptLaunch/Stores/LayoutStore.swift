@@ -7,6 +7,27 @@ struct LayoutStore {
         self.layout = layout
     }
 
+    /// Re-chunks all page items into pages of `capacity`, preserving order.
+    /// The grid's row count adapts to the screen height (4 rows on 1080p,
+    /// more on taller 4K/5K layouts), so the per-page capacity changes with
+    /// the display; existing layouts must be repaginated to match.
+    mutating func repaginate(capacity: Int) {
+        guard capacity > 0, layout.effectivePageCapacity != capacity else { return }
+        let items = layout.pages.flatMap { $0 }
+        var pages: [[LaunchpadItem]] = []
+        var current: [LaunchpadItem] = []
+        for item in items {
+            if current.count >= capacity {
+                pages.append(current)
+                current = []
+            }
+            current.append(item)
+        }
+        pages.append(current)
+        layout.pages = pages
+        layout.pageCapacity = capacity
+    }
+
     mutating func appendNewApps(_ appIDs: [String]) {
         var existing = Set(layout.pages.flatMap { page in
             page.compactMap { item -> String? in
@@ -15,7 +36,7 @@ struct LayoutStore {
             }
         }).union(layout.folders.flatMap(\.items))
 
-        let capacity = max(1, layout.grid.columns * layout.grid.rows)
+        let capacity = max(1, layout.effectivePageCapacity)
         for appID in appIDs where !existing.contains(appID) && !layout.hiddenAppIDs.contains(appID) {
             if layout.pages.isEmpty { layout.pages = [[]] }
             if layout.pages[layout.pages.count - 1].count >= capacity {

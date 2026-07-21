@@ -20,8 +20,10 @@ struct ContentView: View {
             VStack(spacing: 32) {
                 SearchFieldView(text: $viewModel.searchText)
                     .padding(.top, 60)
+                Spacer(minLength: 0)
                 LaunchpadGridView(
                     pages: viewModel.visiblePages,
+                    rows: viewModel.gridRows,
                     onLaunch: { item in handleTap(item) },
                     onDropItem: { sourceID, target in
                         viewModel.handleDrop(sourceID: sourceID, onto: target)

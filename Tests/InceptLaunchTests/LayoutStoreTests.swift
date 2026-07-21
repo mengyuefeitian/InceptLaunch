@@ -156,3 +156,73 @@ import Testing
     #expect(!store.layout.pages[0].contains(.app("path:/Applications/Python 3.13/IDLE.app")))
     #expect(store.layout.folders.map(\.id) == ["dir:/Applications/Python 3.13"])
 }
+
+@Test func repaginateRechunksLegacyPagesPreservingOrder() {
+    // Legacy layout: 45 items across 35-item pages, no recorded capacity.
+    let items = (0..<44).map { LaunchpadItem.app("app\($0)") }
+    var all = items
+    all.insert(.folder("folder:1"), at: 10)
+    var store = LayoutStore(layout: .init(
+        pages: [Array(all.prefix(35)), Array(all.suffix(10))],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+
+    store.repaginate(capacity: 28)
+
+    #expect(store.layout.pages.count == 2)
+    #expect(store.layout.pages[0].count == 28)
+    #expect(store.layout.pages[1].count == 17)
+    #expect(store.layout.pages.flatMap { $0 } == all)
+    #expect(store.layout.pageCapacity == 28)
+}
+
+@Test func repaginateConsolidatesWhenCapacityGrows() {
+    let items = (0..<84).map { LaunchpadItem.app("app\($0)") }
+    var store = LayoutStore(layout: .init(
+        pages: [Array(items[0..<28]), Array(items[28..<56]), Array(items[56..<84])],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 6, iconSize: 72),
+        pageCapacity: 28
+    ))
+
+    store.repaginate(capacity: 42)
+
+    #expect(store.layout.pages.map(\.count) == [42, 42])
+    #expect(store.layout.pages.flatMap { $0 } == items)
+    #expect(store.layout.pageCapacity == 42)
+}
+
+@Test func repaginateIsNoOpWhenCapacityMatches() {
+    let pages: [[LaunchpadItem]] = [[.app("a"), .app("b")], [.app("c")]]
+    var store = LayoutStore(layout: .init(
+        pages: pages,
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 4, iconSize: 72),
+        pageCapacity: 28
+    ))
+
+    store.repaginate(capacity: 28)
+
+    #expect(store.layout.pages == pages)
+}
+
+@Test func appendNewAppsUsesRecordedPageCapacity() {
+    // Grid config says 7x5, but the recorded capacity (from a 4-row screen)
+    // is 28 — new apps must start a new page at 28, not 35.
+    var store = LayoutStore(layout: .init(
+        pages: [(0..<28).map { LaunchpadItem.app("app\($0)") }],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72),
+        pageCapacity: 28
+    ))
+
+    store.appendNewApps(["new"])
+
+    #expect(store.layout.pages.count == 2)
+    #expect(store.layout.pages[1] == [.app("new")])
+}
