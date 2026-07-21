@@ -80,12 +80,15 @@ struct LayoutStore {
     /// Keeps Apple's own apps (bundle id prefix `com.apple.`) together in one
     /// managed folder named "Apple".
     ///
-    /// Membership is additive only: an app already placed somewhere — on a page
-    /// or inside any folder — is considered settled and left alone, so apps a
-    /// user drags out of the folder stay out. Only apps that appear nowhere yet
-    /// (freshly installed) are collected. The folder is created the first time
-    /// two or more unsettled Apple apps are seen; afterwards new apps simply
-    /// join the existing folder (which may have been renamed — the id is stable).
+    /// Two phases:
+    /// - First sighting (no `folder:apple` yet): collect every Apple app that is
+    ///   not hidden and not already inside another folder — including apps already
+    ///   placed on grid pages — so an existing user's scattered Apple apps get
+    ///   unified into the folder. Requires at least two such apps.
+    /// - Afterwards (`folder:apple` exists): additive only. Only brand-new Apple
+    ///   apps that appear nowhere yet (not on a page, not in any folder) join, so
+    ///   apps a user dragged out of the folder or moved elsewhere stay put. The
+    ///   folder is found by its stable id, so a renamed folder still works.
     mutating func syncAppleFolder(appleAppIDs: [String], name: String = "Apple", now: Date = Date()) {
         let onPages = Set(layout.pages.flatMap { page in
             page.compactMap { item -> String? in
@@ -94,27 +97,32 @@ struct LayoutStore {
             }
         })
         let inFolders = Set(layout.folders.flatMap(\.items))
-        let unsettled = appleAppIDs.filter {
-            !onPages.contains($0) && !inFolders.contains($0) && !layout.hiddenAppIDs.contains($0)
-        }
-        guard !unsettled.isEmpty else { return }
 
         if let index = layout.folders.firstIndex(where: { $0.id == Self.appleFolderID }) {
-            layout.folders[index].items.append(contentsOf: unsettled)
+            // Additive only: collect apps that appear nowhere yet.
+            let newApps = appleAppIDs.filter {
+                !onPages.contains($0) && !inFolders.contains($0) && !layout.hiddenAppIDs.contains($0)
+            }
+            guard !newApps.isEmpty else { return }
+            layout.folders[index].items.append(contentsOf: newApps)
             layout.folders[index].updatedAt = now
             return
         }
 
-        // First sighting: only make a folder when there are at least two apps.
-        guard unsettled.count >= 2 else { return }
+        // First sighting: unify all eligible Apple apps, even ones already on
+        // the grid, but leave apps the user already grouped in another folder.
+        let candidates = appleAppIDs.filter {
+            !inFolders.contains($0) && !layout.hiddenAppIDs.contains($0)
+        }
+        guard candidates.count >= 2 else { return }
         let folder = LaunchpadFolder(
             id: Self.appleFolderID,
             name: name,
-            items: unsettled,
+            items: candidates,
             createdAt: now,
             updatedAt: now
         )
-        for appID in unsettled {
+        for appID in candidates {
             removeItem(id: "app:\(appID)")
         }
         layout.folders.append(folder)

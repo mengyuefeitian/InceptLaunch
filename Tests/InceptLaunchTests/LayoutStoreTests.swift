@@ -312,3 +312,28 @@ import Testing
     #expect(!folder.items.contains("com.apple.Mail"))
     #expect(folder.items.sorted() == ["com.apple.Notes", "com.apple.Safari"])
 }
+
+@Test func syncAppleFolderCollectsScatteredAppsOnFirstCreation() {
+    // Realistic migration: an existing user already has Apple apps scattered
+    // across the grid. The first run must gather them into the folder.
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("com.apple.Mail"), .app("x")], [.app("com.apple.Safari")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari"])
+
+    guard let folder = store.layout.folders.first(where: { $0.id == "folder:apple" }) else {
+        Issue.record("expected folder:apple to be created from scattered apps")
+        return
+    }
+    #expect(folder.items.sorted() == ["com.apple.Mail", "com.apple.Safari"])
+    // The scattered Apple apps are removed from the pages; non-Apple "x" stays.
+    let pageApps = store.layout.pages.flatMap { $0 }.compactMap { item -> String? in
+        if case .app(let id) = item { return id }
+        return nil
+    }
+    #expect(pageApps == ["x"])
+    #expect(store.layout.pages.flatMap { $0 }.contains(.folder("folder:apple")))
+}
