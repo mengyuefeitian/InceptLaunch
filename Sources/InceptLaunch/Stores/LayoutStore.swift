@@ -74,6 +74,55 @@ struct LayoutStore {
         }
     }
 
+    /// Stable id of the managed folder that holds Apple's own apps.
+    static let appleFolderID = "folder:apple"
+
+    /// Keeps Apple's own apps (bundle id prefix `com.apple.`) together in one
+    /// managed folder named "Apple".
+    ///
+    /// Membership is additive only: an app already placed somewhere — on a page
+    /// or inside any folder — is considered settled and left alone, so apps a
+    /// user drags out of the folder stay out. Only apps that appear nowhere yet
+    /// (freshly installed) are collected. The folder is created the first time
+    /// two or more unsettled Apple apps are seen; afterwards new apps simply
+    /// join the existing folder (which may have been renamed — the id is stable).
+    mutating func syncAppleFolder(appleAppIDs: [String], name: String = "Apple", now: Date = Date()) {
+        let onPages = Set(layout.pages.flatMap { page in
+            page.compactMap { item -> String? in
+                if case .app(let id) = item { return id }
+                return nil
+            }
+        })
+        let inFolders = Set(layout.folders.flatMap(\.items))
+        let unsettled = appleAppIDs.filter {
+            !onPages.contains($0) && !inFolders.contains($0) && !layout.hiddenAppIDs.contains($0)
+        }
+        guard !unsettled.isEmpty else { return }
+
+        if let index = layout.folders.firstIndex(where: { $0.id == Self.appleFolderID }) {
+            layout.folders[index].items.append(contentsOf: unsettled)
+            layout.folders[index].updatedAt = now
+            return
+        }
+
+        // First sighting: only make a folder when there are at least two apps.
+        guard unsettled.count >= 2 else { return }
+        let folder = LaunchpadFolder(
+            id: Self.appleFolderID,
+            name: name,
+            items: unsettled,
+            createdAt: now,
+            updatedAt: now
+        )
+        for appID in unsettled {
+            removeItem(id: "app:\(appID)")
+        }
+        layout.folders.append(folder)
+        if layout.pages.isEmpty { layout.pages = [[]] }
+        layout.pages[0].insert(.folder(folder.id), at: 0)
+        removeEmptyTrailingPages()
+    }
+
     mutating func addAppToFolder(appID: String, folderID: String, now: Date = Date()) {
         guard let index = layout.folders.firstIndex(where: { $0.id == folderID }) else { return }
         guard !layout.folders[index].items.contains(appID) else { return }

@@ -226,3 +226,70 @@ import Testing
     #expect(store.layout.pages.count == 2)
     #expect(store.layout.pages[1] == [.app("new")])
 }
+
+@Test func syncAppleFolderCreatesFolderForAppleApps() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari"])
+
+    guard let folder = store.layout.folders.first(where: { $0.id == "folder:apple" }) else {
+        Issue.record("expected folder:apple to be created")
+        return
+    }
+    #expect(folder.name == "Apple")
+    #expect(folder.items.sorted() == ["com.apple.Mail", "com.apple.Safari"])
+    #expect(store.layout.pages.flatMap { $0 }.contains(.folder("folder:apple")))
+}
+
+@Test func syncAppleFolderAddsOnlyNewApps() {
+    // Mail is on a page (user dragged it out -> settled), Safari is already a
+    // member, Notes is brand new (nowhere yet).
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("com.apple.Mail")]],
+        folders: [LaunchpadFolder(
+            id: "folder:apple", name: "Apple",
+            items: ["com.apple.Safari"], createdAt: Date(), updatedAt: Date()
+        )],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari", "com.apple.Notes"])
+
+    let folder = store.layout.folders.first(where: { $0.id == "folder:apple" })!
+    #expect(folder.items.contains("com.apple.Notes"))
+    #expect(!folder.items.contains("com.apple.Mail"))
+    // Mail stays on the page; it is not yanked back into the folder.
+    #expect(store.layout.pages[0].contains(.app("com.apple.Mail")))
+}
+
+@Test func syncAppleFolderSkipsWhenFewerThanTwo() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail"])
+    #expect(store.layout.folders.isEmpty)
+}
+
+@Test func syncAppleFolderKeepsWorkingAfterRename() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("a")]],
+        folders: [LaunchpadFolder(
+            id: "folder:apple", name: "苹果",
+            items: ["com.apple.Safari"], createdAt: Date(), updatedAt: Date()
+        )],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Safari", "com.apple.Notes"])
+
+    let folder = store.layout.folders.first(where: { $0.id == "folder:apple" })!
+    #expect(folder.name == "苹果")
+    #expect(folder.items.contains("com.apple.Notes"))
+}
