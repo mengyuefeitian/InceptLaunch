@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var viewModel = LaunchpadViewModel()
     @State private var openFolder: LaunchpadDisplayItem?
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         ZStack {
@@ -18,7 +19,7 @@ struct ContentView: View {
                 }
 
             VStack(spacing: 32) {
-                SearchFieldView(text: $viewModel.searchText)
+                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
                     .padding(.top, 60)
                 Spacer(minLength: 0)
                 LaunchpadGridView(
@@ -70,6 +71,13 @@ struct ContentView: View {
         }
         .task {
             viewModel.bootstrapScan()
+        }
+        .onAppear {
+            // The window becomes key a beat after the hosting view appears;
+            // defer the focus request briefly so it is not dropped.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                searchFocused = true
+            }
         }
     }
 
