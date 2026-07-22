@@ -1,106 +1,113 @@
+<div align="center">
+
+<img src="Resources/InceptLaunch-icon-source.png" width="160" alt="InceptLaunch" />
+
 # InceptLaunch
 
-A native **Launchpad replacement for macOS 26 Tahoe** and newer.
+**The Launchpad macOS 26 took away — brought back, native and fast.**
 
-macOS 26 removed the classic Launchpad in favor of a Spotlight-style Apps
-launcher. InceptLaunch brings back the full-screen visual app grid — spatial
-memory, manual layout, folders, and instant launch — built natively with
-SwiftUI and AppKit.
+A full-screen visual app grid with folders, instant search, and manual layout,
+built with SwiftUI + AppKit for macOS Tahoe and newer.
 
-<p align="center">
-  <img src="Resources/InceptLaunch-icon-source.png" width="180" alt="InceptLaunch icon" />
-</p>
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos)
+[![Swift](https://img.shields.io/badge/Swift-6.3-orange?logo=swift)](https://www.swift.org)
+[![Release](https://img.shields.io/badge/release-1.0-brightgreen)](../../releases)
+[![License](https://img.shields.io/badge/license-All%20Rights%20Reserved-lightgrey)](#license)
 
-## Features
+</div>
 
-- **Full-screen launch grid** — a borderless overlay showing your apps in a
-  Launchpad-style grid with real system icons and page indicators.
-- **Adaptive rows** — the grid scales its row count to your display
-  (4 rows at 1080p, 6 at 1440p, 10 at 4K) so icons stay comfortably sized.
-- **Search** — live filtering with pinyin support (full pinyin, initials, and
-  substring matching), keyboard navigation, and one-tap-to-dismiss results.
-- **Folders** — drag one app onto another to create a folder, rename it, open
-  it in a popup grid, and drag apps back out.
-- **Apple app folding** — on first launch, scattered `com.apple.*` apps are
-  gathered into a single "Apple" folder; newly installed Apple apps are folded
-  in automatically without disturbing apps you have placed yourself.
-- **Directory folders** — multi-app directories (e.g. `/Applications/Python
-  3.13`) collapse into a folder with a 2×2 icon preview.
-- **Drag to reorder** — rearrange icons and move them across pages; layout is
-  persisted and never shuffled by rescans.
-- **Move to Trash** — long-press or right-click an icon to remove it (with a
-  safety confirmation), powered by a reversible trash flow.
-- **Global hotkey + menu bar** — open the overlay from anywhere with
-  `⌥ Space` (Option + Space), or from the menu bar and Dock.
-- **Layout persistence** — your pages, folders, and preferences are saved to
-  `~/Library/Application Support/InceptLaunch/`.
+---
 
-## Requirements
+## Why
 
-- macOS 15.0+ (Sequoia or newer; designed for macOS 26 Tahoe)
-- [Swiftly](https://www.swift.org/swiftly/) toolchain (Swift 6.3) — the
-  Command Line Tools SwiftPM has a known linking bug on recent systems
+macOS 26 Tahoe replaced the classic Launchpad with a Spotlight-style Apps
+launcher. It is efficient for searching, but it throws away what made
+Launchpad lovable: **spatial memory**. Knowing *which page, which corner* your
+app lives in is faster than typing every time.
 
-## Build & run
+InceptLaunch restores that experience — a calm, full-screen grid you can
+arrange once and rely on forever.
 
-```bash
-# Build, assemble the .app bundle (with icon + ad-hoc signing), and launch it
-./script/build_and_run.sh
+## Highlights
 
-# Build and verify the process launches
-./script/build_and_run.sh --verify
+- **Full-screen grid** — a borderless overlay with real system icons, page
+  indicators, and rows that adapt to your display.
+- **Instant search** — live filtering with full **pinyin** support (type `yy`
+  to find 音乐 / Music), keyboard navigation, and tap-anywhere to dismiss.
+- **Folders** — drag one app onto another to group it; rename, open in a
+  popup grid, drag apps back out.
+- **Smart Apple folding** — dozens of `com.apple.*` apps tidy themselves into
+  one "Apple" folder on first launch, then quietly fold in new ones without
+  disturbing your layout.
+- **Drag to arrange** — reorder icons and move them across pages; your layout
+  is saved and never reshuffled by rescans.
+- **Move to Trash** — long-press or right-click to remove an app, with a
+  safety confirmation.
+- **Always one keystroke away** — open from anywhere with `⌥ Space`, the menu
+  bar, or the Dock.
 
-# Stream logs while running
-./script/build_and_run.sh --logs
-```
+## Install
 
-## Run tests
+Download the latest `InceptLaunch-*.dmg` from
+[Releases](../../releases), open it, and drag **InceptLaunch** into
+**Applications**.
 
-```bash
-swift test
-```
+> The current build is ad-hoc signed for personal distribution. On first
+> launch you may need to right-click → **Open** to bypass Gatekeeper.
 
-Tests use the Swift Testing framework (`import Testing`). No Xcode required.
+## Quick start
 
-## Package as DMG
+1. Launch InceptLaunch.
+2. Press `⌥ Space` (Option + Space) to open the grid.
+3. Click an app to launch it, or start typing to search.
+4. Drag apps to rearrange; drop one onto another to make a folder.
+5. Press `Esc` or click empty space to dismiss.
 
-```bash
-# Assemble the app first, then build a distributable DMG
-./script/build_and_run.sh --verify
-./script/package_dmg.sh
-```
+## Roadmap
 
-This produces `dist/InceptLaunch-<version>-local.dmg` with a drag-to-Applications
-installer layout. The build is ad-hoc signed for local distribution (no
-Developer ID or notarization).
+Where InceptLaunch is headed, tracked against the original
+[design spec](docs/superpowers/specs/2026-07-20-inceptlaunch-launchpad-replica-design.md).
 
-## Project structure
+| Stage | Focus | Status |
+|-------|-------|--------|
+| **v0.1** Prototype | App scanning, grid, search, launch, menu bar | ✅ Done |
+| **v0.2** Core experience | Full-screen overlay, global hotkey, paging, settings, layout persistence | ✅ Done |
+| **v0.3** Manual organization | Drag to reorder, cross-page move, folders, Apple & directory folding | ✅ Done |
+| **v0.4** Full replica | Edit mode, move-to-trash, multi-display, animation polish, keyboard nav | 🚧 In progress |
+| **v1.0** Stable release | Performance, error handling, first-run guide, auto-update, signing & notarization | 📋 Planned |
 
-```
-Sources/InceptLaunch/
-├── App/        # AppKit entry point, app delegate
-├── Models/     # AppRecord, folders, layout, preferences
-├── Services/   # Scanner, launcher, hotkey, menu bar, overlay window, trash
-├── Stores/     # Layout store, view model, persistence
-├── Support/    # Grid metrics, search matching, paths, JSON store
-└── Views/      # SwiftUI grid, search, folders, settings
-```
+### Coming next
 
-## How it works
+- **Edit mode** — long-press to enter a jiggle mode for batch organizing and
+  hiding apps.
+- **Hide, don't delete** — hide low-value apps (helpers, uninstallers) and
+  restore them from settings.
+- **Multi-display & Spaces** — predictable overlay placement across monitors,
+  full-screen apps, and Stage Manager, with focus restored on dismiss.
+- **Animation polish** — open/close, paging, and folder transitions that
+  respect the system "Reduce motion" setting.
+- **Multiple layouts** — switch between Work / Personal / Presentation grids.
+- **Old Launchpad migration** — experimentally import pages and folders from
+  the legacy Launchpad database.
 
-InceptLaunch uses a traditional AppKit entry point (`main.swift` +
-`AppDelegate`) rather than SwiftUI app scenes. The overlay is a borderless,
-full-screen `NSWindow` raised above the menu bar that hosts the SwiftUI
-`ContentView`. This avoids the scene-lifecycle behavior that would otherwise
-keep the process hidden. App icons come from `NSWorkspace.icon(forFile:)`.
+## Design principles
 
-## Status
+InceptLaunch follows a "Launchpad first" philosophy:
 
-InceptLaunch is an active personal project covering the core Launchpad
-experience: scanning, grid display, search, folders, drag-to-reorder, and
-launch. See the [design spec](docs/superpowers/specs/) for the full product
-roadmap.
+- Manual layout over smart sorting.
+- Visual grid over command input.
+- Hide over delete.
+- Reliable launch over fancy animation.
+- Local persistence over cloud sync.
+
+The goal is a trustworthy system companion, not a feature-bloated launcher
+with a shaky core.
+
+## Contributing
+
+This is currently a personal project. Ideas and bug reports are welcome via
+[Issues](../../issues).
 
 ## License
 
-Personal project. All rights reserved.
+Copyright © 2026. All rights reserved.
