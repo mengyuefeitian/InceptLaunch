@@ -30,6 +30,13 @@ mkdir -p "$APP_MACOS"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
+APP_RESOURCES="$APP_CONTENTS/Resources"
+ICON_SOURCE="$ROOT_DIR/Resources/$APP_NAME.icns"
+mkdir -p "$APP_RESOURCES"
+if [ -f "$ICON_SOURCE" ]; then
+  cp "$ICON_SOURCE" "$APP_RESOURCES/$APP_NAME.icns"
+fi
+
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -37,10 +44,16 @@ cat >"$INFO_PLIST" <<PLIST
 <dict>
   <key>CFBundleExecutable</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
@@ -50,6 +63,9 @@ cat >"$INFO_PLIST" <<PLIST
 </dict>
 </plist>
 PLIST
+
+# Ad-hoc sign the bundle for local distribution (no Developer ID / notarization).
+codesign --force --deep --sign - "$APP_BUNDLE"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
