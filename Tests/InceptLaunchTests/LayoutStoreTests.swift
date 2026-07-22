@@ -362,3 +362,22 @@ import Testing
     #expect(store.layout.pages.allSatisfy { $0.count == 2 })
     #expect(items.contains(.folder("folder:apple")))
 }
+
+@Test func syncAppleFolderDoesNotDuplicateFolderTile() {
+    // Regression: an inconsistent state (a folder:apple tile on the grid but no
+    // folder definition) must not lead to a second folder:apple tile being
+    // inserted on the next consolidation — that left a stray empty slot.
+    var store = LayoutStore(layout: .init(
+        pages: [[.folder("folder:apple"), .app("a")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+    store.syncAppleFolder(appleAppIDs: ["com.apple.Mail", "com.apple.Safari"])
+
+    let tileCount = store.layout.pages
+        .flatMap { $0 }
+        .filter { $0 == .folder("folder:apple") }
+        .count
+    #expect(tileCount == 1)
+}

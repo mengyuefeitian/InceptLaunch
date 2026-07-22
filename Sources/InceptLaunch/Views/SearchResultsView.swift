@@ -36,10 +36,12 @@ struct SearchResultsView: View {
         }
         .scrollIndicators(.hidden)
         // Tapping empty space (around/below the results) dismisses the overlay,
-        // just like clicking the backdrop on the plain grid. The full-frame hit
-        // shape makes the blank area inside the scroll view respond to taps;
-        // each tile's own tap gesture still wins for hits on an app.
+        // just like clicking the backdrop on the plain grid. A simultaneous
+        // gesture is used so the dismiss fires on the FIRST tap even while the
+        // search field holds focus — an exclusive tap would be absorbed by the
+        // field's defocus handling, forcing the user to tap twice. Firing on a
+        // tile tap is harmless because launching an app dismisses anyway.
         .contentShape(Rectangle())
-        .onTapGesture { onDismiss() }
+        .simultaneousGesture(TapGesture().onEnded { onDismiss() })
     }
 }

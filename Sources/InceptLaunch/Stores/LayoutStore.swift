@@ -127,7 +127,9 @@ struct LayoutStore {
         }
         layout.folders.append(folder)
         if layout.pages.isEmpty { layout.pages = [[]] }
-        layout.pages[0].insert(.folder(folder.id), at: 0)
+        if !containsFolderItem(folder.id) {
+            layout.pages[0].insert(.folder(folder.id), at: 0)
+        }
         // Removing the Apple apps leaves gaps across the pages; flow the
         // remaining apps forward into dense pages so the grid is not left
         // paginated half-empty.
