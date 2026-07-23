@@ -154,6 +154,25 @@ struct LayoutStore {
         removeEmptyTrailingPages()
     }
 
+    /// Removes an app from whatever folder it's in and places it back on the grid.
+    mutating func removeAppFromFolder(appID: String) {
+        let fullID = "app:\(appID)"
+        for index in layout.folders.indices {
+            layout.folders[index].items.removeAll { $0 == appID }
+        }
+        // If the app isn't already on a page, add it to the last page.
+        let alreadyOnPage = layout.pages.contains { page in
+            page.contains { item in
+                if case .app(let id) = item { return id == fullID }
+                return false
+            }
+        }
+        if !alreadyOnPage {
+            appendNewApps([fullID])
+        }
+        removeEmptyTrailingPages()
+    }
+
     mutating func renameFolder(id: String, name: String, now: Date = Date()) {
         guard let index = layout.folders.firstIndex(where: { $0.id == id }) else { return }
         layout.folders[index].name = name

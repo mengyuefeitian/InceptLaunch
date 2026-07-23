@@ -11,8 +11,17 @@ struct FolderPopupView: View {
     let onClose: () -> Void
     var animate: Bool = true
 
+    // Edit mode support
+    var editMode: Bool = false
+    var editDragID: String? = nil
+    var editDragTranslation: CGSize = .zero
+    var onEnterEditMode: (() -> Void)? = nil
+    /// Called when an app is dragged out of the folder. Returns the app to the grid.
+    var onDragOut: ((String) -> Void)? = nil
+
     @State private var isEditingName = false
     @State private var draftName = ""
+    @State private var jiggle = false
     @FocusState private var nameFieldFocused: Bool
 
     private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
@@ -22,7 +31,13 @@ struct FolderPopupView: View {
             Color.black.opacity(0.35)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
-                .onTapGesture { onClose() }
+                .onTapGesture {
+                    if editMode {
+                        onEnterEditMode?()
+                    } else {
+                        onClose()
+                    }
+                }
 
             VStack(spacing: 20) {
                 titleView
@@ -31,20 +46,7 @@ struct FolderPopupView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 24) {
                         ForEach(item.members) { member in
-                            AppIconView(item: LaunchpadDisplayItem(
-                                id: member.id,
-                                title: member.name,
-                                kind: .app(member)
-                            ), iconSize: 88, tileHeight: 128)
-                            .modifier(TileTrashMenu(
-                                item: LaunchpadDisplayItem(
-                                    id: member.id,
-                                    title: member.name,
-                                    kind: .app(member)
-                                ),
-                                onTrash: { _ in onTrash(member) }
-                            ))
-                            .onTapGesture { onLaunch(member) }
+                            folderMemberCell(member: member)
                         }
                     }
                     .padding(.horizontal, 26)
@@ -60,6 +62,78 @@ struct FolderPopupView: View {
                     : .opacity
             )
         }
+        .onChange(of: editMode) { _, newValue in
+            if newValue {
+                withAnimation(.linear(duration: 0.15).repeatForever(autoreverses: true)) {
+                    jiggle = true
+                }
+            } else {
+                withAnimation(.linear(duration: 0.15)) {
+                    jiggle = false
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func folderMemberCell(member: AppRecord) -> some View {
+        let displayItem = LaunchpadDisplayItem(
+            id: member.id,
+            title: member.name,
+            kind: .app(member)
+        )
+        let isBeingDragged = editMode && editDragID == member.id
+        let dragTrans = isBeingDragged ? editDragTranslation : .zero
+
+        AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
+            .opacity(isBeingDragged ? 0.3 : 1.0)
+            .rotationEffect(
+                editMode && !isBeingDragged
+                    ? (jiggle ? .degrees(1.5) : .degrees(-1.5))
+                    : .degrees(0)
+            )
+            .offset(dragTrans)
+            .modifier(TileTrashMenu(
+                item: displayItem,
+                onTrash: { _ in onTrash(member) },
+                editMode: editMode
+            ))
+            .onTapGesture {
+                if editMode {
+                    onEnterEditMode?()
+                } else {
+                    onLaunch(member)
+                }
+            }
+            .onLongPressGesture(minimumDuration: 0.6) {
+                if !editMode {
+                    onEnterEditMode?()
+                }
+            }
+            .gesture(
+                editMode && !isBeingDragged
+                    ? DragGesture(minimumDistance: 5)
+                        .onChanged { value in
+                            onEnterEditMode?()
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragChanged,
+                                object: EditDragUpdate(id: member.id, translation: value.translation)
+                            )
+                        }
+                        .onEnded { value in
+                            // If dragged far enough, remove from folder
+                            let distance = sqrt(value.translation.width * value.translation.width
+                                              + value.translation.height * value.translation.height)
+                            if distance > 100 {
+                                onDragOut?(member.id)
+                            }
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragEnded,
+                                object: nil
+                            )
+                        }
+                    : nil
+            )
     }
 
     @ViewBuilder

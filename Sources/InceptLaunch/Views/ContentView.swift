@@ -20,15 +20,6 @@ struct ContentView: View {
         ZStack {
             backgroundLayer
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture { dismiss() }
-                .contextMenu {
-                    Button {
-                        viewModel.tidyGrid()
-                    } label: {
-                        Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
-                    }
-                }
 
             VStack(spacing: 0) {
                 SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
@@ -96,6 +87,16 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(1)
+            .contextMenu {
+                Button {
+                    viewModel.tidyGrid()
+                } label: {
+                    Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
+                }
+            }
+            // Tap on empty space dismisses — handled by the grid/search views themselves
+            // and the overlay click monitor in OverlayWindowController.
 
             if let folder = viewModel.openFolder {
                 FolderPopupView(
@@ -117,7 +118,16 @@ struct ContentView: View {
                         }
                     },
                     onClose: { viewModel.openFolder = nil },
-                    animate: animEnabled && preferences.animateFolder
+                    animate: animEnabled && preferences.animateFolder,
+                    editMode: viewModel.editMode,
+                    editDragID: viewModel.editDragID,
+                    editDragTranslation: viewModel.editDragTranslation,
+                    onEnterEditMode: {
+                        viewModel.editMode.toggle()
+                    },
+                    onDragOut: { appID in
+                        viewModel.removeAppFromFolder(appID: appID)
+                    }
                 )
                 .zIndex(1)
             }
@@ -172,9 +182,19 @@ struct ContentView: View {
     private var backgroundLayer: some View {
         switch preferences.backgroundMode {
         case .desktop:
-            Rectangle()
-                .fill(.black.opacity(preferences.backgroundBlur))
-                .background(.ultraThinMaterial)
+            if let desktopImage = DesktopWallpaperCapture.currentImage {
+                ZStack {
+                    Image(nsImage: desktopImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    Rectangle()
+                        .fill(.black.opacity(preferences.backgroundBlur))
+                }
+            } else {
+                Rectangle()
+                    .fill(.black.opacity(preferences.backgroundBlur))
+                    .background(.ultraThinMaterial)
+            }
         case .uploaded:
             if let path = currentBackgroundPath,
                let nsImage = NSImage(contentsOfFile: path) {

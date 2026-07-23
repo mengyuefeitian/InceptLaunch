@@ -85,6 +85,7 @@ struct Localizer {
         "menu.shrinkFolder": "Shrink folder",
         "menu.tidyGrid": "Tidy up",
         "menu.resetBackground": "Reset background",
+        "menu.editModeHint": "Tap to exit edit mode",
         
         // Settings actions
         "settings.upload": "Upload",
@@ -147,6 +148,7 @@ struct Localizer {
         "menu.shrinkFolder": "缩小文件夹",
         "menu.tidyGrid": "整理桌面",
         "menu.resetBackground": "重置背景图",
+        "menu.editModeHint": "点击退出编辑模式",
         
         // Settings actions
         "settings.upload": "上传",

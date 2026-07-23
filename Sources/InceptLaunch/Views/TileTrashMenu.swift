@@ -10,6 +10,7 @@ struct TileTrashMenu: ViewModifier {
     var onEnlarge: ((LaunchpadDisplayItem) -> Void)?
     var onShrink: ((LaunchpadDisplayItem) -> Void)?
     var onHide: ((LaunchpadDisplayItem) -> Void)?
+    var editMode: Bool = false
 
     private var isApp: Bool {
         if case .app = item.kind { return true }
@@ -24,7 +25,10 @@ struct TileTrashMenu: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contextMenu {
-                if isApp {
+                if editMode {
+                    // In edit mode, show a simple "exit edit mode" hint
+                    Text(Localizer.t("menu.editModeHint"))
+                } else if isApp {
                     Button {
                         onHide?(item)
                     } label: {
@@ -52,7 +56,8 @@ struct TileTrashMenu: ViewModifier {
                     }
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.5) {
+            .onLongPressGesture(minimumDuration: editMode ? 10.0 : 0.5) {
+                // In edit mode, use a very long duration so the edit-mode gesture fires first
                 popUpNativeMenu()
             }
     }

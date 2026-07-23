@@ -233,6 +233,12 @@ final class LaunchpadViewModel {
         persistLayout()
     }
 
+    /// Removes an app from its folder and places it back on the grid.
+    func removeAppFromFolder(appID: String) {
+        layoutStore.removeAppFromFolder(appID: appID)
+        persistLayout()
+    }
+
     /// All currently-hidden app records, for the settings management list.
     var hiddenApps: [AppRecord] {
         layoutStore.layout.hiddenAppIDs.compactMap { appIndex.records[$0] }
