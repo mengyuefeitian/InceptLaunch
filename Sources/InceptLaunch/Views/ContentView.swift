@@ -17,10 +17,6 @@ struct ContentView: View {
                 .fill(.black.opacity(0.55))
                 .background(.ultraThinMaterial)
                 .ignoresSafeArea()
-                // Clicking empty space dismisses, like Launchpad.
-                // A simultaneous gesture fires on the FIRST tap even while the
-                // search TextField holds focus — an exclusive onTapGesture is
-                // absorbed by the field's defocus handling, forcing two taps.
                 .contentShape(Rectangle())
                 .simultaneousGesture(TapGesture().onEnded {
                     dismiss()
@@ -33,40 +29,52 @@ struct ContentView: View {
                     }
                 }
 
-            VStack(spacing: 32) {
+            VStack(spacing: 0) {
                 SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
                     .padding(.top, 60)
-                Spacer(minLength: 0)
-                if isSearching {
-                    SearchResultsView(
-                        results: viewModel.visiblePages.first ?? [],
-                        onLaunch: { item in handleTap(item) },
-                        onTrash: { item in
-                            Task { await viewModel.moveToTrash(item.id) }
-                        },
-                        onDismiss: { dismiss() }
-                    )
-                } else {
-                    LaunchpadGridView(
-                        pages: viewModel.visiblePages,
-                        rows: viewModel.gridRows,
-                        enlargedFolderIDs: viewModel.enlargedFolderIDs,
-                        onLaunch: { item in handleTap(item) },
-                        onDropItem: { sourceID, target in
-                            viewModel.handleDrop(sourceID: sourceID, onto: target)
-                        },
-                        onTrash: { item in
-                            Task { await viewModel.moveToTrash(item.id) }
-                        },
-                        onEnlarge: { item in
-                            viewModel.enlargeFolder(id: item.id)
-                        },
-                        onShrink: { item in
-                            viewModel.shrinkFolder(id: item.id)
-                        }
-                    )
+                    .padding(.bottom, 32)
+
+                // The grid area below the search field: clicking empty space
+                // here must dismiss on the FIRST tap even while the TextField
+                // holds focus. .simultaneousGesture on the view that actually
+                // receives the hit (not the backdrop behind it) fires during
+                // AppKit's defocus handling, unlike .onTapGesture.
+                Group {
+                    if isSearching {
+                        SearchResultsView(
+                            results: viewModel.visiblePages.first ?? [],
+                            onLaunch: { item in handleTap(item) },
+                            onTrash: { item in
+                                Task { await viewModel.moveToTrash(item.id) }
+                            },
+                            onDismiss: { dismiss() }
+                        )
+                    } else {
+                        LaunchpadGridView(
+                            pages: viewModel.visiblePages,
+                            rows: viewModel.gridRows,
+                            enlargedFolderIDs: viewModel.enlargedFolderIDs,
+                            onLaunch: { item in handleTap(item) },
+                            onDropItem: { sourceID, target in
+                                viewModel.handleDrop(sourceID: sourceID, onto: target)
+                            },
+                            onTrash: { item in
+                                Task { await viewModel.moveToTrash(item.id) }
+                            },
+                            onEnlarge: { item in
+                                viewModel.enlargeFolder(id: item.id)
+                            },
+                            onShrink: { item in
+                                viewModel.shrinkFolder(id: item.id)
+                            }
+                        )
+                    }
                 }
-                Spacer(minLength: 40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded {
+                    dismiss()
+                })
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
