@@ -8,7 +8,16 @@ final class MenuBarController {
 
     init(overlay: OverlayWindowController) {
         self.overlay = overlay
-        statusItem.button?.title = "Incept"
+        // Use an SF Symbol as the menu bar icon — template image auto-adapts
+        // to light/dark mode and matches the app's grid theme.
+        if let symbolImage = NSImage(systemSymbolName: "square.grid.3x3.fill",
+                                     accessibilityDescription: "InceptLaunch") {
+            let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+            if let rendered = symbolImage.withSymbolConfiguration(config) {
+                rendered.isTemplate = true
+                statusItem.button?.image = rendered
+            }
+        }
         let menu = NSMenu()
 
         let openItem = NSMenuItem(title: "Open InceptLaunch", action: #selector(open), keyEquivalent: "")

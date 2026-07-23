@@ -31,13 +31,15 @@ struct UserPreferences: Codable, Equatable {
             }
         }
 
-        /// PNG thumbnail file name for the settings picker (bundled in Resources).
+        /// 128×128 PNG thumbnail for the settings icon picker.
+        /// Sized for 56pt @2x display (112px) to avoid downscaling artifacts
+        /// from the full-size source PNGs (512–1254px).
         var thumbnailName: String {
             switch self {
-            case .iconD: return "InceptLaunch-D"
-            case .icon01: return "icon01"
-            case .icon02: return "icon02"
-            case .icon03: return "icon03"
+            case .iconD: return "thumb_InceptLaunch-D"
+            case .icon01: return "thumb_icon01"
+            case .icon02: return "thumb_icon02"
+            case .icon03: return "thumb_icon03"
             }
         }
     }
