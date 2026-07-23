@@ -26,6 +26,12 @@ final class LaunchpadViewModel {
     /// clicks from empty-space clicks.
     var tileFrames: [CGRect] = []
 
+    /// True once the PreferenceKey has reported at least one batch of tile
+    /// frames. Before this, dismiss monitors default to "allow" (pass the
+    /// click through) so the first click after overlay-open is never eaten
+    /// by a premature empty-space dismiss.
+    var tileFramesReady = false
+
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher

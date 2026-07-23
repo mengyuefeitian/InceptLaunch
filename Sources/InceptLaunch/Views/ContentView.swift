@@ -97,6 +97,9 @@ struct ContentView: View {
         .coordinateSpace(name: "overlay")
         .onPreferenceChange(TileFramePreferenceKey.self) { frames in
             viewModel.tileFrames = frames
+            if !frames.isEmpty {
+                viewModel.tileFramesReady = true
+            }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: openFolder?.id)
         .onExitCommand {
@@ -170,6 +173,13 @@ struct ContentView: View {
             // Click is outside the search field — defocus.
             window.makeFirstResponder(nil)
 
+            // If tile frames aren't populated yet (first click after overlay
+            // open), let the click pass through so the tile's gesture fires.
+            // Dismissing here would eat the first click.
+            guard viewModel.tileFramesReady else {
+                return event
+            }
+
             // Check if the click is on a tile (using content-view coordinates).
             if let contentView = window.contentView {
                 let windowHeight = contentView.bounds.height
@@ -194,6 +204,12 @@ struct ContentView: View {
                fieldEditor.isFieldEditor {
                 return event
             }
+            // If tile frames aren't populated yet (first click after overlay
+            // open), let the click pass through so the tile's gesture fires.
+            guard viewModel.tileFramesReady else {
+                return event
+            }
+
             // Convert mouse location from AppKit coords (origin bottom-left)
             // to content-view coords (origin top-left) to match tile frames.
             guard let window = event.window,
