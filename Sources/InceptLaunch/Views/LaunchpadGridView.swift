@@ -4,7 +4,6 @@ struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let rows: Int
     let enlargedFolderIDs: Set<String>
-    let scrollModel: OverlayScrollModel
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
@@ -77,6 +76,14 @@ struct LaunchpadGridView: View {
                         onDropItem(sourceID, item)
                         return true
                     }
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: TileFramePreferenceKey.self,
+                                value: [proxy.frame(in: .named("overlay"))]
+                            )
+                        }
+                    }
             }
         }
         .frame(maxWidth: .infinity)
@@ -86,7 +93,7 @@ struct LaunchpadGridView: View {
     @ViewBuilder
     private func tileView(item: LaunchpadDisplayItem, iconSize: CGFloat, tileHeight: CGFloat, enlarged: Bool) -> some View {
         if enlarged, case .folder = item.kind {
-            EnlargedFolderTileView(item: item, tileHeight: tileHeight, scrollModel: scrollModel)
+            EnlargedFolderTileView(item: item, tileHeight: tileHeight)
         } else {
             AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
         }

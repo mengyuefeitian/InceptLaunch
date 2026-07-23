@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var openFolder: LaunchpadDisplayItem?
     @State private var keyMonitor: Any?
     @State private var defocusMonitor: Any?
+    @State private var dismissMonitor: Any?
     @FocusState private var searchFocused: Bool
 
     private var isSearching: Bool {
@@ -48,7 +49,6 @@ struct ContentView: View {
                             pages: viewModel.visiblePages,
                             rows: viewModel.gridRows,
                             enlargedFolderIDs: viewModel.enlargedFolderIDs,
-                            scrollModel: scrollModel,
                             onLaunch: { item in handleTap(item) },
                             onDropItem: { sourceID, target in
                                 viewModel.handleDrop(sourceID: sourceID, onto: target)
@@ -69,18 +69,6 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Transparent tap catcher for empty-space clicks.  The outer
-            // VStack fills the entire screen (maxHeight:.infinity) which
-            // blocks the backdrop Rectangle's tap gesture.  This invisible
-            // layer catches clicks on truly empty areas; SwiftUI resolves
-            // gestures from the topmost view downward so the search field
-            // and tile gestures fire first.
-            .background {
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .onTapGesture { dismiss() }
-            }
 
             if let folder = openFolder {
                 FolderPopupView(
@@ -106,6 +94,10 @@ struct ContentView: View {
                 .zIndex(1)
             }
         }
+        .coordinateSpace(name: "overlay")
+        .onPreferenceChange(TileFramePreferenceKey.self) { frames in
+            viewModel.tileFrames = frames
+        }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: openFolder?.id)
         .onExitCommand {
             if openFolder != nil {
@@ -120,6 +112,10 @@ struct ContentView: View {
         .onAppear {
             installMonitors()
             syncScrollHijack()
+            // Auto-focus the search field so IME composition works from the
+            // first keystroke. The dismissMonitor/defocusMonitor handle empty-
+            // space clicks correctly even when the field is focused.
+            searchFocused = true
         }
         .onDisappear {
             removeMonitors()
@@ -130,24 +126,20 @@ struct ContentView: View {
 
     // MARK: - Event Monitors
 
-    /// Two monitors solve the single-tap-dismiss problem:
+    /// Three monitors handle overlay dismissal and search-field focus:
     ///
-    /// 1. **keyDown monitor**: focuses the search field when the user types a
-    ///    printable character. The field is NOT auto-focused on appear, so
-    ///    clicking empty space never triggers AppKit's defocus-eats-the-click.
+    /// 1. **keyDown monitor**: safety net — focuses the search field if it
+    ///    somehow lost focus and the user starts typing.
     ///
-    /// 2. **mouseDown monitor**: if the field IS focused (user typed something)
-    ///    and they click outside it, resign focus immediately so the subsequent
-    ///    .onTapGesture fires on the same click.
+    /// 2. **defocusMonitor**: when the search field IS focused and the user
+    ///    clicks outside it, resign focus. If the click is on empty space
+    ///    (not on any tile), also dismiss the overlay. If the click is on a
+    ///    tile, just defocus and let the tile's gesture fire.
+    ///
+    /// 3. **dismissMonitor**: when the search field is NOT focused, check
+    ///    whether the click landed on a tile (pass through) or empty space
+    ///    (dismiss and consume).
     private func installMonitors() {
-        // Focus the search field when the user starts typing.
-        // We do NOT swallow the event or manually append the character —
-        // doing so breaks IME composition (e.g. Pinyin "douyin" became
-        // "欧银" because "d" was inserted as raw English before the IME
-        // could start composing).  The first keystroke may be lost during
-        // the focus transition, but all subsequent keystrokes reach the
-        // text field through the normal responder chain and the IME works
-        // correctly.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             guard let chars = event.characters,
                   let first = chars.unicodeScalars.first,
@@ -160,13 +152,10 @@ struct ContentView: View {
             return event
         }
 
-        // Resign search field focus on outside click AND dismiss immediately.
-        // The AppKit monitor fires before SwiftUI gesture recognition, so
-        // relying on the SwiftUI .onTapGesture to also fire on the same click
-        // is unreliable (the gesture can be absorbed by the focus change).
-        // Posting the dismiss notification directly from the monitor ensures
-        // a single click both defocuses the field and closes the overlay.
-        defocusMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+        // When the search field IS focused, clicking outside defocuses.
+        // If the click is on empty space (not on a tile), also dismiss.
+        // If the click is on a tile, just defocus so the tile's gesture fires.
+        defocusMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [self] event in
             guard let window = event.window,
                   let fieldEditor = window.firstResponder as? NSTextView,
                   fieldEditor.isFieldEditor else {
@@ -175,18 +164,63 @@ struct ContentView: View {
             if let fieldView = fieldEditor.superview {
                 let frameInWindow = fieldView.convert(fieldView.bounds, to: nil)
                 if frameInWindow.contains(event.locationInWindow) {
-                    return event
+                    return event  // Click inside the field — let it through
                 }
             }
+            // Click is outside the search field — defocus.
             window.makeFirstResponder(nil)
+
+            // Check if the click is on a tile (using content-view coordinates).
+            if let contentView = window.contentView {
+                let windowHeight = contentView.bounds.height
+                let mouseLoc = event.locationInWindow
+                let contentViewPoint = CGPoint(x: mouseLoc.x, y: windowHeight - mouseLoc.y)
+                let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
+                if onTile {
+                    return event  // On a tile — let the tile's gesture fire
+                }
+            }
+            // Empty space — dismiss and consume.
             NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
-            return event
+            return nil
+        }
+
+        // When the search field is NOT focused, check if the click is on a tile
+        // or empty space. Tiles pass through; empty space dismisses.
+        dismissMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [self] event in
+            // If the search field is focused, let the defocusMonitor handle it.
+            if let window = event.window,
+               let fieldEditor = window.firstResponder as? NSTextView,
+               fieldEditor.isFieldEditor {
+                return event
+            }
+            // Convert mouse location from AppKit coords (origin bottom-left)
+            // to content-view coords (origin top-left) to match tile frames.
+            guard let window = event.window,
+                  let contentView = window.contentView else {
+                return event
+            }
+            let windowHeight = contentView.bounds.height
+            let mouseLoc = event.locationInWindow
+            let contentViewPoint = CGPoint(
+                x: mouseLoc.x,
+                y: windowHeight - mouseLoc.y
+            )
+            // Check if the click is inside any tracked tile frame.
+            let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
+            if onTile {
+                return event  // Let the tile's gesture handle it
+            }
+            // Empty space click — dismiss and consume the event.
+            NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
+            return nil
         }
     }
 
     private func removeMonitors() {
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
         if let m = defocusMonitor { NSEvent.removeMonitor(m); defocusMonitor = nil }
+        if let m = dismissMonitor { NSEvent.removeMonitor(m); dismissMonitor = nil }
     }
 
     // MARK: - Helpers

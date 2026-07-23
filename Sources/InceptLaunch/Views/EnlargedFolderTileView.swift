@@ -1,16 +1,14 @@
 import SwiftUI
-import Combine
 
 /// A folder tile enlarged to 2×2 grid cells, showing a 3×3 icon grid inside.
 /// If the folder has more than 9 apps, a horizontal carousel lets the user
-/// page through them via drag, scroll wheel, arrow buttons, or auto-advance.
+/// page through them via drag, arrow buttons, or auto-advance (2 s interval).
 struct EnlargedFolderTileView: View {
     let item: LaunchpadDisplayItem
     var tileWidth: CGFloat = GridMetrics.tileWidth
     var tileHeight: CGFloat = GridMetrics.tileHeight
     var columnSpacing: CGFloat = GridMetrics.columnSpacing
     var rowSpacing: CGFloat = GridMetrics.rowSpacing
-    var scrollModel: OverlayScrollModel?
 
     @State private var carouselPage = 0
     @State private var autoAdvanceTimer: Timer?
@@ -29,13 +27,11 @@ struct EnlargedFolderTileView: View {
 
     /// Height reserved for the icon grid area (leaves room for dots + label).
     private var iconAreaHeight: CGFloat {
-        // 3 rows × iconSize + 2 gaps × 12pt spacing + top/bottom padding
         3 * iconSize + 2 * 12 + 16
     }
 
     var body: some View {
         VStack(spacing: 8) {
-            // Icon area with explicit height — leaves breathing room below.
             ZStack {
                 if pageCount > 1 {
                     carouselContent
@@ -46,7 +42,6 @@ struct EnlargedFolderTileView: View {
             .frame(width: enlargedWidth - 8, height: iconAreaHeight)
             .clipped()
 
-            // Label — centered below icon area with consistent spacing.
             Text(item.title)
                 .font(.callout)
                 .lineLimit(1)
@@ -56,9 +51,6 @@ struct EnlargedFolderTileView: View {
         .frame(width: enlargedWidth, height: enlargedHeight)
         .liquidGlass(cornerRadius: 28, fallbackOpacity: 0.14)
         .contentShape(Rectangle())
-        .onContinuousHover { phase in
-            scrollModel?.isOverEnlargedFolder = (phase != .ended)
-        }
         .onAppear { startAutoAdvance() }
         .onDisappear { stopAutoAdvance() }
     }
@@ -91,23 +83,12 @@ struct EnlargedFolderTileView: View {
 
     private var carouselContent: some View {
         VStack(spacing: 6) {
-            // Swipeable pages with scroll-wheel support
             ZStack {
                 ForEach(0..<pageCount, id: \.self) { page in
                     let start = page * 9
                     let slice = Array(members.dropFirst(start).prefix(9))
                     iconGrid(members: slice)
                         .opacity(page == carouselPage ? 1 : 0)
-                }
-            }
-            .overlay(alignment: .center) {
-                // Invisible scroll-wheel handler covering the full icon area
-                ScrollWheelHandler { direction in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        let next = carouselPage + direction
-                        carouselPage = max(0, min(next, pageCount - 1))
-                    }
-                    resetAutoAdvance()
                 }
             }
             .gesture(
@@ -127,9 +108,7 @@ struct EnlargedFolderTileView: View {
                     }
             )
 
-            // Navigation row: left button · dots · right button
             HStack(spacing: 8) {
-                // Left arrow
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         carouselPage = max(0, carouselPage - 1)
@@ -144,7 +123,6 @@ struct EnlargedFolderTileView: View {
                 .buttonStyle(.plain)
                 .disabled(carouselPage == 0)
 
-                // Page dots
                 HStack(spacing: 5) {
                     ForEach(0..<pageCount, id: \.self) { i in
                         Circle()
@@ -153,7 +131,6 @@ struct EnlargedFolderTileView: View {
                     }
                 }
 
-                // Right arrow
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         carouselPage = min(pageCount - 1, carouselPage + 1)
@@ -190,43 +167,5 @@ struct EnlargedFolderTileView: View {
                 }
             }
         }
-    }
-}
-
-/// NSViewRepresentable wrapper that captures native scroll-wheel events
-/// and forwards them as integer direction values (+1 = down/right, −1 = up/left).
-struct ScrollWheelHandler: NSViewRepresentable {
-    let onScroll: (Int) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = ScrollWheelCapturingView()
-        view.onScroll = onScroll
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        (nsView as? ScrollWheelCapturingView)?.onScroll = onScroll
-    }
-}
-
-private class ScrollWheelCapturingView: NSView {
-    var onScroll: ((Int) -> Void)?
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
-
-    override func scrollWheel(with event: NSEvent) {
-        let deltaY = event.scrollingDeltaY
-        let deltaX = event.scrollingDeltaX
-        let delta = abs(deltaY) >= abs(deltaX) ? deltaY : deltaX
-        guard abs(delta) > 0.5 else { return }
-        // Negative delta = scrolling down/right → advance page
-        let direction = delta < 0 ? 1 : -1
-        onScroll?(direction)
     }
 }

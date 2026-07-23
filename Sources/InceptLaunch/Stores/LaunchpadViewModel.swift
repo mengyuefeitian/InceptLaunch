@@ -20,6 +20,12 @@ final class LaunchpadViewModel {
     var searchText = ""
     var selectedItemID: String?
 
+    /// Frames of all interactive tile views in the overlay's content-view
+    /// coordinate space (origin top-left). Updated via PreferenceKey from
+    /// LaunchpadGridView. Used by the dismiss monitor to distinguish tile
+    /// clicks from empty-space clicks.
+    var tileFrames: [CGRect] = []
+
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher
