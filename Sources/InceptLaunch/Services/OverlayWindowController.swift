@@ -4,6 +4,7 @@ import SwiftUI
 extension Notification.Name {
     static let inceptLaunchDismiss = Notification.Name("inceptLaunchDismiss")
     static let inceptLaunchPageScroll = Notification.Name("inceptLaunchPageScroll")
+    static let inceptLaunchFocusSearch = Notification.Name("inceptLaunchFocusSearch")
 }
 
 struct OverlayState {
@@ -25,7 +26,10 @@ final class OverlayWindowController {
     private var window: OverlayWindow?
     private var dismissObserver: NSObjectProtocol?
     private var scrollMonitor: Any?
+    private var clickMonitor: Any?
+    private var keyMonitor: Any?
     private let scrollModel = OverlayScrollModel()
+    private let viewModel = LaunchpadViewModel()
 
     init() {
         dismissObserver = NotificationCenter.default.addObserver(
@@ -65,29 +69,34 @@ final class OverlayWindowController {
         window.hasShadow = false
         window.ignoresMouseEvents = false
         scrollModel.update(isSearching: false, isFolderOpen: false)
-        window.contentView = NSHostingView(rootView: ContentView(scrollModel: scrollModel))
+        window.contentView = NSHostingView(rootView: ContentView(
+            scrollModel: scrollModel,
+            viewModel: viewModel
+        ))
         window.setFrame(frame, display: true)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
         installScrollMonitor()
+        installClickMonitor(window: window)
+        installKeyMonitor(window: window)
     }
 
     func hide() {
         removeScrollMonitor()
+        removeClickMonitor()
+        removeKeyMonitor()
         window?.orderOut(nil)
         // Return focus to whatever app the user was in before.
         NSApp.hide(nil)
     }
 
-    /// Turn mouse-wheel / trackpad scrolling into page flips while the overlay
-    /// is up. A continuous scroll gesture flips at most one page per interval.
+    // MARK: - Scroll Monitor
+
     private func installScrollMonitor() {
         removeScrollMonitor()
         var lastFlip = Date.distantPast
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            // While searching or with a folder popup open, scrolling belongs to
-            // the SwiftUI ScrollView underneath — let it through untouched.
             let hijacks = MainActor.assumeIsolated { self?.scrollModel.hijacksScrollWheel ?? false }
             guard hijacks else { return event }
             let now = Date()
@@ -107,6 +116,97 @@ final class OverlayWindowController {
         if let monitor = scrollMonitor {
             NSEvent.removeMonitor(monitor)
             scrollMonitor = nil
+        }
+    }
+
+    // MARK: - Click Monitor
+
+    private func installClickMonitor(window: NSWindow) {
+        removeClickMonitor()
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self else { return event }
+            guard let eventWindow = event.window,
+                  eventWindow is OverlayWindow else {
+                return event
+            }
+
+            // If a folder popup is open, let the FolderPopupView handle its own clicks.
+            if viewModel.openFolder != nil {
+                return event
+            }
+
+            guard viewModel.tileFramesReady else {
+                return event
+            }
+
+            guard let contentView = eventWindow.contentView else {
+                return event
+            }
+            let windowHeight = contentView.bounds.height
+            let mouseLoc = event.locationInWindow
+            let contentViewPoint = CGPoint(
+                x: mouseLoc.x,
+                y: windowHeight - mouseLoc.y
+            )
+
+            // Check if the click is inside the search field.
+            var clickedInSearchField = false
+            if let fieldEditor = eventWindow.firstResponder as? NSTextView,
+               fieldEditor.isFieldEditor,
+               let fieldView = fieldEditor.superview {
+                let frameInWindow = fieldView.convert(fieldView.bounds, to: nil)
+                clickedInSearchField = frameInWindow.contains(mouseLoc)
+            }
+
+            if clickedInSearchField {
+                return event
+            }
+
+            // Click is outside the search field — defocus if it was focused.
+            if eventWindow.firstResponder is NSTextView {
+                eventWindow.makeFirstResponder(nil)
+            }
+
+            // Check if the click is inside any tracked tile frame.
+            let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
+            if onTile {
+                return event  // Let the tile's gesture handle it
+            }
+
+            // Empty space click — dismiss and consume the event.
+            NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
+            return nil
+        }
+    }
+
+    private func removeClickMonitor() {
+        if let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
+        }
+    }
+
+    // MARK: - Key Monitor
+
+    private func installKeyMonitor(window: NSWindow) {
+        removeKeyMonitor()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard let chars = event.characters,
+                  let first = chars.unicodeScalars.first,
+                  first.value >= 32, first.value != 127 else {
+                return event
+            }
+            // Focus search field if not already focused.
+            // We post a notification so ContentView can handle it.
+            NotificationCenter.default.post(name: .inceptLaunchFocusSearch, object: nil)
+            return event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
         }
     }
 }
