@@ -69,6 +69,13 @@ final class OverlayWindowController {
         window.hasShadow = false
         window.ignoresMouseEvents = false
         scrollModel.update(isSearching: false, isFolderOpen: false)
+        // Reset tile tracking so the first click after overlay reopen is never
+        // eaten by stale state from the previous session. The new ContentView's
+        // PreferenceKey will repopulate tileFrames and set tileFramesReady once
+        // the grid has rendered.
+        viewModel.tileFramesReady = false
+        viewModel.tileFrames = []
+        viewModel.openFolder = nil
         window.contentView = NSHostingView(rootView: ContentView(
             scrollModel: scrollModel,
             viewModel: viewModel
