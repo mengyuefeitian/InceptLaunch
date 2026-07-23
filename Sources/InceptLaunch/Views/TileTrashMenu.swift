@@ -9,6 +9,7 @@ struct TileTrashMenu: ViewModifier {
     var isEnlarged: Bool = false
     var onEnlarge: ((LaunchpadDisplayItem) -> Void)?
     var onShrink: ((LaunchpadDisplayItem) -> Void)?
+    var onHide: ((LaunchpadDisplayItem) -> Void)?
 
     private var isApp: Bool {
         if case .app = item.kind { return true }
@@ -24,10 +25,15 @@ struct TileTrashMenu: ViewModifier {
         content
             .contextMenu {
                 if isApp {
+                    Button {
+                        onHide?(item)
+                    } label: {
+                        Label(Localizer.t("menu.hide"), systemImage: "eye.slash")
+                    }
                     Button(role: .destructive) {
                         onTrash(item)
                     } label: {
-                        Label("移到废纸篓", systemImage: "trash")
+                        Label(Localizer.t("menu.trash"), systemImage: "trash")
                     }
                 }
                 if isFolder {
@@ -35,13 +41,13 @@ struct TileTrashMenu: ViewModifier {
                         Button {
                             onShrink?(item)
                         } label: {
-                            Label("缩小文件夹", systemImage: "arrow.down.right.and.arrow.up.left")
+                            Label(Localizer.t("menu.shrinkFolder"), systemImage: "arrow.down.right.and.arrow.up.left")
                         }
                     } else {
                         Button {
                             onEnlarge?(item)
                         } label: {
-                            Label("放大文件夹", systemImage: "arrow.up.left.and.arrow.down.right")
+                            Label(Localizer.t("menu.enlargeFolder"), systemImage: "arrow.up.left.and.arrow.down.right")
                         }
                     }
                 }
@@ -71,8 +77,17 @@ struct TileTrashMenu: ViewModifier {
         let menu = NSMenu()
 
         if isApp {
+            let hideItem = NSMenuItem(
+                title: Localizer.t("menu.hide"),
+                action: #selector(MenuActionHandler.handle(_:)),
+                keyEquivalent: ""
+            )
+            hideItem.target = handler
+            hideItem.representedObject = "hide"
+            menu.addItem(hideItem)
+
             let trashItem = NSMenuItem(
-                title: "移到废纸篓",
+                title: Localizer.t("menu.trash"),
                 action: #selector(MenuActionHandler.handle(_:)),
                 keyEquivalent: ""
             )
@@ -82,7 +97,7 @@ struct TileTrashMenu: ViewModifier {
         }
 
         if isFolder {
-            let title = isEnlarged ? "缩小文件夹" : "放大文件夹"
+            let title = isEnlarged ? Localizer.t("menu.shrinkFolder") : Localizer.t("menu.enlargeFolder")
             let action = isEnlarged ? "shrink" : "enlarge"
             let folderItem = NSMenuItem(
                 title: title,
@@ -99,6 +114,7 @@ struct TileTrashMenu: ViewModifier {
         menu.popUp(positioning: nil, at: CGPoint(x: cursor.x + 8, y: cursor.y - 8), in: nil)
         switch handler.selectedAction {
         case "trash": onTrash(item)
+        case "hide": onHide?(item)
         case "enlarge": onEnlarge?(item)
         case "shrink": onShrink?(item)
         default: break

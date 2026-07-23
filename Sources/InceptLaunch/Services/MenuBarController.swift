@@ -8,8 +8,6 @@ final class MenuBarController {
 
     init(overlay: OverlayWindowController) {
         self.overlay = overlay
-        // Use an SF Symbol as the menu bar icon — template image auto-adapts
-        // to light/dark mode and matches the app's grid theme.
         if let symbolImage = NSImage(systemSymbolName: "square.grid.3x3.fill",
                                      accessibilityDescription: "InceptLaunch") {
             let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
@@ -20,17 +18,17 @@ final class MenuBarController {
         }
         let menu = NSMenu()
 
-        let openItem = NSMenuItem(title: "Open InceptLaunch", action: #selector(open), keyEquivalent: "")
+        let openItem = NSMenuItem(title: Localizer.t("menubar.open"), action: #selector(open), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
 
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: Localizer.t("menubar.settings"), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: Localizer.t("menubar.quit"), action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -42,7 +40,7 @@ final class MenuBarController {
     }
 
     @objc private func openSettings() {
-        settings.show()
+        settings.show(viewModel: overlay.exposedViewModel)
     }
 
     @objc private func quit() {

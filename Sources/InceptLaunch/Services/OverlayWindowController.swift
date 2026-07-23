@@ -30,6 +30,10 @@ final class OverlayWindowController {
     private var keyMonitor: Any?
     private let scrollModel = OverlayScrollModel()
     private let viewModel = LaunchpadViewModel()
+    private let preferencesStore = PreferencesStore()
+
+    /// Exposed for the settings window to access hidden apps etc.
+    var exposedViewModel: LaunchpadViewModel { viewModel }
 
     init() {
         dismissObserver = NotificationCenter.default.addObserver(
@@ -76,9 +80,15 @@ final class OverlayWindowController {
         viewModel.tileFramesReady = false
         viewModel.tileFrames = []
         viewModel.openFolder = nil
+        viewModel.editMode = false
+        viewModel.editDragID = nil
+        viewModel.editDragTranslation = .zero
+        let prefs = (try? preferencesStore.load()) ?? .default
+        Localizer.setLanguage(prefs.language)
         window.contentView = NSHostingView(rootView: ContentView(
             scrollModel: scrollModel,
-            viewModel: viewModel
+            viewModel: viewModel,
+            preferences: prefs
         ))
         window.setFrame(frame, display: true)
         window.makeKeyAndOrderFront(nil)

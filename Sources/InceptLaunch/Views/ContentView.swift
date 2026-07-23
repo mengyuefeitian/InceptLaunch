@@ -3,17 +3,22 @@ import SwiftUI
 struct ContentView: View {
     let scrollModel: OverlayScrollModel
     @Bindable var viewModel: LaunchpadViewModel
+    let preferences: UserPreferences
     @FocusState private var searchFocused: Bool
+
+    /// Index into preferences.backgroundImages for carousel rotation.
+    @State private var backgroundIndex = 0
 
     private var isSearching: Bool {
         !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Effective animation flag: false when reduceMotion is on.
+    private var animEnabled: Bool { !preferences.reduceMotion }
+
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.black.opacity(0.55))
-                .background(.ultraThinMaterial)
+            backgroundLayer
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { dismiss() }
@@ -21,7 +26,7 @@ struct ContentView: View {
                     Button {
                         viewModel.tidyGrid()
                     } label: {
-                        Label("整理桌面", systemImage: "square.grid.3x3.fill")
+                        Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
                     }
                 }
 
@@ -38,7 +43,11 @@ struct ContentView: View {
                             onTrash: { item in
                                 Task { await viewModel.moveToTrash(item.id) }
                             },
-                            onDismiss: { dismiss() }
+                            onHide: { item in
+                                viewModel.hideApp(id: item.id)
+                            },
+                            onDismiss: { dismiss() },
+                            animate: animEnabled && preferences.animateSearch
                         )
                     } else {
                         LaunchpadGridView(
@@ -52,13 +61,35 @@ struct ContentView: View {
                             onTrash: { item in
                                 Task { await viewModel.moveToTrash(item.id) }
                             },
+                            onHide: { item in
+                                viewModel.hideApp(id: item.id)
+                            },
                             onEnlarge: { item in
                                 viewModel.enlargeFolder(id: item.id)
                             },
                             onShrink: { item in
                                 viewModel.shrinkFolder(id: item.id)
                             },
-                            onDismiss: { dismiss() }
+                            onDismiss: { dismiss() },
+                            animatePageFlip: animEnabled && preferences.animatePageFlip,
+                            animateIcons: animEnabled && preferences.animateIcons,
+                            animateFolder: animEnabled && preferences.animateFolder,
+                            animateDrag: animEnabled && preferences.animateDrag,
+                            onPageChange: { newPage in
+                                if preferences.backgroundMode == .uploaded && preferences.autoCarousel {
+                                    advanceBackground()
+                                }
+                            },
+                            editMode: viewModel.editMode,
+                            editDragID: viewModel.editDragID,
+                            editDragTranslation: viewModel.editDragTranslation,
+                            onEnterEditMode: {
+                                viewModel.editMode.toggle()
+                            },
+                            onMoveApp: { sourceID, targetPage, targetIndex in
+                                viewModel.moveAppInGrid(sourceID: sourceID, targetPage: targetPage, targetIndex: targetIndex)
+                            },
+                            tileFrames: viewModel.tileFrames
                         )
                     }
                 }
@@ -85,7 +116,8 @@ struct ContentView: View {
                             viewModel.openFolder = nil
                         }
                     },
-                    onClose: { viewModel.openFolder = nil }
+                    onClose: { viewModel.openFolder = nil },
+                    animate: animEnabled && preferences.animateFolder
                 )
                 .zIndex(1)
             }
@@ -97,7 +129,12 @@ struct ContentView: View {
                 viewModel.tileFramesReady = true
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: viewModel.openFolder?.id)
+        .animation(
+            (animEnabled && preferences.animateFolder)
+                ? .spring(response: 0.3, dampingFraction: 0.85)
+                : nil,
+            value: viewModel.openFolder?.id
+        )
         .onExitCommand {
             if viewModel.openFolder != nil {
                 viewModel.openFolder = nil
@@ -110,9 +147,6 @@ struct ContentView: View {
         }
         .onAppear {
             syncScrollHijack()
-            // Auto-focus the search field so IME composition works from the
-            // first keystroke. The click monitor handles empty-space clicks
-            // correctly even when the field is focused.
             searchFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchFocusSearch)) { _ in
@@ -120,6 +154,55 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
         .onChange(of: viewModel.openFolder?.id) { syncScrollHijack() }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragChanged)) { note in
+            if let update = note.object as? EditDragUpdate {
+                viewModel.editDragID = update.id
+                viewModel.editDragTranslation = update.translation
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragEnded)) { _ in
+            viewModel.editDragID = nil
+            viewModel.editDragTranslation = .zero
+        }
+    }
+
+    // MARK: - Background
+
+    @ViewBuilder
+    private var backgroundLayer: some View {
+        switch preferences.backgroundMode {
+        case .desktop:
+            Rectangle()
+                .fill(.black.opacity(preferences.backgroundBlur))
+                .background(.ultraThinMaterial)
+        case .uploaded:
+            if let path = currentBackgroundPath,
+               let nsImage = NSImage(contentsOfFile: path) {
+                ZStack {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                    Rectangle()
+                        .fill(.black.opacity(preferences.backgroundBlur * 0.5))
+                }
+                .transition(.opacity)
+            } else {
+                Rectangle()
+                    .fill(.black.opacity(preferences.backgroundBlur))
+                    .background(.ultraThinMaterial)
+            }
+        }
+    }
+
+    private var currentBackgroundPath: String? {
+        guard !preferences.backgroundImages.isEmpty else { return nil }
+        let idx = backgroundIndex % preferences.backgroundImages.count
+        return preferences.backgroundImages[idx]
+    }
+
+    private func advanceBackground() {
+        guard preferences.backgroundImages.count > 1 else { return }
+        backgroundIndex = (backgroundIndex + 1) % preferences.backgroundImages.count
     }
 
     // MARK: - Helpers

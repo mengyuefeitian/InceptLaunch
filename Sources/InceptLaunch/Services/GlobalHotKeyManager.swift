@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 final class GlobalHotKeyManager {
     private let onToggle: () -> Void
@@ -14,6 +15,20 @@ final class GlobalHotKeyManager {
                 onToggle()
             }
         }
+    }
+
+    /// Returns true if the app has accessibility permission (required for global monitors).
+    static var hasAccessibility: Bool {
+        AXIsProcessTrusted()
+    }
+
+    /// Prompt the user to grant accessibility permission. Opens System Settings.
+    @MainActor
+    static func requestAccessibility() {
+        // kAXTrustedCheckOptionPrompt == "AXTrustedCheckOptionPrompt" as CFString
+        let key = "AXTrustedCheckOptionPrompt" as CFString
+        let options = [key: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
     }
 
     deinit {

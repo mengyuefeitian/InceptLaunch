@@ -9,6 +9,7 @@ struct FolderPopupView: View {
     let onRename: (String) -> Void
     let onTrash: (AppRecord) -> Void
     let onClose: () -> Void
+    var animate: Bool = true
 
     @State private var isEditingName = false
     @State private var draftName = ""
@@ -53,7 +54,11 @@ struct FolderPopupView: View {
             }
             .frame(width: 780)
             .liquidGlass(cornerRadius: 32, fallbackOpacity: 0.22)
-            .transition(.scale(scale: 0.6).combined(with: .opacity))
+            .transition(
+                animate
+                    ? .scale(scale: 0.6).combined(with: .opacity)
+                    : .opacity
+            )
         }
     }
 

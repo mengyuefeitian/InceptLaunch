@@ -20,6 +20,15 @@ final class LaunchpadViewModel {
     var searchText = ""
     var selectedItemID: String?
 
+    /// When true, tiles jiggle and can be dragged to reorder.
+    var editMode = false
+
+    /// The ID of the tile currently being dragged in edit mode (nil if not dragging).
+    var editDragID: String?
+
+    /// Translation of the current edit-mode drag.
+    var editDragTranslation: CGSize = .zero
+
     /// Frames of all interactive tile views in the overlay's content-view
     /// coordinate space (origin top-left). Updated via PreferenceKey from
     /// LaunchpadGridView. Used by the dismiss monitor to distinguish tile
@@ -204,6 +213,29 @@ final class LaunchpadViewModel {
     func shrinkFolder(id: String) {
         layoutStore.shrinkFolder(id: id)
         persistLayout()
+    }
+
+    func hideApp(id: String) {
+        layoutStore.hideApp(id: id)
+        persistLayout()
+    }
+
+    func unhideApp(id: String) {
+        layoutStore.unhideApp(id: id)
+        persistLayout()
+    }
+
+    /// Moves an app to a new position in the grid (used by edit-mode drag reorder).
+    /// `targetPage` and `targetIndex` specify where to place it.
+    func moveAppInGrid(sourceID: String, targetPage: Int, targetIndex: Int) {
+        guard !Self.isFolderID(sourceID) else { return }
+        layoutStore.moveItem(id: sourceID, toPage: targetPage, index: targetIndex)
+        persistLayout()
+    }
+
+    /// All currently-hidden app records, for the settings management list.
+    var hiddenApps: [AppRecord] {
+        layoutStore.layout.hiddenAppIDs.compactMap { appIndex.records[$0] }
     }
 
     func isFolderEnlarged(_ id: String) -> Bool {

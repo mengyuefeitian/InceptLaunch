@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController(overlay: overlay)
         hotKeyManager = GlobalHotKeyManager { [overlay] in overlay.toggle() }
         hotKeyManager?.start()
+        // Global event monitors require Accessibility permission. Prompt if missing.
+        if !GlobalHotKeyManager.hasAccessibility {
+            GlobalHotKeyManager.requestAccessibility()
+        }
         // Launch straight into the full-screen launchpad overlay.
         overlay.show()
     }
