@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // Apply the user's chosen app icon to the Dock.
+        let prefs = (try? PreferencesStore().load()) ?? .default
+        IconSwitcher.apply(prefs.appIconStyle)
         menuBarController = MenuBarController(overlay: overlay)
         hotKeyManager = GlobalHotKeyManager { [overlay] in overlay.toggle() }
         hotKeyManager?.start()

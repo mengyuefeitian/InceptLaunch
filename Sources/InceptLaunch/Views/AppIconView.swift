@@ -40,7 +40,8 @@ struct FolderTileView: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.white.opacity(0.16))
+            .fill(.clear)
+            .liquidGlass(cornerRadius: 24, fallbackOpacity: 0.16)
             .overlay(
                 Grid(horizontalSpacing: 6, verticalSpacing: 6) {
                     GridRow {
@@ -52,10 +53,6 @@ struct FolderTileView: View {
                         cell(3)
                     }
                 }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(.white.opacity(0.10), lineWidth: 1)
             )
     }
 

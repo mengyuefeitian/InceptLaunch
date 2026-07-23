@@ -10,7 +10,7 @@ struct SearchFieldView: View {
             .focused($focused)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(.regularMaterial, in: Capsule())
+            .liquidGlassCapsule(fallbackOpacity: 0.12)
             .frame(maxWidth: 420)
     }
 }

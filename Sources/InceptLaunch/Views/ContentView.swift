@@ -18,9 +18,19 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
                 .ignoresSafeArea()
                 // Clicking empty space dismisses, like Launchpad.
+                // A simultaneous gesture fires on the FIRST tap even while the
+                // search TextField holds focus — an exclusive onTapGesture is
+                // absorbed by the field's defocus handling, forcing two taps.
                 .contentShape(Rectangle())
-                .onTapGesture {
+                .simultaneousGesture(TapGesture().onEnded {
                     dismiss()
+                })
+                .contextMenu {
+                    Button {
+                        viewModel.tidyGrid()
+                    } label: {
+                        Label("整理桌面", systemImage: "square.grid.3x3.fill")
+                    }
                 }
 
             VStack(spacing: 32) {
@@ -40,12 +50,19 @@ struct ContentView: View {
                     LaunchpadGridView(
                         pages: viewModel.visiblePages,
                         rows: viewModel.gridRows,
+                        enlargedFolderIDs: viewModel.enlargedFolderIDs,
                         onLaunch: { item in handleTap(item) },
                         onDropItem: { sourceID, target in
                             viewModel.handleDrop(sourceID: sourceID, onto: target)
                         },
                         onTrash: { item in
                             Task { await viewModel.moveToTrash(item.id) }
+                        },
+                        onEnlarge: { item in
+                            viewModel.enlargeFolder(id: item.id)
+                        },
+                        onShrink: { item in
+                            viewModel.shrinkFolder(id: item.id)
                         }
                     )
                 }

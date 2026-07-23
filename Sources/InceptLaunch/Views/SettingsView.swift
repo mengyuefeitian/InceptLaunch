@@ -17,6 +17,14 @@ struct SettingsView: View {
                     Text("Background blur")
                 }
                 Toggle("Reduce motion", isOn: $preferences.reduceMotion)
+                Picker("App icon", selection: $preferences.appIconStyle) {
+                    ForEach(UserPreferences.AppIconStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .onChange(of: preferences.appIconStyle) { _, newValue in
+                    IconSwitcher.apply(newValue)
+                }
             }
 
             Section("Apps") {
@@ -25,6 +33,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 520, height: 420)
+        .frame(width: 520, height: 460)
     }
 }

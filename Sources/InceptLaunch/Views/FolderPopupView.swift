@@ -52,14 +52,7 @@ struct FolderPopupView: View {
                 .frame(maxHeight: 560)
             }
             .frame(width: 780)
-            .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(.ultraThickMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-            )
+            .liquidGlass(cornerRadius: 32, fallbackOpacity: 0.22)
             .transition(.scale(scale: 0.6).combined(with: .opacity))
         }
     }

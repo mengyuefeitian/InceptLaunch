@@ -164,6 +164,31 @@ final class LaunchpadViewModel {
         persistLayout()
     }
 
+    /// Compacts all pages forward, filling gaps left by apps moved into
+    /// folders or trashed, then persists. Triggered by "整理桌面".
+    func tidyGrid() {
+        layoutStore.compactPages()
+        persistLayout()
+    }
+
+    func enlargeFolder(id: String) {
+        layoutStore.enlargeFolder(id: id)
+        persistLayout()
+    }
+
+    func shrinkFolder(id: String) {
+        layoutStore.shrinkFolder(id: id)
+        persistLayout()
+    }
+
+    func isFolderEnlarged(_ id: String) -> Bool {
+        layoutStore.isEnlarged(id)
+    }
+
+    var enlargedFolderIDs: Set<String> {
+        layoutStore.layout.enlargedFolderIDs
+    }
+
     private func defaultFolderName() -> String {
         let base = "新文件夹"
         let existing = Set(layoutStore.layout.folders.map(\.name))

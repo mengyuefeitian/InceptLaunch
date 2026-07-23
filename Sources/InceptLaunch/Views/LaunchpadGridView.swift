@@ -3,27 +3,20 @@ import SwiftUI
 struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let rows: Int
+    let enlargedFolderIDs: Set<String>
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
+    let onEnlarge: (LaunchpadDisplayItem) -> Void
+    let onShrink: (LaunchpadDisplayItem) -> Void
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
-
-    private let columns = Array(
-        repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: GridMetrics.columnSpacing),
-        count: GridMetrics.columns
-    )
 
     var body: some View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                // Tiles keep their full design height for the screen's row
-                // count (4 rows on 1080p, more on taller displays) — the grid
-                // adapts by paginating, never by compressing. Only pages with
-                // more rows than the screen count (long search results)
-                // shrink tiles so nothing gets clipped.
                 let maxPageRows = pages.map { ($0.count + GridMetrics.columns - 1) / GridMetrics.columns }.max() ?? 1
                 let sizingRows = max(rows, maxPageRows)
                 let fitted = (geo.size.height - CGFloat(sizingRows - 1) * GridMetrics.rowSpacing) / CGFloat(sizingRows)
@@ -57,12 +50,20 @@ struct LaunchpadGridView: View {
 
     @ViewBuilder
     private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileHeight: CGFloat) -> some View {
-        LazyVGrid(columns: columns, spacing: GridMetrics.rowSpacing) {
+        LaunchpadGridLayout(
+            tileHeight: tileHeight
+        ) {
             ForEach(page) { item in
-                AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
-                    // Long-press must be the innermost gesture or the tap
-                    // gesture swallows every press before it can complete.
-                    .modifier(TileTrashMenu(item: item, onTrash: onTrash))
+                let enlarged = enlargedFolderIDs.contains(item.id)
+                tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
+                    .layoutEnlarged(enlarged)
+                    .modifier(TileTrashMenu(
+                        item: item,
+                        onTrash: onTrash,
+                        isEnlarged: enlarged,
+                        onEnlarge: onEnlarge,
+                        onShrink: onShrink
+                    ))
                     .onTapGesture {
                         onLaunch(item)
                     }
@@ -76,6 +77,15 @@ struct LaunchpadGridView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 24)
+    }
+
+    @ViewBuilder
+    private func tileView(item: LaunchpadDisplayItem, iconSize: CGFloat, tileHeight: CGFloat, enlarged: Bool) -> some View {
+        if enlarged, case .folder = item.kind {
+            EnlargedFolderTileView(item: item, tileHeight: tileHeight)
+        } else {
+            AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
+        }
     }
 
     private func dragGesture(width: CGFloat) -> some Gesture {

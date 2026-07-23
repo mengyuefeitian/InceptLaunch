@@ -225,7 +225,8 @@ struct LayoutStore {
             pages: [[]],
             folders: [],
             hiddenAppIDs: hidden,
-            grid: grid
+            grid: grid,
+            enlargedFolderIDs: []
         )
     }
 
@@ -268,7 +269,7 @@ struct LayoutStore {
     /// Flattens every page (preserving item order) and re-chunks the items into
     /// dense pages at the current capacity, filling gaps left by removed items
     /// so the grid paginates with the fewest pages.
-    private mutating func compactPages() {
+    mutating func compactPages() {
         let capacity = max(1, layout.effectivePageCapacity)
         let items = layout.pages.flatMap { $0 }
         guard !items.isEmpty else {
@@ -286,5 +287,20 @@ struct LayoutStore {
         }
         pages.append(current)
         layout.pages = pages
+    }
+
+    /// Marks a folder as enlarged (displayed as a 2×2 tile with 3×3 internal grid).
+    mutating func enlargeFolder(id: String) {
+        layout.enlargedFolderIDs.insert(id)
+    }
+
+    /// Reverts a folder back to its normal 1×1 tile size.
+    mutating func shrinkFolder(id: String) {
+        layout.enlargedFolderIDs.remove(id)
+    }
+
+    /// Whether a folder is currently in enlarged mode.
+    func isEnlarged(_ id: String) -> Bool {
+        layout.enlargedFolderIDs.contains(id)
     }
 }
