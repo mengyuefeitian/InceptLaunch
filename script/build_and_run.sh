@@ -39,6 +39,8 @@ fi
 # Copy icon variants for runtime switching
 if [ -d "$ROOT_DIR/Resources/Icons" ]; then
   cp "$ROOT_DIR/Resources/Icons/"*.icns "$APP_RESOURCES/"
+  # Also copy PNG thumbnails for the settings icon picker
+  cp "$ROOT_DIR/Resources/Icons/"*.png "$APP_RESOURCES/" 2>/dev/null || true
 fi
 
 cat >"$INFO_PLIST" <<PLIST
@@ -55,9 +57,9 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.2.5</string>
+  <string>1.2.6</string>
   <key>CFBundleVersion</key>
-  <string>1.2.5</string>
+  <string>1.2.6</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

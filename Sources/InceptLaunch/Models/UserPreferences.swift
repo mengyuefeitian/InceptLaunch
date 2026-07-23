@@ -9,22 +9,35 @@ struct UserPreferences: Codable, Equatable {
 
     enum AppIconStyle: String, Codable, Equatable, CaseIterable {
         case iconD = "D"
-        case iconA = "A"
-        case iconB = "B"
+        case icon01 = "icon01"
+        case icon02 = "icon02"
+        case icon03 = "icon03"
 
         var displayName: String {
             switch self {
-            case .iconD: return "玻璃升空 (D)"
-            case .iconA: return "星轨发射 (A)"
-            case .iconB: return "棱镜光束 (B)"
+            case .iconD: return "默认 (D)"
+            case .icon01: return "图标 1"
+            case .icon02: return "图标 2"
+            case .icon03: return "图标 3"
             }
         }
 
         var resourceName: String {
             switch self {
             case .iconD: return "InceptLaunch-D"
-            case .iconA: return "InceptLaunch-A"
-            case .iconB: return "InceptLaunch-B"
+            case .icon01: return "icon01"
+            case .icon02: return "icon02"
+            case .icon03: return "icon03"
+            }
+        }
+
+        /// PNG thumbnail file name for the settings picker (bundled in Resources).
+        var thumbnailName: String {
+            switch self {
+            case .iconD: return "InceptLaunch-D"
+            case .icon01: return "icon01"
+            case .icon02: return "icon02"
+            case .icon03: return "icon03"
             }
         }
     }
@@ -88,6 +101,6 @@ struct UserPreferences: Codable, Equatable {
         showSystemApplications = try c.decode(Bool.self, forKey: .showSystemApplications)
         overlayDisplayMode = try c.decode(OverlayDisplayMode.self, forKey: .overlayDisplayMode)
         scanDirectories = try c.decode([String].self, forKey: .scanDirectories)
-        appIconStyle = try c.decodeIfPresent(AppIconStyle.self, forKey: .appIconStyle) ?? .iconD
+        appIconStyle = (try? c.decodeIfPresent(AppIconStyle.self, forKey: .appIconStyle)) ?? .iconD
     }
 }
