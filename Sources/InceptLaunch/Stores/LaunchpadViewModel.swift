@@ -126,7 +126,14 @@ final class LaunchpadViewModel {
         // The rows-per-page follows the screen height; re-chunk layouts saved
         // with a different capacity (e.g. legacy 35-item pages, or pages from
         // another display) before merging in newly installed apps.
-        layoutStore.repaginate(capacity: GridMetrics.pageCapacity(rows: gridRows))
+        // Force re-pagination when enlarged folders exist because the
+        // cell-counting logic changed (enlarged = 4 cells) without changing
+        // the stored capacity value.
+        let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
+        layoutStore.repaginate(
+            capacity: GridMetrics.pageCapacity(rows: gridRows),
+            force: hasEnlarged
+        )
         let result = scanner.scanAll(directories: urls)
         applyScanResult(result)
         persistLayout()

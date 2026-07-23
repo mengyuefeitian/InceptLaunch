@@ -4,6 +4,7 @@ struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let rows: Int
     let enlargedFolderIDs: Set<String>
+    let scrollModel: OverlayScrollModel
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
@@ -85,7 +86,7 @@ struct LaunchpadGridView: View {
     @ViewBuilder
     private func tileView(item: LaunchpadDisplayItem, iconSize: CGFloat, tileHeight: CGFloat, enlarged: Bool) -> some View {
         if enlarged, case .folder = item.kind {
-            EnlargedFolderTileView(item: item, tileHeight: tileHeight)
+            EnlargedFolderTileView(item: item, tileHeight: tileHeight, scrollModel: scrollModel)
         } else {
             AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
         }

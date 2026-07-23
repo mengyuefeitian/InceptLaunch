@@ -48,6 +48,7 @@ struct ContentView: View {
                             pages: viewModel.visiblePages,
                             rows: viewModel.gridRows,
                             enlargedFolderIDs: viewModel.enlargedFolderIDs,
+                            scrollModel: scrollModel,
                             onLaunch: { item in handleTap(item) },
                             onDropItem: { sourceID, target in
                                 viewModel.handleDrop(sourceID: sourceID, onto: target)
@@ -68,6 +69,18 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Transparent tap catcher for empty-space clicks.  The outer
+            // VStack fills the entire screen (maxHeight:.infinity) which
+            // blocks the backdrop Rectangle's tap gesture.  This invisible
+            // layer catches clicks on truly empty areas; SwiftUI resolves
+            // gestures from the topmost view downward so the search field
+            // and tile gestures fire first.
+            .background {
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismiss() }
+            }
 
             if let folder = openFolder {
                 FolderPopupView(

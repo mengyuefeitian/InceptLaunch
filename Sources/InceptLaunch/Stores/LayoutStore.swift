@@ -13,8 +13,9 @@ struct LayoutStore {
     /// the display; existing layouts must be repaginated to match.
     /// Enlarged folders consume 4 cells (2×2) instead of 1, so pagination
     /// uses effective cell counts to avoid overflow.
-    mutating func repaginate(capacity: Int) {
-        guard capacity > 0, layout.effectivePageCapacity != capacity else { return }
+    mutating func repaginate(capacity: Int, force: Bool = false) {
+        guard capacity > 0 else { return }
+        guard force || layout.effectivePageCapacity != capacity else { return }
         let items = layout.pages.flatMap { $0 }
         var pages: [[LaunchpadItem]] = []
         var current: [LaunchpadItem] = []

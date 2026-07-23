@@ -86,10 +86,13 @@ final class OverlayWindowController {
         removeScrollMonitor()
         var lastFlip = Date.distantPast
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            // While searching or with a folder popup open, scrolling belongs to
-            // the SwiftUI ScrollView underneath — let it through untouched.
-            let hijacks = MainActor.assumeIsolated { self?.scrollModel.hijacksScrollWheel ?? false }
-            guard hijacks else { return event }
+            // While searching, with a folder popup open, or while the mouse
+            // hovers over an enlarged folder tile, scrolling belongs to the
+            // SwiftUI views underneath — let it through untouched.
+            let model = MainActor.assumeIsolated { self?.scrollModel }
+            let hijacks = model?.hijacksScrollWheel ?? false
+            let overFolder = model?.isOverEnlargedFolder ?? false
+            guard hijacks, !overFolder else { return event }
             let now = Date()
             guard now.timeIntervalSince(lastFlip) > 0.3 else { return nil }
             let deltaY = event.scrollingDeltaY
