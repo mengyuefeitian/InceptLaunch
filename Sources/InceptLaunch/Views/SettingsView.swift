@@ -66,18 +66,40 @@ struct IconThumbnailView: View {
     let style: UserPreferences.AppIconStyle
     let isSelected: Bool
 
+    private var nsImage: NSImage? {
+        let name = style.thumbnailName
+        // Try PNG first, then fall back to any format in the bundle
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        return NSImage(named: name)
+    }
+
     var body: some View {
         VStack(spacing: 4) {
-            Image(style.thumbnailName)
-                .resizable()
-                .aspectRatio(1, contentMode: .fit)
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2.5)
-                )
-                .shadow(radius: isSelected ? 3 : 1)
+            Group {
+                if let img = nsImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(1, contentMode: .fit)
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(Text(style.displayName).font(.caption2))
+                }
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2.5)
+            )
+            .shadow(radius: isSelected ? 3 : 1)
             Text(style.displayName)
                 .font(.caption2)
                 .foregroundStyle(isSelected ? .primary : .secondary)

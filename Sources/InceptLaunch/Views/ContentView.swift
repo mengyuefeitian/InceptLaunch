@@ -1,4 +1,7 @@
 import SwiftUI
+import os.log
+
+private let clickLog = Logger(subsystem: "com.inceptlaunch.InceptLaunch", category: "clickMonitor")
 
 struct ContentView: View {
     let scrollModel: OverlayScrollModel
@@ -154,17 +157,25 @@ struct ContentView: View {
         // Single unified click monitor: defocus search field if needed,
         // then decide whether to pass through (on tile) or dismiss (empty space).
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [self] event in
+            // Only process clicks in the overlay window.
+            // If the click is in a different window (e.g., settings), pass through.
+            guard let window = event.window,
+                  window is OverlayWindow else {
+                return event
+            }
+
             // If tile frames aren't populated yet (first click after overlay
             // open), let the click pass through so the tile's gesture fires.
             // Dismissing here would eat the first click.
             guard viewModel.tileFramesReady else {
+                clickLog.info("CLICK: tileFramesReady=false, pass through")
                 return event
             }
 
             // Convert mouse location from AppKit coords (origin bottom-left)
             // to content-view coords (origin top-left) to match tile frames.
-            guard let window = event.window,
-                  let contentView = window.contentView else {
+            guard let contentView = window.contentView else {
+                clickLog.info("CLICK: no contentView, pass through")
                 return event
             }
             let windowHeight = contentView.bounds.height
@@ -184,7 +195,7 @@ struct ContentView: View {
             }
 
             if clickedInSearchField {
-                // Click inside the search field — let it through normally.
+                clickLog.info("CLICK: in search field, pass through")
                 return event
             }
 
@@ -196,10 +207,12 @@ struct ContentView: View {
             // Check if the click is inside any tracked tile frame.
             let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
             if onTile {
+                clickLog.info("CLICK: on tile at x=\(contentViewPoint.x), y=\(contentViewPoint.y), frames=\(viewModel.tileFrames.count), pass through")
                 return event  // Let the tile's gesture handle it
             }
 
             // Empty space click — dismiss and consume the event.
+            clickLog.info("CLICK: empty space at x=\(contentViewPoint.x), y=\(contentViewPoint.y), frames=\(viewModel.tileFrames.count), DISMISS")
             NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
             return nil
         }
