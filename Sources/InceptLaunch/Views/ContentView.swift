@@ -4,6 +4,7 @@ struct ContentView: View {
     let scrollModel: OverlayScrollModel
     @State private var viewModel = LaunchpadViewModel()
     @State private var openFolder: LaunchpadDisplayItem?
+    @State private var defocusMonitor: Any?
     @FocusState private var searchFocused: Bool
 
     private var isSearching: Bool {
@@ -18,9 +19,7 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture().onEnded {
-                    dismiss()
-                })
+                .onTapGesture { dismiss() }
                 .contextMenu {
                     Button {
                         viewModel.tidyGrid()
@@ -34,11 +33,6 @@ struct ContentView: View {
                     .padding(.top, 60)
                     .padding(.bottom, 32)
 
-                // The grid area below the search field: clicking empty space
-                // here must dismiss on the FIRST tap even while the TextField
-                // holds focus. .simultaneousGesture on the view that actually
-                // receives the hit (not the backdrop behind it) fires during
-                // AppKit's defocus handling, unlike .onTapGesture.
                 Group {
                     if isSearching {
                         SearchResultsView(
@@ -72,9 +66,7 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture().onEnded {
-                    dismiss()
-                })
+                .onTapGesture { dismiss() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -114,19 +106,50 @@ struct ContentView: View {
             viewModel.bootstrapScan()
         }
         .onAppear {
-            // The window becomes key a beat after the hosting view appears;
-            // defer the focus request briefly so it is not dropped.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 searchFocused = true
             }
+            installDefocusMonitor()
             syncScrollHijack()
+        }
+        .onDisappear {
+            if let monitor = defocusMonitor {
+                NSEvent.removeMonitor(monitor)
+                defocusMonitor = nil
+            }
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
         .onChange(of: openFolder?.id) { syncScrollHijack() }
     }
 
-    /// Tell the global scroll monitor whether to flip pages or let scrolling
-    /// pass through to the active ScrollView (search results / folder popup).
+    /// Installs a local event monitor that resigns the search field's focus on
+    /// mouseDown when the click lands outside the field. Without this, AppKit
+    /// consumes the entire click (down+up) for defocus and SwiftUI's tap gesture
+    /// never fires — forcing the user to click twice to dismiss.
+    private func installDefocusMonitor() {
+        defocusMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let window = event.window,
+                  let fieldEditor = window.firstResponder as? NSTextView,
+                  fieldEditor.isFieldEditor else {
+                return event
+            }
+            // The search field's field editor is first responder. Check whether
+            // the click is within the field's bounds — if so, let normal
+            // handling proceed (cursor positioning, selection, etc.).
+            if let fieldView = fieldEditor.superview {
+                let frameInWindow = fieldView.convert(fieldView.bounds, to: nil)
+                if frameInWindow.contains(event.locationInWindow) {
+                    return event
+                }
+            }
+            // Click is outside the search field: resign focus NOW so the
+            // event continues to SwiftUI's gesture recognizers on this same
+            // click instead of being swallowed for defocus.
+            window.makeFirstResponder(nil)
+            return event
+        }
+    }
+
     private func syncScrollHijack() {
         scrollModel.update(isSearching: isSearching, isFolderOpen: openFolder != nil)
     }
