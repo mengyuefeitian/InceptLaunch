@@ -32,6 +32,12 @@ final class LaunchpadViewModel {
     /// by a premature empty-space dismiss.
     var tileFramesReady = false
 
+    /// The currently-open folder popup, if any. Lives on the @Observable
+    /// model (not @State in ContentView) so the NSEvent click monitor
+    /// closure can read it by reference — @State in a struct is invisible
+    /// inside captured closures.
+    var openFolder: LaunchpadDisplayItem?
+
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher

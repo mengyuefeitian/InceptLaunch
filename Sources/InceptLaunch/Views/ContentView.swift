@@ -1,12 +1,8 @@
 import SwiftUI
-import os.log
-
-private let clickLog = Logger(subsystem: "com.inceptlaunch.InceptLaunch", category: "clickMonitor")
 
 struct ContentView: View {
     let scrollModel: OverlayScrollModel
     @State private var viewModel = LaunchpadViewModel()
-    @State private var openFolder: LaunchpadDisplayItem?
     @State private var keyMonitor: Any?
     @State private var clickMonitor: Any?
     @FocusState private var searchFocused: Bool
@@ -72,26 +68,26 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let folder = openFolder {
+            if let folder = viewModel.openFolder {
                 FolderPopupView(
                     item: folder,
                     onLaunch: { record in
                         _ = AppLauncher().launch(record)
-                        openFolder = nil
+                        viewModel.openFolder = nil
                         dismiss()
                     },
                     onRename: { newName in
                         viewModel.renameFolder(id: folder.id, name: newName)
-                        openFolder?.title = newName
+                        viewModel.openFolder?.title = newName
                     },
                     onTrash: { record in
                         Task { await viewModel.moveToTrash(record.id) }
-                        openFolder?.members.removeAll { $0.id == record.id }
-                        if openFolder?.members.isEmpty == true {
-                            openFolder = nil
+                        viewModel.openFolder?.members.removeAll { $0.id == record.id }
+                        if viewModel.openFolder?.members.isEmpty == true {
+                            viewModel.openFolder = nil
                         }
                     },
-                    onClose: { openFolder = nil }
+                    onClose: { viewModel.openFolder = nil }
                 )
                 .zIndex(1)
             }
@@ -103,10 +99,10 @@ struct ContentView: View {
                 viewModel.tileFramesReady = true
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: openFolder?.id)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: viewModel.openFolder?.id)
         .onExitCommand {
-            if openFolder != nil {
-                openFolder = nil
+            if viewModel.openFolder != nil {
+                viewModel.openFolder = nil
             } else {
                 dismiss()
             }
@@ -126,7 +122,7 @@ struct ContentView: View {
             removeMonitors()
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
-        .onChange(of: openFolder?.id) { syncScrollHijack() }
+        .onChange(of: viewModel.openFolder?.id) { syncScrollHijack() }
     }
 
     // MARK: - Event Monitors
@@ -164,18 +160,21 @@ struct ContentView: View {
                 return event
             }
 
+            // If a folder popup is open, let the FolderPopupView handle its own clicks.
+            if viewModel.openFolder != nil {
+                return event
+            }
+
             // If tile frames aren't populated yet (first click after overlay
             // open), let the click pass through so the tile's gesture fires.
             // Dismissing here would eat the first click.
             guard viewModel.tileFramesReady else {
-                clickLog.info("CLICK: tileFramesReady=false, pass through")
                 return event
             }
 
             // Convert mouse location from AppKit coords (origin bottom-left)
             // to content-view coords (origin top-left) to match tile frames.
             guard let contentView = window.contentView else {
-                clickLog.info("CLICK: no contentView, pass through")
                 return event
             }
             let windowHeight = contentView.bounds.height
@@ -195,7 +194,6 @@ struct ContentView: View {
             }
 
             if clickedInSearchField {
-                clickLog.info("CLICK: in search field, pass through")
                 return event
             }
 
@@ -207,12 +205,10 @@ struct ContentView: View {
             // Check if the click is inside any tracked tile frame.
             let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
             if onTile {
-                clickLog.info("CLICK: on tile at x=\(contentViewPoint.x), y=\(contentViewPoint.y), frames=\(viewModel.tileFrames.count), pass through")
                 return event  // Let the tile's gesture handle it
             }
 
             // Empty space click — dismiss and consume the event.
-            clickLog.info("CLICK: empty space at x=\(contentViewPoint.x), y=\(contentViewPoint.y), frames=\(viewModel.tileFrames.count), DISMISS")
             NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
             return nil
         }
@@ -226,7 +222,7 @@ struct ContentView: View {
     // MARK: - Helpers
 
     private func syncScrollHijack() {
-        scrollModel.update(isSearching: isSearching, isFolderOpen: openFolder != nil)
+        scrollModel.update(isSearching: isSearching, isFolderOpen: viewModel.openFolder != nil)
     }
 
     private func handleTap(_ item: LaunchpadDisplayItem) {
@@ -235,7 +231,7 @@ struct ContentView: View {
             _ = AppLauncher().launch(record)
             dismiss()
         case .folder:
-            openFolder = item
+            viewModel.openFolder = item
         }
     }
 

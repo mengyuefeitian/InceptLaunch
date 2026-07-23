@@ -67,6 +67,7 @@ struct LaunchpadGridView: View {
                         onEnlarge: onEnlarge,
                         onShrink: onShrink
                     ))
+                    .contentShape(Rectangle())
                     .onTapGesture {
                         onLaunch(item)
                     }
