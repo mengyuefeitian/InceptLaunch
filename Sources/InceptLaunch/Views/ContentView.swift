@@ -60,13 +60,12 @@ struct ContentView: View {
                             },
                             onShrink: { item in
                                 viewModel.shrinkFolder(id: item.id)
-                            }
+                            },
+                            onDismiss: { dismiss() }
                         )
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture { dismiss() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -128,9 +127,9 @@ struct ContentView: View {
     ///    and they click outside it, resign focus immediately so the subsequent
     ///    .onTapGesture fires on the same click.
     private func installMonitors() {
-        // Focus search field when the user starts typing.
+        // Focus search field when the user starts typing, and append the
+        // first character directly (the focus transition swallows it otherwise).
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
-            // Ignore modifier-only or non-printable keys
             guard let chars = event.characters,
                   let first = chars.unicodeScalars.first,
                   first.value >= 32, first.value != 127 else {
@@ -138,6 +137,8 @@ struct ContentView: View {
             }
             if !searchFocused {
                 searchFocused = true
+                viewModel.searchText += chars
+                return nil // Swallow — we already inserted the character
             }
             return event
         }

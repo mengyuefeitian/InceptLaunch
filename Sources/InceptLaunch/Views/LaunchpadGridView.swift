@@ -9,6 +9,7 @@ struct LaunchpadGridView: View {
     let onTrash: (LaunchpadDisplayItem) -> Void
     let onEnlarge: (LaunchpadDisplayItem) -> Void
     let onShrink: (LaunchpadDisplayItem) -> Void
+    let onDismiss: () -> Void
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -17,7 +18,13 @@ struct LaunchpadGridView: View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                let maxPageRows = pages.map { ($0.count + GridMetrics.columns - 1) / GridMetrics.columns }.max() ?? 1
+                // Enlarged folders span 2×2 = 4 cells (3 extra each); the row
+                // estimate must account for them or the grid overflows vertically.
+                let maxPageRows = pages.map { page -> Int in
+                    let enlargedCount = page.filter { enlargedFolderIDs.contains($0.id) }.count
+                    let effectiveCells = page.count + enlargedCount * 3
+                    return (effectiveCells + GridMetrics.columns - 1) / GridMetrics.columns
+                }.max() ?? 1
                 let sizingRows = max(rows, maxPageRows)
                 let fitted = (geo.size.height - CGFloat(sizingRows - 1) * GridMetrics.rowSpacing) / CGFloat(sizingRows)
                 let tileHeight = min(GridMetrics.tileHeight, max(96, fitted))
@@ -25,12 +32,13 @@ struct LaunchpadGridView: View {
                 HStack(spacing: 0) {
                     ForEach(pages.indices, id: \.self) { index in
                         pageGrid(pages[index], iconSize: iconSize, tileHeight: tileHeight)
-                            .frame(width: width, height: geo.size.height, alignment: .top)
+                            .frame(width: width, height: geo.size.height, alignment: .center)
                     }
                 }
                 .offset(x: -CGFloat(currentPage) * width + dragOffset)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentPage)
                 .gesture(dragGesture(width: width))
+                .onTapGesture { onDismiss() }
             }
             .clipped()
 
