@@ -11,17 +11,23 @@ struct LayoutStore {
     /// The grid's row count adapts to the screen height (4 rows on 1080p,
     /// more on taller 4K/5K layouts), so the per-page capacity changes with
     /// the display; existing layouts must be repaginated to match.
+    /// Enlarged folders consume 4 cells (2×2) instead of 1, so pagination
+    /// uses effective cell counts to avoid overflow.
     mutating func repaginate(capacity: Int) {
         guard capacity > 0, layout.effectivePageCapacity != capacity else { return }
         let items = layout.pages.flatMap { $0 }
         var pages: [[LaunchpadItem]] = []
         var current: [LaunchpadItem] = []
+        var currentCells = 0
         for item in items {
-            if current.count >= capacity {
+            let cost = cellCost(item)
+            if currentCells > 0 && currentCells + cost > capacity {
                 pages.append(current)
                 current = []
+                currentCells = 0
             }
             current.append(item)
+            currentCells += cost
         }
         pages.append(current)
         layout.pages = pages
@@ -39,7 +45,9 @@ struct LayoutStore {
         let capacity = max(1, layout.effectivePageCapacity)
         for appID in appIDs where !existing.contains(appID) && !layout.hiddenAppIDs.contains(appID) {
             if layout.pages.isEmpty { layout.pages = [[]] }
-            if layout.pages[layout.pages.count - 1].count >= capacity {
+            let lastPage = layout.pages.count - 1
+            let currentCells = layout.pages[lastPage].reduce(0) { $0 + cellCost($1) }
+            if currentCells >= capacity {
                 layout.pages.append([])
             }
             layout.pages[layout.pages.count - 1].append(.app(appID))
@@ -266,9 +274,18 @@ struct LayoutStore {
         }
     }
 
+    /// Enlarged folders occupy 2×2 = 4 grid cells; everything else is 1 cell.
+    private func cellCost(_ item: LaunchpadItem) -> Int {
+        if case .folder(let id) = item, layout.enlargedFolderIDs.contains(id) {
+            return 4
+        }
+        return 1
+    }
+
     /// Flattens every page (preserving item order) and re-chunks the items into
     /// dense pages at the current capacity, filling gaps left by removed items
-    /// so the grid paginates with the fewest pages.
+    /// so the grid paginates with the fewest pages.  Enlarged folders consume
+    /// 4 cells (2×2) so they are accounted for when splitting pages.
     mutating func compactPages() {
         let capacity = max(1, layout.effectivePageCapacity)
         let items = layout.pages.flatMap { $0 }
@@ -278,12 +295,16 @@ struct LayoutStore {
         }
         var pages: [[LaunchpadItem]] = []
         var current: [LaunchpadItem] = []
+        var currentCells = 0
         for item in items {
-            if current.count >= capacity {
+            let cost = cellCost(item)
+            if currentCells > 0 && currentCells + cost > capacity {
                 pages.append(current)
                 current = []
+                currentCells = 0
             }
             current.append(item)
+            currentCells += cost
         }
         pages.append(current)
         layout.pages = pages

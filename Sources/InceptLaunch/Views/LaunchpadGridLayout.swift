@@ -20,6 +20,7 @@ struct LaunchpadGridLayout: Layout {
     var tileHeight: CGFloat = GridMetrics.tileHeight
     var columnSpacing: CGFloat = GridMetrics.columnSpacing
     var rowSpacing: CGFloat = GridMetrics.rowSpacing
+    var minRows: Int = 4  // Minimum rows for centering calculation
 
     struct Cache {
         var positions: [CGPoint] = []
@@ -37,21 +38,24 @@ struct LaunchpadGridLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let width = proposal.width ?? (CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing)
-        return CGSize(width: width, height: cache.totalHeight)
+        // Use minRows for minimum height to ensure consistent centering
+        let minHeight = CGFloat(minRows) * tileHeight + CGFloat(minRows - 1) * rowSpacing
+        let height = max(cache.totalHeight, minHeight)
+        return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
-        // Center the grid content horizontally and vertically.
+        // Center the grid content horizontally only (no vertical centering offset)
         let contentWidth = CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing
         let offsetX = max(0, (bounds.width - contentWidth) / 2)
-        let offsetY = max(0, (bounds.height - cache.totalHeight) / 2)
+        // No offsetY - apps are placed at fixed grid positions from top
 
         for (index, subview) in subviews.enumerated() {
             guard index < cache.positions.count else { break }
             let pos = cache.positions[index]
             let size = cache.sizes[index]
             subview.place(
-                at: CGPoint(x: bounds.minX + offsetX + pos.x, y: bounds.minY + offsetY + pos.y),
+                at: CGPoint(x: bounds.minX + offsetX + pos.x, y: bounds.minY + pos.y),
                 anchor: .topLeading,
                 proposal: ProposedViewSize(size)
             )

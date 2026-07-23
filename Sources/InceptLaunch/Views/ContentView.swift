@@ -127,8 +127,14 @@ struct ContentView: View {
     ///    and they click outside it, resign focus immediately so the subsequent
     ///    .onTapGesture fires on the same click.
     private func installMonitors() {
-        // Focus search field when the user starts typing, and append the
-        // first character directly (the focus transition swallows it otherwise).
+        // Focus the search field when the user starts typing.
+        // We do NOT swallow the event or manually append the character —
+        // doing so breaks IME composition (e.g. Pinyin "douyin" became
+        // "欧银" because "d" was inserted as raw English before the IME
+        // could start composing).  The first keystroke may be lost during
+        // the focus transition, but all subsequent keystrokes reach the
+        // text field through the normal responder chain and the IME works
+        // correctly.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             guard let chars = event.characters,
                   let first = chars.unicodeScalars.first,
@@ -137,13 +143,16 @@ struct ContentView: View {
             }
             if !searchFocused {
                 searchFocused = true
-                viewModel.searchText += chars
-                return nil // Swallow — we already inserted the character
             }
             return event
         }
 
-        // Resign search field focus on outside click so .onTapGesture fires.
+        // Resign search field focus on outside click AND dismiss immediately.
+        // The AppKit monitor fires before SwiftUI gesture recognition, so
+        // relying on the SwiftUI .onTapGesture to also fire on the same click
+        // is unreliable (the gesture can be absorbed by the focus change).
+        // Posting the dismiss notification directly from the monitor ensures
+        // a single click both defocuses the field and closes the overlay.
         defocusMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
             guard let window = event.window,
                   let fieldEditor = window.firstResponder as? NSTextView,
@@ -157,6 +166,7 @@ struct ContentView: View {
                 }
             }
             window.makeFirstResponder(nil)
+            NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
             return event
         }
     }

@@ -18,15 +18,9 @@ struct LaunchpadGridView: View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                // Enlarged folders span 2×2 = 4 cells (3 extra each); the row
-                // estimate must account for them or the grid overflows vertically.
-                let maxPageRows = pages.map { page -> Int in
-                    let enlargedCount = page.filter { enlargedFolderIDs.contains($0.id) }.count
-                    let effectiveCells = page.count + enlargedCount * 3
-                    return (effectiveCells + GridMetrics.columns - 1) / GridMetrics.columns
-                }.max() ?? 1
-                let sizingRows = max(rows, maxPageRows)
-                let fitted = (geo.size.height - CGFloat(sizingRows - 1) * GridMetrics.rowSpacing) / CGFloat(sizingRows)
+                // Always size tiles based on fixed row count - enlarged folder
+                // overflow is handled by pagination, not by compressing tiles.
+                let fitted = (geo.size.height - CGFloat(rows - 1) * GridMetrics.rowSpacing) / CGFloat(rows)
                 let tileHeight = min(GridMetrics.tileHeight, max(96, fitted))
                 let iconSize = GridMetrics.iconSize * (tileHeight / GridMetrics.tileHeight)
                 HStack(spacing: 0) {
@@ -59,7 +53,8 @@ struct LaunchpadGridView: View {
     @ViewBuilder
     private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileHeight: CGFloat) -> some View {
         LaunchpadGridLayout(
-            tileHeight: tileHeight
+            tileHeight: tileHeight,
+            minRows: rows
         ) {
             ForEach(page) { item in
                 let enlarged = enlargedFolderIDs.contains(item.id)
@@ -83,7 +78,7 @@ struct LaunchpadGridView: View {
                     }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
     }
 
