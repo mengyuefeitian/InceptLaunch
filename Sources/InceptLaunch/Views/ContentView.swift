@@ -4,6 +4,7 @@ struct ContentView: View {
     let scrollModel: OverlayScrollModel
     @State private var viewModel = LaunchpadViewModel()
     @State private var openFolder: LaunchpadDisplayItem?
+    @State private var keyMonitor: Any?
     @State private var defocusMonitor: Any?
     @FocusState private var searchFocused: Bool
 
@@ -13,7 +14,6 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Dark blurred backdrop covering the whole screen.
             Rectangle()
                 .fill(.black.opacity(0.55))
                 .background(.ultraThinMaterial)
@@ -106,49 +106,66 @@ struct ContentView: View {
             viewModel.bootstrapScan()
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                searchFocused = true
-            }
-            installDefocusMonitor()
+            installMonitors()
             syncScrollHijack()
         }
         .onDisappear {
-            if let monitor = defocusMonitor {
-                NSEvent.removeMonitor(monitor)
-                defocusMonitor = nil
-            }
+            removeMonitors()
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
         .onChange(of: openFolder?.id) { syncScrollHijack() }
     }
 
-    /// Installs a local event monitor that resigns the search field's focus on
-    /// mouseDown when the click lands outside the field. Without this, AppKit
-    /// consumes the entire click (down+up) for defocus and SwiftUI's tap gesture
-    /// never fires — forcing the user to click twice to dismiss.
-    private func installDefocusMonitor() {
+    // MARK: - Event Monitors
+
+    /// Two monitors solve the single-tap-dismiss problem:
+    ///
+    /// 1. **keyDown monitor**: focuses the search field when the user types a
+    ///    printable character. The field is NOT auto-focused on appear, so
+    ///    clicking empty space never triggers AppKit's defocus-eats-the-click.
+    ///
+    /// 2. **mouseDown monitor**: if the field IS focused (user typed something)
+    ///    and they click outside it, resign focus immediately so the subsequent
+    ///    .onTapGesture fires on the same click.
+    private func installMonitors() {
+        // Focus search field when the user starts typing.
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            // Ignore modifier-only or non-printable keys
+            guard let chars = event.characters,
+                  let first = chars.unicodeScalars.first,
+                  first.value >= 32, first.value != 127 else {
+                return event
+            }
+            if !searchFocused {
+                searchFocused = true
+            }
+            return event
+        }
+
+        // Resign search field focus on outside click so .onTapGesture fires.
         defocusMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
             guard let window = event.window,
                   let fieldEditor = window.firstResponder as? NSTextView,
                   fieldEditor.isFieldEditor else {
                 return event
             }
-            // The search field's field editor is first responder. Check whether
-            // the click is within the field's bounds — if so, let normal
-            // handling proceed (cursor positioning, selection, etc.).
             if let fieldView = fieldEditor.superview {
                 let frameInWindow = fieldView.convert(fieldView.bounds, to: nil)
                 if frameInWindow.contains(event.locationInWindow) {
                     return event
                 }
             }
-            // Click is outside the search field: resign focus NOW so the
-            // event continues to SwiftUI's gesture recognizers on this same
-            // click instead of being swallowed for defocus.
             window.makeFirstResponder(nil)
             return event
         }
     }
+
+    private func removeMonitors() {
+        if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
+        if let m = defocusMonitor { NSEvent.removeMonitor(m); defocusMonitor = nil }
+    }
+
+    // MARK: - Helpers
 
     private func syncScrollHijack() {
         scrollModel.update(isSearching: isSearching, isFolderOpen: openFolder != nil)

@@ -41,12 +41,16 @@ struct LaunchpadGridLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        // Center the grid content horizontally within the available width.
+        let contentWidth = CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing
+        let offsetX = max(0, (bounds.width - contentWidth) / 2)
+
         for (index, subview) in subviews.enumerated() {
             guard index < cache.positions.count else { break }
             let pos = cache.positions[index]
             let size = cache.sizes[index]
             subview.place(
-                at: CGPoint(x: bounds.minX + pos.x, y: bounds.minY + pos.y),
+                at: CGPoint(x: bounds.minX + offsetX + pos.x, y: bounds.minY + pos.y),
                 anchor: .topLeading,
                 proposal: ProposedViewSize(size)
             )
