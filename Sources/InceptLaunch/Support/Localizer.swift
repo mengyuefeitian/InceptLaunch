@@ -76,7 +76,21 @@ struct Localizer {
         
         // Apps settings
         "settings.showSystemApps": "Show system applications",
-        
+
+        // Settings navigation
+        "settings.general": "General",
+        "settings.interface": "Interface",
+        "settings.appManagement": "App Management",
+        "settings.about": "About",
+        "settings.systemApps": "System Applications",
+        "settings.showHiddenInSearch": "Show hidden apps in search",
+
+        // About
+        "about.version": "Version",
+        "about.website": "Website",
+        "about.wechatOA": "WeChat OA",
+        "about.copied": "Copied",
+
         // Context menu
         "menu.trash": "Move to Trash",
         "menu.hide": "Hide",
@@ -139,7 +153,21 @@ struct Localizer {
         
         // Apps settings
         "settings.showSystemApps": "显示系统应用",
-        
+
+        // Settings navigation
+        "settings.general": "通用",
+        "settings.interface": "界面",
+        "settings.appManagement": "应用管理",
+        "settings.about": "关于",
+        "settings.systemApps": "系统应用",
+        "settings.showHiddenInSearch": "在搜索中显示隐藏应用",
+
+        // About
+        "about.version": "版本",
+        "about.website": "官网",
+        "about.wechatOA": "公众号",
+        "about.copied": "已复制",
+
         // Context menu
         "menu.trash": "移到废纸篓",
         "menu.hide": "隐藏",

@@ -14,7 +14,7 @@ final class SettingsWindowController {
             return
         }
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 520),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false

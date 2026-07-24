@@ -1,10 +1,78 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SettingsCategory: String, CaseIterable, Identifiable {
+    case general, interface, appManagement, about
+
+    var id: String { rawValue }
+
+    var localizationKey: String {
+        switch self {
+        case .general: return "settings.general"
+        case .interface: return "settings.interface"
+        case .appManagement: return "settings.appManagement"
+        case .about: return "settings.about"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .interface: return "paintbrush"
+        case .appManagement: return "square.grid.2x2"
+        case .about: return "info.circle"
+        }
+    }
+}
+
 struct SettingsView: View {
     @State private var preferences = UserPreferences.default
+    @State private var selectedCategory: SettingsCategory? = .general
     private let preferencesStore = PreferencesStore()
     weak var viewModel: LaunchpadViewModel?
+
+    var body: some View {
+        NavigationSplitView {
+            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
+                Label(Localizer.t(category.localizationKey), systemImage: category.icon)
+                    .tag(category)
+            }
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
+        } detail: {
+            switch selectedCategory {
+            case .general:
+                GeneralSettingsView(preferences: $preferences, onSave: savePreferences)
+            case .interface:
+                AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
+            case .appManagement:
+                AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
+            case .about:
+                AboutView(preferences: preferences)
+            case nil:
+                Text("")
+            }
+        }
+        .frame(width: 700, height: 520)
+        .onAppear {
+            preferences = (try? preferencesStore.load()) ?? .default
+            Localizer.setLanguage(preferences.language)
+        }
+        .onChange(of: preferences.language) { _, newLang in
+            Localizer.setLanguage(newLang)
+            savePreferences()
+        }
+    }
+
+    private func savePreferences() {
+        try? preferencesStore.save(preferences)
+    }
+}
+
+// MARK: - General Settings
+
+struct GeneralSettingsView: View {
+    @Binding var preferences: UserPreferences
+    let onSave: () -> Void
 
     var body: some View {
         Form {
@@ -16,13 +84,42 @@ struct SettingsView: View {
                 }
             }
 
+            Section(Localizer.t("settings.animations")) {
+                Toggle(Localizer.t("settings.animateIcons"), isOn: $preferences.animateIcons)
+                Toggle(Localizer.t("settings.animatePageFlip"), isOn: $preferences.animatePageFlip)
+                Toggle(Localizer.t("settings.animateFolder"), isOn: $preferences.animateFolder)
+                Toggle(Localizer.t("settings.animateDrag"), isOn: $preferences.animateDrag)
+                Toggle(Localizer.t("settings.animateSearch"), isOn: $preferences.animateSearch)
+            }
+
             Section(Localizer.t("settings.launch")) {
                 TextField(Localizer.t("settings.hotKey"), text: $preferences.hotKey)
                 Toggle(Localizer.t("settings.launchAtLogin"), isOn: $preferences.launchAtLogin)
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)
             }
+        }
+        .formStyle(.grouped)
+        .onChange(of: preferences.hotKey) { _, _ in onSave() }
+        .onChange(of: preferences.launchAtLogin) { _, _ in onSave() }
+        .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
+        .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
+        .onChange(of: preferences.animateIcons) { _, _ in onSave() }
+        .onChange(of: preferences.animatePageFlip) { _, _ in onSave() }
+        .onChange(of: preferences.animateFolder) { _, _ in onSave() }
+        .onChange(of: preferences.animateDrag) { _, _ in onSave() }
+        .onChange(of: preferences.animateSearch) { _, _ in onSave() }
+    }
+}
 
+// MARK: - Appearance Settings
+
+struct AppearanceSettingsView: View {
+    @Binding var preferences: UserPreferences
+    let onSave: () -> Void
+
+    var body: some View {
+        Form {
             Section(Localizer.t("settings.appearance")) {
                 Slider(value: $preferences.backgroundBlur, in: 0...1) {
                     Text(Localizer.t("settings.backgroundBlur"))
@@ -38,7 +135,7 @@ struct SettingsView: View {
                             .onTapGesture {
                                 preferences.appIconStyle = style
                                 IconSwitcher.apply(style)
-                                savePreferences()
+                                onSave()
                             }
                         }
                     }
@@ -55,7 +152,7 @@ struct SettingsView: View {
                 if preferences.backgroundMode == .uploaded {
                     BackgroundImagePicker(
                         images: $preferences.backgroundImages,
-                        onSave: savePreferences
+                        onSave: onSave
                     )
                     if preferences.backgroundImages.count >= 2 {
                         Toggle(Localizer.t("settings.autoCarousel"), isOn: $preferences.autoCarousel)
@@ -67,16 +164,30 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+        .formStyle(.grouped)
+        .onChange(of: preferences.backgroundBlur) { _, _ in onSave() }
+        .onChange(of: preferences.backgroundMode) { _, _ in onSave() }
+        .onChange(of: preferences.autoCarousel) { _, _ in onSave() }
+    }
+}
 
-            Section(Localizer.t("settings.animations")) {
-                Toggle(Localizer.t("settings.animateIcons"), isOn: $preferences.animateIcons)
-                Toggle(Localizer.t("settings.animatePageFlip"), isOn: $preferences.animatePageFlip)
-                Toggle(Localizer.t("settings.animateFolder"), isOn: $preferences.animateFolder)
-                Toggle(Localizer.t("settings.animateDrag"), isOn: $preferences.animateDrag)
-                Toggle(Localizer.t("settings.animateSearch"), isOn: $preferences.animateSearch)
+// MARK: - App Management Settings
+
+struct AppManagementSettingsView: View {
+    @Binding var preferences: UserPreferences
+    weak var viewModel: LaunchpadViewModel?
+    let onSave: () -> Void
+
+    var body: some View {
+        Form {
+            Section(Localizer.t("settings.systemApps")) {
+                Toggle(Localizer.t("settings.showSystemApps"), isOn: $preferences.showSystemApplications)
             }
 
             Section(Localizer.t("settings.hiddenApps")) {
+                Toggle(Localizer.t("settings.showHiddenInSearch"), isOn: $preferences.showHiddenInSearch)
+
                 if let vm = viewModel, !vm.hiddenApps.isEmpty {
                     ForEach(vm.hiddenApps) { record in
                         HStack {
@@ -85,7 +196,7 @@ struct SettingsView: View {
                             Spacer()
                             Button(Localizer.t("menu.unhide")) {
                                 viewModel?.unhideApp(id: record.id)
-                                savePreferences()
+                                onSave()
                             }
                             .buttonStyle(.borderless)
                         }
@@ -95,40 +206,108 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Section(Localizer.t("settings.apps")) {
-                Toggle(Localizer.t("settings.showSystemApps"), isOn: $preferences.showSystemApplications)
-            }
         }
         .formStyle(.grouped)
-        .padding()
-        .frame(width: 560, height: 520)
-        .onAppear {
-            preferences = (try? preferencesStore.load()) ?? .default
-            Localizer.setLanguage(preferences.language)
+        .onChange(of: preferences.showSystemApplications) { _, newValue in
+            viewModel?.showSystemApplications = newValue
+            onSave()
         }
-        .onChange(of: preferences.hotKey) { _, _ in savePreferences() }
-        .onChange(of: preferences.launchAtLogin) { _, _ in savePreferences() }
-        .onChange(of: preferences.showMenuBarIcon) { _, _ in savePreferences() }
-        .onChange(of: preferences.showDockIcon) { _, _ in savePreferences() }
-        .onChange(of: preferences.backgroundBlur) { _, _ in savePreferences() }
-        .onChange(of: preferences.reduceMotion) { _, _ in savePreferences() }
-        .onChange(of: preferences.showSystemApplications) { _, _ in savePreferences() }
-        .onChange(of: preferences.language) { _, newLang in
-            Localizer.setLanguage(newLang)
-            savePreferences()
+        .onChange(of: preferences.showHiddenInSearch) { _, newValue in
+            viewModel?.showHiddenInSearch = newValue
+            onSave()
         }
-        .onChange(of: preferences.backgroundMode) { _, _ in savePreferences() }
-        .onChange(of: preferences.autoCarousel) { _, _ in savePreferences() }
-        .onChange(of: preferences.animateIcons) { _, _ in savePreferences() }
-        .onChange(of: preferences.animatePageFlip) { _, _ in savePreferences() }
-        .onChange(of: preferences.animateFolder) { _, _ in savePreferences() }
-        .onChange(of: preferences.animateDrag) { _, _ in savePreferences() }
-        .onChange(of: preferences.animateSearch) { _, _ in savePreferences() }
+    }
+}
+
+// MARK: - About View
+
+struct AboutView: View {
+    let preferences: UserPreferences
+    @State private var showCopied = false
+
+    private var appIcon: NSImage? {
+        let name = preferences.appIconStyle.resourceName
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        return NSImage(named: name)
     }
 
-    private func savePreferences() {
-        try? preferencesStore.save(preferences)
+    private var versionString: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Group {
+                if let img = appIcon {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(1, contentMode: .fit)
+                } else {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.gray.opacity(0.3))
+                }
+            }
+            .frame(width: 96, height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(radius: 4)
+
+            Text("InceptLaunch")
+                .font(.title2.weight(.semibold))
+
+            Text("\(Localizer.t("about.version")) \(versionString)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 10) {
+                linkRow(label: Localizer.t("about.website"), value: "www.xiaoanhome.xyz") {
+                    NSWorkspace.shared.open(URL(string: "https://www.xiaoanhome.xyz/")!)
+                }
+                linkRow(label: "X", value: "@countquery") {
+                    NSWorkspace.shared.open(URL(string: "https://x.com/countquery")!)
+                }
+                linkRow(label: Localizer.t("about.wechatOA"), value: "mowenfeigong") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString("mowenfeigong", forType: .string)
+                    showCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        showCopied = false
+                    }
+                }
+            }
+            .padding(.top, 8)
+
+            if showCopied {
+                Text(Localizer.t("about.copied"))
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func linkRow(label: String, value: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button(action: action) {
+                Text(value)
+                    .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 40)
     }
 }
 
