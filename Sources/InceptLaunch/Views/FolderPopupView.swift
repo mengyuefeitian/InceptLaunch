@@ -110,7 +110,7 @@ struct FolderPopupView: View {
                     onEnterEditMode?()
                 }
             }
-            .gesture(
+            .simultaneousGesture(
                 editMode && !isBeingDragged
                     ? DragGesture(minimumDistance: 5)
                         .onChanged { value in
@@ -124,7 +124,7 @@ struct FolderPopupView: View {
                             // If dragged far enough, remove from folder
                             let distance = sqrt(value.translation.width * value.translation.width
                                               + value.translation.height * value.translation.height)
-                            if distance > 100 {
+                            if distance > 80 {
                                 onDragOut?(member.id)
                             }
                             NotificationCenter.default.post(

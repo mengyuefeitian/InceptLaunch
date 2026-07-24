@@ -184,11 +184,21 @@ final class OverlayWindowController {
                 eventWindow.makeFirstResponder(nil)
             }
 
-            // Check if the click is inside any tracked tile frame.
-            let onTile = viewModel.tileFrames.contains { $0.contains(contentViewPoint) }
+            // Check if the click is inside any tracked tile frame (with margin for coordinate mismatches).
+            let margin: CGFloat = 20
+            let onTile = viewModel.tileFrames.contains { frame in
+                frame.insetBy(dx: -margin, dy: -margin).contains(contentViewPoint)
+            }
             if onTile {
                 return event  // Let the tile's gesture handle it
             }
+
+            // DEBUG LOG: empty space click
+            let frameCount = viewModel.tileFrames.count
+            let firstFewFrames = viewModel.tileFrames.prefix(3).map {
+                String(format: "(%.0f,%.0f,%.0f×%.0f)", $0.origin.x, $0.origin.y, $0.size.width, $0.size.height)
+            }.joined(separator: ", ")
+            print("[InceptLaunch] Empty-space click at contentViewPoint=(\(contentViewPoint.x.rounded()), \(contentViewPoint.y.rounded())), tileFramesReady=\(viewModel.tileFramesReady), tileFrames.count=\(frameCount), first frames: [\(firstFewFrames)]")
 
             // Empty space click — dismiss and consume the event.
             NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)

@@ -22,9 +22,12 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                    .padding(.top, 60)
-                    .padding(.bottom, 32)
+                GeometryReader { geo in
+                    SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                        .padding(.top, max(60, geo.size.height * 0.08))
+                }
+                .frame(height: 120)
+                .padding(.bottom, 12)
 
                 Group {
                     if isSearching {
@@ -138,6 +141,7 @@ struct ContentView: View {
             if !frames.isEmpty {
                 viewModel.tileFramesReady = true
             }
+            print("[InceptLaunch] TileFramePreference: \(frames.count) frames collected, ready=\(viewModel.tileFramesReady)")
         }
         .animation(
             (animEnabled && preferences.animateFolder)

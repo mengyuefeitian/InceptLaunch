@@ -114,6 +114,7 @@ struct LaunchpadGridView: View {
             ))
             .contentShape(Rectangle())
             .onTapGesture {
+                print("[InceptLaunch] onTapGesture fired for item=\(item.id), kind=\(item.kind), editMode=\(editMode)")
                 if editMode {
                     onEnterEditMode?()
                 } else {
@@ -121,11 +122,12 @@ struct LaunchpadGridView: View {
                 }
             }
             .onLongPressGesture(minimumDuration: 0.6) {
+                print("[InceptLaunch] Long-press fired for item=\(item.id), editMode=\(editMode)")
                 if !editMode {
                     onEnterEditMode?()
                 }
             }
-            .gesture(editMode && !isBeingDragged
+            .simultaneousGesture(editMode && !isBeingDragged
                 ? editDragGesture(item: item, pageWidth: pageWidth, pageIndex: pageIndex, localIndex: localIndex)
                 : nil
             )
