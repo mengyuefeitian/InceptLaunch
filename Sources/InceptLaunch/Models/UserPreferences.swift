@@ -84,6 +84,7 @@ struct UserPreferences: Codable, Equatable {
     var animateFolder: Bool = true       // Folder expand/collapse animation
     var animateDrag: Bool = true         // Drag reposition animation
     var animateSearch: Bool = true       // Search results transition
+    var showHiddenInSearch: Bool = true
 
     static let `default` = UserPreferences(
         hotKey: "option+space",
@@ -109,9 +110,10 @@ struct UserPreferences: Codable, Equatable {
         case overlayDisplayMode, scanDirectories, appIconStyle
         case language, backgroundMode, backgroundImages, autoCarousel
         case animateIcons, animatePageFlip, animateFolder, animateDrag, animateSearch
+        case showHiddenInSearch
     }
 
-    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true) {
+    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true) {
         self.hotKey = hotKey
         self.launchAtLogin = launchAtLogin
         self.showMenuBarIcon = showMenuBarIcon
@@ -131,6 +133,7 @@ struct UserPreferences: Codable, Equatable {
         self.animateFolder = animateFolder
         self.animateDrag = animateDrag
         self.animateSearch = animateSearch
+        self.showHiddenInSearch = showHiddenInSearch
     }
 
     init(from decoder: Decoder) throws {
@@ -154,5 +157,6 @@ struct UserPreferences: Codable, Equatable {
         animateFolder = (try? c.decodeIfPresent(Bool.self, forKey: .animateFolder)) ?? true
         animateDrag = (try? c.decodeIfPresent(Bool.self, forKey: .animateDrag)) ?? true
         animateSearch = (try? c.decodeIfPresent(Bool.self, forKey: .animateSearch)) ?? true
+        showHiddenInSearch = (try? c.decodeIfPresent(Bool.self, forKey: .showHiddenInSearch)) ?? true
     }
 }

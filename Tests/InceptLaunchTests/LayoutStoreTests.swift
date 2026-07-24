@@ -471,3 +471,65 @@ import Testing
     #expect(page0.contains(.app("x")))
     #expect(!page0.contains { if case .folder = $0 { return true }; return false })
 }
+
+// MARK: - reorderFolderItem
+
+@Test func reorderFolderItemMovesAppToNewIndex() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.folder("folder:test")]],
+        folders: [LaunchpadFolder(
+            id: "folder:test",
+            name: "Test",
+            items: ["a", "b", "c", "d"],
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+
+    store.reorderFolderItem(folderID: "folder:test", appID: "d", toIndex: 0)
+    #expect(store.layout.folders[0].items == ["d", "a", "b", "c"])
+
+    store.reorderFolderItem(folderID: "folder:test", appID: "a", toIndex: 3)
+    #expect(store.layout.folders[0].items == ["d", "b", "c", "a"])
+}
+
+@Test func reorderFolderItemClampsOutOfBoundsIndex() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.folder("folder:test")]],
+        folders: [LaunchpadFolder(
+            id: "folder:test",
+            name: "Test",
+            items: ["a", "b"],
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+
+    store.reorderFolderItem(folderID: "folder:test", appID: "a", toIndex: 99)
+    #expect(store.layout.folders[0].items == ["b", "a"])
+
+    store.reorderFolderItem(folderID: "folder:test", appID: "b", toIndex: -5)
+    #expect(store.layout.folders[0].items == ["b", "a"])
+}
+
+@Test func reorderFolderItemIgnoresUnknownFolder() {
+    var store = LayoutStore(layout: .init(
+        pages: [[.folder("folder:test")]],
+        folders: [LaunchpadFolder(
+            id: "folder:test",
+            name: "Test",
+            items: ["a", "b"],
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72)
+    ))
+
+    store.reorderFolderItem(folderID: "folder:nonexistent", appID: "a", toIndex: 1)
+    #expect(store.layout.folders[0].items == ["a", "b"])
+}

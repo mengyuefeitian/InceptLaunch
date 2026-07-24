@@ -293,6 +293,14 @@ struct LayoutStore {
         layout.folders[index].updatedAt = now
     }
 
+    mutating func reorderFolderItem(folderID: String, appID: String, toIndex: Int) {
+        guard let fi = layout.folders.firstIndex(where: { $0.id == folderID }) else { return }
+        layout.folders[fi].items.removeAll { $0 == appID }
+        let clamped = min(max(0, toIndex), layout.folders[fi].items.count)
+        layout.folders[fi].items.insert(appID, at: clamped)
+        layout.folders[fi].updatedAt = Date()
+    }
+
     /// Removes page items and folder members whose app id is no longer present
     /// in the latest scan, so uninstalled apps don't leave blank cells or dead
     /// references behind.
