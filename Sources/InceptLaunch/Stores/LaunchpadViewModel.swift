@@ -12,6 +12,7 @@ struct LaunchpadDisplayItem: Identifiable, Equatable {
     var title: String
     var kind: Kind
     var members: [AppRecord] = []
+    var isHiddenApp: Bool = false
 }
 
 @MainActor
@@ -50,6 +51,9 @@ final class LaunchpadViewModel {
     /// The page currently displayed in the grid. Updated by LaunchpadGridView
     /// so drag-out from a folder can insert on the page the user is viewing.
     var currentPage = 0
+
+    var showSystemApplications: Bool = true
+    var showHiddenInSearch: Bool = true
 
     /// App extracted from a folder mid-drag — follows the pointer as a floating
     /// ghost until drop resolves insert / merge.
@@ -101,8 +105,13 @@ final class LaunchpadViewModel {
 
         if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return [matcher.ranked(query: searchText, records: Array(recordsByID.values))
-                .filter { !$0.isHidden && !$0.isMissing }
-                .map { LaunchpadDisplayItem(id: $0.id, title: $0.name, kind: .app($0)) }]
+                .filter { record in
+                    if record.isMissing { return false }
+                    if record.isHidden && !showHiddenInSearch { return false }
+                    if !showSystemApplications && record.source == .systemApplications { return false }
+                    return true
+                }
+                .map { LaunchpadDisplayItem(id: $0.id, title: $0.name, kind: .app($0), isHiddenApp: $0.isHidden) }]
         }
 
         return layoutStore.layout.pages.map { page in
@@ -110,6 +119,7 @@ final class LaunchpadViewModel {
                 switch item {
                 case .app(let id):
                     guard let record = recordsByID[id], !record.isHidden, !record.isMissing else { return nil }
+                    if !showSystemApplications && record.source == .systemApplications { return nil }
                     return LaunchpadDisplayItem(id: id, title: record.name, kind: .app(record))
                 case .folder(let id):
                     guard let folder = layoutStore.layout.folders.first(where: { $0.id == id }) else { return nil }
@@ -160,6 +170,8 @@ final class LaunchpadViewModel {
 
     func bootstrapScan() {
         let preferences = (try? preferencesStore.load()) ?? .default
+        showSystemApplications = preferences.showSystemApplications
+        showHiddenInSearch = preferences.showHiddenInSearch
         let urls = preferences.scanDirectories.map { path in
             URL(fileURLWithPath: NSString(string: path).expandingTildeInPath)
         }
@@ -228,6 +240,11 @@ final class LaunchpadViewModel {
 
     func renameFolder(id: String, name: String) {
         layoutStore.renameFolder(id: id, name: name)
+        persistLayout()
+    }
+
+    func reorderInFolder(folderID: String, appID: String, toIndex: Int) {
+        layoutStore.reorderFolderItem(folderID: folderID, appID: appID, toIndex: toIndex)
         persistLayout()
     }
 

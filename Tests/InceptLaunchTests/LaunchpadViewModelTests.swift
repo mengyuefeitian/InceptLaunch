@@ -337,6 +337,125 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+@MainActor @Test func systemAppsHiddenWhenToggleOff() {
+    let systemApp = AppRecord(
+        id: "bundle:com.apple.Safari",
+        bundleID: "com.apple.Safari",
+        name: "Safari",
+        localizedName: "Safari",
+        path: "/System/Applications/Safari.app",
+        iconCacheKey: "safari",
+        version: nil,
+        source: .systemApplications,
+        isHidden: false,
+        isMissing: false,
+        lastSeenAt: Date(timeIntervalSince1970: 1),
+        lastLaunchedAt: nil
+    )
+    let userApp = makeRecord("Editor")
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            systemApp.id: systemApp,
+            userApp.id: userApp
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.app(systemApp.id), .app(userApp.id)]],
+            folders: [],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    viewModel.showSystemApplications = false
+    let visible = viewModel.visiblePages.flatMap { $0 }
+    #expect(visible.map(\.id) == [userApp.id])
+
+    viewModel.showSystemApplications = true
+    let visibleAgain = viewModel.visiblePages.flatMap { $0 }
+    #expect(visibleAgain.map(\.id) == [systemApp.id, userApp.id])
+}
+
+@MainActor @Test func searchIncludesHiddenAppsWhenEnabled() {
+    let hiddenApp = AppRecord(
+        id: "bundle:com.example.Secret",
+        bundleID: "com.example.Secret",
+        name: "Secret",
+        localizedName: "Secret",
+        path: "/Applications/Secret.app",
+        iconCacheKey: "secret",
+        version: nil,
+        source: .localApplications,
+        isHidden: true,
+        isMissing: false,
+        lastSeenAt: Date(timeIntervalSince1970: 1),
+        lastLaunchedAt: nil
+    )
+    let normalApp = makeRecord("Notes")
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            hiddenApp.id: hiddenApp,
+            normalApp.id: normalApp
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.app(normalApp.id)]],
+            folders: [],
+            hiddenAppIDs: [hiddenApp.id],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    viewModel.showHiddenInSearch = true
+    viewModel.searchText = "sec"
+    let results = viewModel.visiblePages.flatMap { $0 }
+    #expect(results.map(\.id) == [hiddenApp.id])
+    #expect(results[0].isHiddenApp == true)
+
+    viewModel.showHiddenInSearch = false
+    let resultsHidden = viewModel.visiblePages.flatMap { $0 }
+    #expect(resultsHidden.isEmpty)
+}
+
+@MainActor @Test func reorderInFolderUpdatesLayoutAndPersists() throws {
+    let appA = makeRecord("Alpha")
+    let appB = makeRecord("Beta")
+    let appC = makeRecord("Gamma")
+    let tempURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: tempURL))
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            appA.id: appA, appB.id: appB, appC.id: appC
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.folder("folder:test")]],
+            folders: [LaunchpadFolder(
+                id: "folder:test",
+                name: "Test",
+                items: [appA.id, appB.id, appC.id],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace()),
+        layoutPersistence: persistence
+    )
+
+    viewModel.reorderInFolder(folderID: "folder:test", appID: appC.id, toIndex: 0)
+
+    let saved = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self, from: Data(contentsOf: tempURL)
+    )
+    #expect(saved.folders[0].items == [appC.id, appA.id, appB.id])
+    try? FileManager.default.removeItem(at: tempURL)
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true
