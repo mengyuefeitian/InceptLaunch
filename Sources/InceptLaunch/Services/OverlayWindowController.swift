@@ -152,27 +152,13 @@ final class OverlayWindowController {
                 return event
             }
 
-            guard viewModel.tileFramesReady else {
-                return event
-            }
-
-            guard let contentView = eventWindow.contentView else {
-                return event
-            }
-            let windowHeight = contentView.bounds.height
-            let mouseLoc = event.locationInWindow
-            let contentViewPoint = CGPoint(
-                x: mouseLoc.x,
-                y: windowHeight - mouseLoc.y
-            )
-
             // Check if the click is inside the search field.
             var clickedInSearchField = false
             if let fieldEditor = eventWindow.firstResponder as? NSTextView,
                fieldEditor.isFieldEditor,
                let fieldView = fieldEditor.superview {
                 let frameInWindow = fieldView.convert(fieldView.bounds, to: nil)
-                clickedInSearchField = frameInWindow.contains(mouseLoc)
+                clickedInSearchField = frameInWindow.contains(event.locationInWindow)
             }
 
             if clickedInSearchField {
@@ -180,22 +166,13 @@ final class OverlayWindowController {
             }
 
             // Click is outside the search field — defocus if it was focused.
+            // The background layer's tap gesture will handle dismissing the overlay.
             if eventWindow.firstResponder is NSTextView {
                 eventWindow.makeFirstResponder(nil)
             }
 
-            // Check if the click is inside any tracked tile frame (with margin for coordinate mismatches).
-            let margin: CGFloat = 20
-            let onTile = viewModel.tileFrames.contains { frame in
-                frame.insetBy(dx: -margin, dy: -margin).contains(contentViewPoint)
-            }
-            if onTile {
-                return event  // Let the tile's gesture handle it
-            }
-
-            // Empty space click — dismiss and consume the event.
-            NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
-            return nil
+            // Let SwiftUI handle all other clicks (tiles, background, etc.)
+            return event
         }
     }
 

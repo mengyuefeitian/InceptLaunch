@@ -16,21 +16,20 @@ struct ContentView: View {
     /// Effective animation flag: false when reduceMotion is on.
     private var animEnabled: Bool { !preferences.reduceMotion }
 
-    /// Top padding for the search field — proportional to screen height.
-    private var searchFieldTopPadding: CGFloat {
-        let screenHeight = NSScreen.main?.frame.height ?? 900
-        return max(80, screenHeight * 0.1)
-    }
-
     var body: some View {
         ZStack {
             backgroundLayer
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    // Tap on background dismisses the overlay
+                    dismiss()
+                }
 
             VStack(spacing: 0) {
-                // Spacer pushes the grid down, leaving room for search field at top
-                Spacer()
-                    .frame(height: searchFieldTopPadding)
+                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                    .padding(.top, 90)
+                    .padding(.bottom, 20)
 
                 Group {
                     if isSearching {
@@ -101,13 +100,6 @@ struct ContentView: View {
                     Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
                 }
             }
-
-            // Search field as overlay — always at fixed position from top
-            SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                .frame(maxWidth: 420)
-                .padding(.top, searchFieldTopPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .zIndex(2)
 
             if let folder = viewModel.openFolder {
                 FolderPopupView(

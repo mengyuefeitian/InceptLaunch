@@ -15,9 +15,7 @@ enum DesktopWallpaperCapture {
         // Primary: NSWorkspace API (works on most macOS versions)
         if let screen = NSScreen.main {
             if let url = NSWorkspace.shared.desktopImageURL(for: screen) {
-                // Only accept images from known wallpaper directories
-                let path = url.path
-                if isWallpaperPath(path), let image = NSImage(contentsOf: url) {
+                if let image = imageFromURL(url) {
                     return image
                 }
             }
@@ -26,11 +24,15 @@ enum DesktopWallpaperCapture {
         // Fallback: try all screens
         for screen in NSScreen.screens {
             if let url = NSWorkspace.shared.desktopImageURL(for: screen) {
-                let path = url.path
-                if isWallpaperPath(path), let image = NSImage(contentsOf: url) {
+                if let image = imageFromURL(url) {
                     return image
                 }
             }
+        }
+
+        // Fallback: read from com.apple.wallpaper plist
+        if let image = userDesktopPicture() {
+            return image
         }
 
         // Fallback: scan known wallpaper directories for system wallpapers
@@ -40,20 +42,56 @@ enum DesktopWallpaperCapture {
             }
         }
 
-        // Fallback: try user's custom desktop picture from preferences
-        if let image = userDesktopPicture() {
+        return nil
+    }
+
+    /// Loads an image from a URL, handling both single images and folders.
+    private static func imageFromURL(_ url: URL) -> NSImage? {
+        let path = url.path
+
+        // Check if it's a directory (folder of wallpapers)
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+            // Pick the most recent image from the folder
+            return mostRecentImage(in: path)
+        }
+
+        // Single image file
+        if let image = NSImage(contentsOf: url) {
             return image
         }
 
         return nil
     }
 
-    /// Checks if a path is from a known wallpaper directory.
-    private static func isWallpaperPath(_ path: String) -> Bool {
-        for dir in wallpaperDirectories {
-            if path.hasPrefix(dir) { return true }
+    /// Finds the most recently modified image in a directory.
+    private static func mostRecentImage(in directory: String) -> NSImage? {
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
+            return nil
         }
-        return false
+
+        let imageExtensions = ["heic", "jpg", "jpeg", "png", "tiff", "gif"]
+
+        // Filter to image files only
+        let imageFiles = contents.filter { file in
+            let ext = (file as NSString).pathExtension.lowercased()
+            return imageExtensions.contains(ext)
+        }
+
+        guard !imageFiles.isEmpty else { return nil }
+
+        // Sort by modification date (most recent first)
+        let sorted = imageFiles.sorted { a, b in
+            let pathA = (directory as NSString).appendingPathComponent(a)
+            let pathB = (directory as NSString).appendingPathComponent(b)
+            let dateA = (try? FileManager.default.attributesOfItem(atPath: pathA)[.modificationDate] as? Date) ?? .distantPast
+            let dateB = (try? FileManager.default.attributesOfItem(atPath: pathB)[.modificationDate] as? Date) ?? .distantPast
+            return dateA > dateB
+        }
+
+        // Return the most recent image
+        let fullPath = (directory as NSString).appendingPathComponent(sorted.first!)
+        return NSImage(contentsOfFile: fullPath)
     }
 
     /// Finds the best wallpaper image in a directory.
@@ -119,7 +157,7 @@ enum DesktopWallpaperCapture {
                 continue
             }
 
-            // Walk the plist looking for image paths in wallpaper directories
+            // Walk the plist looking for image paths or folders
             if let image = findWallpaperPath(in: plist, home: home) {
                 return image
             }
@@ -128,15 +166,29 @@ enum DesktopWallpaperCapture {
         return nil
     }
 
-    /// Recursively searches a plist for wallpaper file paths in known directories.
+    /// Recursively searches a plist for wallpaper file paths or folders.
     private static func findWallpaperPath(in value: Any, home: String) -> NSImage? {
         if let str = value as? String {
-            let path = str.hasPrefix("~") ? str.replacingOccurrences(of: "~", with: home) : str
-            // Only accept paths from known wallpaper directories
-            if isWallpaperPath(path),
-               FileManager.default.fileExists(atPath: path),
-               let image = NSImage(contentsOfFile: path) {
-                return image
+            // Handle file:// URLs
+            let path: String
+            if str.hasPrefix("file://") {
+                path = str.replacingOccurrences(of: "file://", with: "")
+            } else if str.hasPrefix("~") {
+                path = str.replacingOccurrences(of: "~", with: home)
+            } else {
+                path = str
+            }
+
+            // Check if it's a directory
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    // It's a folder of wallpapers
+                    return mostRecentImage(in: path)
+                } else {
+                    // It's a single image
+                    return NSImage(contentsOfFile: path)
+                }
             }
         } else if let dict = value as? [String: Any] {
             for (_, v) in dict {
