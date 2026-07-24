@@ -130,6 +130,10 @@ struct ContentView: View {
                     },
                     onDragOut: { appID in
                         viewModel.removeAppFromFolder(appID: appID)
+                        viewModel.openFolder?.members.removeAll { $0.id == appID }
+                        if viewModel.openFolder?.members.isEmpty == true {
+                            viewModel.openFolder = nil
+                        }
                     }
                 )
                 .zIndex(1)

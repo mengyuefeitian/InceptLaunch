@@ -91,7 +91,9 @@ struct FolderPopupView: View {
         }()
 
         AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
-            .opacity(isBeingDragged ? 0.3 : 1.0)
+            .opacity(isBeingDragged ? 0.0 : 1.0)
+            .scaleEffect(isBeingDragged ? 1.12 : 1.0)
+            .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
             .rotationEffect(
                 editMode && !isBeingDragged
                     ? (jiggle ? .degrees(jiggleAngle) : .degrees(-jiggleAngle))
@@ -110,7 +112,7 @@ struct FolderPopupView: View {
                     onLaunch(member)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.6) {
+            .onLongPressGesture(minimumDuration: 0.3) {
                 if !editMode {
                     onEnterEditMode?()
                 }

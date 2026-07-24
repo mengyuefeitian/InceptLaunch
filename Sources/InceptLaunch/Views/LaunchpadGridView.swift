@@ -28,6 +28,9 @@ struct LaunchpadGridView: View {
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
     @State private var jiggle = false
+    /// Accumulated page-width offset during an edit-mode drag so the tile can
+    /// be dragged linearly across multiple pages (not just first ↔ last).
+    @State private var dragPageOffset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 18) {
@@ -65,6 +68,7 @@ struct LaunchpadGridView: View {
             currentPage = clamp(currentPage)
         }
         .onChange(of: editMode) { _, newValue in
+            dragPageOffset = 0
             if newValue {
                 withAnimation(.linear(duration: 0.15).repeatForever(autoreverses: true)) {
                     jiggle = true
@@ -105,7 +109,9 @@ struct LaunchpadGridView: View {
 
         tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
             .layoutEnlarged(enlarged)
-            .opacity(isBeingDragged ? 0.3 : 1.0)
+            .opacity(isBeingDragged ? 0.0 : 1.0)
+            .scaleEffect(isBeingDragged ? 1.12 : 1.0)
+            .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
             .rotationEffect(
                 editMode && !isBeingDragged
                     ? (jiggle ? .degrees(tileJiggleAngle) : .degrees(-tileJiggleAngle))
@@ -129,7 +135,7 @@ struct LaunchpadGridView: View {
                     onLaunch(item)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.6) {
+            .onLongPressGesture(minimumDuration: 0.3) {
                 if !editMode {
                     onEnterEditMode?()
                 }
@@ -138,69 +144,54 @@ struct LaunchpadGridView: View {
                 DragGesture(minimumDistance: 5)
                     .onChanged { value in
                         guard editMode else { return }
+                        // Adjust for any page flips accumulated during this drag.
+                        let adjustedWidth = value.translation.width + dragPageOffset
+                        let threshold = pageWidth * 0.15
+
+                        // Linear cross-page: flip one page at a time as the
+                        // drag crosses each boundary.  dragPageOffset keeps
+                        // the adjusted translation near zero after each flip
+                        // so the next flip requires another full threshold.
+                        if adjustedWidth < -threshold, currentPage < pages.count - 1 {
+                            currentPage += 1
+                            dragPageOffset += pageWidth
+                        } else if adjustedWidth > threshold, currentPage > 0 {
+                            currentPage -= 1
+                            dragPageOffset -= pageWidth
+                        }
+
                         NotificationCenter.default.post(
                             name: .inceptLaunchEditDragChanged,
-                            object: EditDragUpdate(id: item.id, translation: value.translation)
+                            object: EditDragUpdate(
+                                id: item.id,
+                                translation: CGSize(
+                                    width: value.translation.width + dragPageOffset,
+                                    height: value.translation.height
+                                )
+                            )
                         )
-
-                        // Cross-page detection
-                        let threshold = pageWidth * 0.15
-                        if value.translation.width < -threshold, currentPage > 0 {
-                            let newPage = currentPage - 1
-                            currentPage = newPage
-                            NotificationCenter.default.post(
-                                name: .inceptLaunchEditDragChanged,
-                                object: EditDragUpdate(id: item.id, translation: CGSize(
-                                    width: value.translation.width + pageWidth,
-                                    height: value.translation.height
-                                ))
-                            )
-                            onPageChange?(newPage)
-                            onMoveApp?(item.id, newPage, 0)
-                        } else if value.translation.width > threshold, currentPage < pages.count - 1 {
-                            let newPage = currentPage + 1
-                            currentPage = newPage
-                            NotificationCenter.default.post(
-                                name: .inceptLaunchEditDragChanged,
-                                object: EditDragUpdate(id: item.id, translation: CGSize(
-                                    width: value.translation.width - pageWidth,
-                                    height: value.translation.height
-                                ))
-                            )
-                            onPageChange?(newPage)
-                            onMoveApp?(item.id, newPage, 0)
-                        }
                     }
                     .onEnded { value in
                         guard editMode else { return }
-                        // Calculate drop target based on drag translation
-                        // Each tile is approximately tileHeight tall with rowSpacing gap
-                        let tileWidth = GridMetrics.tileWidth
-                        let rowSpacing = GridMetrics.rowSpacing
+                        let tilesPerRow = GridMetrics.columns
+                        let adjustedWidth = value.translation.width + dragPageOffset
 
-                        // Calculate how many tiles the drag moved (approximately)
-                        let dx = value.translation.width
-                        let dy = value.translation.height
+                        let colDelta = Int((adjustedWidth / (GridMetrics.tileWidth + GridMetrics.columnSpacing)).rounded())
+                        let rowDelta = Int((value.translation.height / (GridMetrics.tileHeight + GridMetrics.rowSpacing)).rounded())
 
-                        // Simple heuristic: if dragged significantly, move to adjacent position
-                        if abs(dx) > tileWidth * 0.5 || abs(dy) > (tileHeight + rowSpacing) * 0.5 {
-                            // Calculate target index based on current position and drag direction
-                            let currentIndex = localIndex
-                            let tilesPerRow = 5
-                            let currentRow = currentIndex / tilesPerRow
-                            let currentCol = currentIndex % tilesPerRow
+                        let currentRow = localIndex / tilesPerRow
+                        let currentCol = localIndex % tilesPerRow
 
-                            let colDelta = Int((dx / tileWidth).rounded())
-                            let rowDelta = Int((dy / (tileHeight + rowSpacing)).rounded())
+                        let targetCol = max(0, min(tilesPerRow - 1, currentCol + colDelta))
+                        let targetRow = max(0, currentRow + rowDelta)
+                        let targetIndex = targetRow * tilesPerRow + targetCol
 
-                            let targetCol = max(0, min(tilesPerRow - 1, currentCol + colDelta))
-                            let targetRow = max(0, currentRow + rowDelta)
-                            let targetIndex = targetRow * tilesPerRow + targetCol
-
-                            onMoveApp?(item.id, pageIndex, targetIndex)
+                        // Single data-model move at drag end (not during drag).
+                        if currentPage != pageIndex || targetIndex != localIndex {
+                            onMoveApp?(item.id, currentPage, targetIndex)
                         }
 
-                        // Clear drag state
+                        dragPageOffset = 0
                         NotificationCenter.default.post(
                             name: .inceptLaunchEditDragEnded,
                             object: nil

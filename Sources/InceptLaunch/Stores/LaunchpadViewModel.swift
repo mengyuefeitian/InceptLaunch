@@ -230,6 +230,13 @@ final class LaunchpadViewModel {
     func moveAppInGrid(sourceID: String, targetPage: Int, targetIndex: Int) {
         guard !Self.isFolderID(sourceID) else { return }
         layoutStore.moveItem(id: sourceID, toPage: targetPage, index: targetIndex)
+        // Re-chunk pages so no page exceeds the screen-adaptive capacity
+        // (e.g. 7×4 = 28 on 1080p); without this an insert into a full page
+        // overflows into a 5th row.
+        layoutStore.repaginate(
+            capacity: GridMetrics.pageCapacity(rows: gridRows),
+            force: true
+        )
         persistLayout()
     }
 

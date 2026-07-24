@@ -156,19 +156,19 @@ struct LayoutStore {
 
     /// Removes an app from whatever folder it's in and places it back on the grid.
     mutating func removeAppFromFolder(appID: String) {
-        let fullID = "app:\(appID)"
         for index in layout.folders.indices {
             layout.folders[index].items.removeAll { $0 == appID }
         }
-        // If the app isn't already on a page, add it to the last page.
+        // Page items store the raw app id (no "app:" prefix), so compare and
+        // append with the raw id directly.
         let alreadyOnPage = layout.pages.contains { page in
             page.contains { item in
-                if case .app(let id) = item { return id == fullID }
+                if case .app(let id) = item { return id == appID }
                 return false
             }
         }
         if !alreadyOnPage {
-            appendNewApps([fullID])
+            appendNewApps([appID])
         }
         removeEmptyTrailingPages()
     }
@@ -196,12 +196,19 @@ struct LayoutStore {
     }
 
     mutating func moveItem(id: String, toPage page: Int, index: Int) {
-        removeItem(id: id)
+        let targetItem = item(from: id)
+        // Remove by item equality — the old id-string comparison failed because
+        // LaunchpadItem.id prepends "app:" / "folder:" while the caller passes
+        // the raw display-item id, so the old item was never removed and every
+        // drag created a duplicate.
+        for pageIndex in layout.pages.indices {
+            layout.pages[pageIndex].removeAll { $0 == targetItem }
+        }
         while layout.pages.count <= page {
             layout.pages.append([])
         }
         let boundedIndex = min(max(0, index), layout.pages[page].count)
-        layout.pages[page].insert(item(from: id), at: boundedIndex)
+        layout.pages[page].insert(targetItem, at: boundedIndex)
         removeEmptyTrailingPages()
     }
 
@@ -274,7 +281,10 @@ struct LayoutStore {
     }
 
     private func item(from id: String) -> LaunchpadItem {
-        id.hasPrefix("folder:") ? .folder(id) : .app(id.replacingOccurrences(of: "app:", with: ""))
+        if id.hasPrefix("folder:") || id.hasPrefix("dir:") {
+            return .folder(id)
+        }
+        return .app(id.replacingOccurrences(of: "app:", with: ""))
     }
 
     private func firstLocationOfApp(ids: [String]) -> (page: Int, index: Int)? {
