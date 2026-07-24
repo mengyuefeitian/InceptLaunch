@@ -1,26 +1,45 @@
 import SwiftUI
 
+/// Launchpad-style search capsule. Uses a real layout size so it always paints
+/// (no zero-height TextField quirks on borderless overlay windows).
 struct SearchFieldView: View {
     @Binding var text: String
     @FocusState.Binding var focused: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.white.opacity(0.7))
-                .font(.system(size: 16, weight: .medium))
-            TextField("Search", text: $text)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                .foregroundStyle(.white)
-                .tint(.white)
-                .font(.system(size: 16))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+
+            ZStack(alignment: .leading) {
+                // Explicit placeholder so the field is never an empty invisible strip.
+                if text.isEmpty {
+                    Text("Search")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .allowsHitTesting(false)
+                }
+                TextField("", text: $text)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+            }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(Capsule().fill(.black.opacity(0.55)))
-        .overlay(Capsule().strokeBorder(.white.opacity(0.3), lineWidth: 1))
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
-        .frame(maxWidth: 420)
+        .frame(width: 420, height: 40)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.55))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 2)
+        .contentShape(Capsule())
     }
 }

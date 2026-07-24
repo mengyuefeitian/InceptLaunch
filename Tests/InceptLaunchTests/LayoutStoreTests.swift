@@ -381,3 +381,93 @@ import Testing
         .count
     #expect(tileCount == 1)
 }
+
+// MARK: - removeAppFromFolder (drag-out)
+
+@Test func removeAppFromFolderInsertsBesideFolderAndKeepsVisible() {
+    // Dragging an app out of a multi-member folder must put it on the grid
+    // (next to the folder), never drop it silently.
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("x"), .folder("folder:1"), .app("y")]],
+        folders: [
+            LaunchpadFolder(
+                id: "folder:1",
+                name: "Work",
+                items: ["a", "b", "c"],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )
+        ],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72),
+        pageCapacity: 28
+    ))
+    let dissolved = store.removeAppFromFolder(appID: "b")
+    #expect(dissolved == false)
+    #expect(store.layout.folders[0].items == ["a", "c"])
+    // Inserted at the folder's slot (index 1), pushing the folder right.
+    #expect(store.layout.pages[0].contains(.app("b")))
+    #expect(store.layout.pages.flatMap { $0 }.contains(.folder("folder:1")))
+}
+
+@Test func removeAppFromFolderInsertsOnRequestedPageNotLastPage() {
+    // User is viewing page 0; drag-out must land on page 0 and push siblings,
+    // not get appended to the last page. Use a tight capacity so we can also
+    // verify overflow pushes forward without merging earlier pages.
+    var store = LayoutStore(layout: .init(
+        pages: [
+            [.folder("folder:1"), .app("x")],
+            [.app("p1"), .app("p2")],
+            [.app("last")]
+        ],
+        folders: [
+            LaunchpadFolder(
+                id: "folder:1",
+                name: "Work",
+                items: ["a", "b", "c"],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )
+        ],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72),
+        pageCapacity: 4
+    ))
+    let dissolved = store.removeAppFromFolder(appID: "a", toPage: 0, atIndex: 1)
+    #expect(dissolved == false)
+    #expect(store.layout.pages[0] == [.folder("folder:1"), .app("a"), .app("x")])
+    // Still present on page 0, never only on the last page.
+    #expect(store.layout.pages[0].contains(.app("a")))
+    #expect(store.layout.folders[0].items == ["b", "c"])
+    // Later pages stay separate (not compacted into page 0).
+    #expect(store.layout.pages.count >= 2)
+    #expect(store.layout.pages[1].contains(.app("p1")) || store.layout.pages[1].contains(.app("p2")))
+}
+
+@Test func removeAppFromFolderDissolvePlacesDraggedAppOnGrid() {
+    // When the folder dissolves (≤1 remaining), the dragged-out app must
+    // still appear on the grid (not vanish).
+    var store = LayoutStore(layout: .init(
+        pages: [[.app("x"), .folder("folder:1")]],
+        folders: [
+            LaunchpadFolder(
+                id: "folder:1",
+                name: "Work",
+                items: ["a", "b"],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )
+        ],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 5, iconSize: 72),
+        pageCapacity: 28
+    ))
+    let dissolved = store.removeAppFromFolder(appID: "a", toPage: 0, atIndex: 1)
+    #expect(dissolved == true)
+    #expect(store.layout.folders.isEmpty)
+    let page0 = store.layout.pages[0]
+    #expect(page0.contains(.app("a")))
+    #expect(page0.contains(.app("b")))
+    #expect(page0.contains(.app("x")))
+    #expect(!page0.contains { if case .folder = $0 { return true }; return false })
+}

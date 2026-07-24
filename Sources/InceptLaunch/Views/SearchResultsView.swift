@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Search results rendered as a full-size, vertically scrollable grid.
+/// Search results grid — same 7-column fixed tile metrics as the main launchpad
+/// grid, centered (not stretched to the screen edges).
 struct SearchResultsView: View {
     let results: [LaunchpadDisplayItem]
     let onLaunch: (LaunchpadDisplayItem) -> Void
@@ -14,8 +15,15 @@ struct SearchResultsView: View {
         count: GridMetrics.columns
     )
 
+    private var gridWidth: CGFloat {
+        CGFloat(GridMetrics.columns) * GridMetrics.tileWidth
+            + CGFloat(GridMetrics.columns - 1) * GridMetrics.columnSpacing
+    }
+
     var body: some View {
-        ScrollView {
+        // Blank dismiss is primarily handled by the AppKit click monitor
+        // (ScrollView often swallows SwiftUI background taps). Icons still launch.
+        ScrollView(.vertical, showsIndicators: false) {
             LazyVGrid(columns: columns, spacing: GridMetrics.rowSpacing) {
                 ForEach(results) { item in
                     AppIconView(
@@ -23,6 +31,7 @@ struct SearchResultsView: View {
                         iconSize: GridMetrics.iconSize,
                         tileHeight: GridMetrics.tileHeight
                     )
+                    .frame(width: GridMetrics.tileWidth, height: GridMetrics.tileHeight)
                     .modifier(TileTrashMenu(
                         item: item,
                         onTrash: onTrash,
@@ -31,13 +40,15 @@ struct SearchResultsView: View {
                     .onTapGesture { onLaunch(item) }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .top)
-            .padding(.horizontal, 24)
+            .frame(width: gridWidth)
+            .frame(maxWidth: .infinity) // center the fixed-width grid
+            .padding(.top, 12)
             .padding(.bottom, 40)
         }
-        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture().onEnded { onDismiss() })
-        .animation(animate ? .easeInOut(duration: 0.25) : nil, value: results.count)
+        .onTapGesture { onDismiss() }
+        .clipped()
+        .animation(animate ? .easeInOut(duration: 0.2) : nil, value: results.count)
     }
 }

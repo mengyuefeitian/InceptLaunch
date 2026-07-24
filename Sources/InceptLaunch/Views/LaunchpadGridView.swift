@@ -22,18 +22,21 @@ struct LaunchpadGridView: View {
     var editDragID: String? = nil
     var editDragTranslation: CGSize = .zero
     var onEnterEditMode: (() -> Void)? = nil
+    /// Explicit cancel (blank tap while jiggling). Must set editMode=false.
+    var onCancelEditMode: (() -> Void)? = nil
     var onMoveApp: ((String, Int, Int) -> Void)? = nil
+    /// Unified drop: (sourceID, location, translation, page, sourceLocalIndex).
+    var onResolveDrop: ((String, CGPoint, CGSize, Int, Int) -> Void)? = nil
     var tileFrames: [TileFrameInfo] = []
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
-    @State private var jiggle = false
-    /// Accumulated page-width offset during an edit-mode drag so the tile can
-    /// be dragged linearly across multiple pages (not just first ↔ last).
     @State private var dragPageOffset: CGFloat = 0
-    /// True when the current drag gesture entered edit mode mid-gesture
-    /// (user long-pressed then dragged without lifting finger).
-    @State private var didEnterEditDuringDrag = false
+    @State private var lastEdgePageFlip = Date.distantPast
+    @State private var pageWidthCache: CGFloat = 0
+    @State private var pageOriginX: CGFloat = 0
+    /// True while a tile drag is active (so blank-tap doesn't steal the gesture).
+    @State private var isDraggingTile = false
 
     var body: some View {
         VStack(spacing: 18) {
@@ -50,19 +53,34 @@ struct LaunchpadGridView: View {
                 }
                 .offset(x: -CGFloat(currentPage) * width + dragOffset)
                 .animation(
-                    editMode
-                        ? nil  // Instant page flips during edit-mode drag (no crazy visual flipping)
+                    (editMode || isDraggingTile)
+                        ? nil
                         : (animatePageFlip ? .spring(response: 0.35, dampingFraction: 0.85) : nil),
                     value: currentPage
                 )
-                .gesture(editMode ? nil : dragGesture(width: width))
+                // Page swipe only when not in edit mode and not mid-tile-drag.
+                .gesture((editMode || isDraggingTile) ? nil : dragGesture(width: width))
+                .contentShape(Rectangle())
                 .onTapGesture {
                     if editMode {
-                        onEnterEditMode?()  // Cancel jiggle first
-                    } else {
+                        onCancelEditMode?()
+                    } else if !isDraggingTile {
                         onDismiss()
                     }
                 }
+                .background(
+                    GeometryReader { g in
+                        Color.clear
+                            .onAppear {
+                                pageWidthCache = width
+                                pageOriginX = g.frame(in: .named("overlay")).minX
+                            }
+                            .onChange(of: width) { _, w in
+                                pageWidthCache = w
+                                pageOriginX = g.frame(in: .named("overlay")).minX
+                            }
+                    }
+                )
             }
             .clipped()
 
@@ -78,18 +96,9 @@ struct LaunchpadGridView: View {
         .onChange(of: pages.count) {
             currentPage = clamp(currentPage)
         }
-        .onChange(of: editMode) { _, newValue in
+        .onChange(of: editMode) { _, _ in
             dragPageOffset = 0
-            if !newValue { didEnterEditDuringDrag = false }
-            if newValue {
-                withAnimation(.linear(duration: 0.18).repeatForever(autoreverses: true)) {
-                    jiggle = true
-                }
-            } else {
-                withAnimation(.linear(duration: 0.18)) {
-                    jiggle = false
-                }
-            }
+            lastEdgePageFlip = .distantPast
         }
     }
 
@@ -104,155 +113,139 @@ struct LaunchpadGridView: View {
                 tileCell(item: item, localIndex: idx, iconSize: iconSize, tileHeight: tileHeight, pageWidth: pageWidth, pageIndex: pageIndex)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, 24)
     }
 
     @ViewBuilder
     private func tileCell(item: LaunchpadDisplayItem, localIndex: Int, iconSize: CGFloat, tileHeight: CGFloat, pageWidth: CGFloat, pageIndex: Int) -> some View {
         let enlarged = enlargedFolderIDs.contains(item.id)
-        let isBeingDragged = editMode && editDragID == item.id
+        let isBeingDragged = editDragID == item.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
-        // Per-tile random jiggle angle (stable across renders) — subtle amplitude
-        let tileJiggleAngle: Double = {
+        let isFolder: Bool = {
+            if case .folder = item.kind { return true }
+            return false
+        }()
+        // Folders look larger — keep rotation tiny so they don't "whip" around.
+        let tileJiggleAmplitude: Double = {
             var generator = SeededGenerator(seed: UInt64(item.id.hashValue & 0xFFFFFFFF))
-            return Double.random(in: -1.2...1.2, using: &generator)
+            let range: ClosedRange<Double> = isFolder ? 0.2...0.35 : 0.55...0.9
+            return Double.random(in: range, using: &generator)
         }()
 
-        tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
-            .layoutEnlarged(enlarged)
-            .scaleEffect(isBeingDragged ? 0.85 : 1.0)
-            .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
-            .rotationEffect(
-                editMode && !isBeingDragged
-                    ? (jiggle ? .degrees(tileJiggleAngle) : .degrees(-tileJiggleAngle))
-                    : .degrees(0)
-            )
-            .offset(dragTrans)
-            .modifier(TileTrashMenu(
-                item: item,
-                onTrash: onTrash,
-                isEnlarged: enlarged,
-                onEnlarge: onEnlarge,
-                onShrink: onShrink,
-                onHide: onHide,
-                editMode: editMode
-            ))
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if editMode {
+        // TimelineView drives jiggle; `layoutEnlarged` MUST be on the Layout's
+        // direct child (this outer chain). Putting it only *inside* TimelineView
+        // made enlarged folders occupy 1 cell while drawing 2×2 → icons stacked
+        // on top of the big folder.
+        TimelineView(.animation(minimumInterval: 0.05, paused: !editMode || isBeingDragged)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate
+            let angle = (editMode && !isBeingDragged)
+                ? sin(phase * 22.0) * tileJiggleAmplitude
+                : 0.0
+
+            tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
+                .scaleEffect(isBeingDragged ? 1.1 : 1.0)
+                .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
+                .rotationEffect(.degrees(angle))
+                .offset(dragTrans)
+                .opacity(isBeingDragged ? 0.92 : 1.0)
+        }
+        // zIndex on the Layout child so the dragged tile paints above folders
+        // (not under them mid-drag).
+        .zIndex(isBeingDragged ? 1000 : 0)
+        .layoutEnlarged(enlarged)
+        .modifier(TileTrashMenu(
+            item: item,
+            onTrash: onTrash,
+            isEnlarged: enlarged,
+            onEnlarge: onEnlarge,
+            onShrink: onShrink,
+            onHide: onHide,
+            editMode: editMode
+        ))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if editMode {
+                onCancelEditMode?()
+            } else {
+                onLaunch(item)
+            }
+        }
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
+                .onEnded { _ in
                     onEnterEditMode?()
-                } else {
-                    onLaunch(item)
+                }
+        )
+        .gesture(directDragGesture(item: item, localIndex: localIndex, pageWidth: pageWidth, pageIndex: pageIndex))
+        .modifier(TileFramePreferenceModifier(id: item.id, isFolder: isFolder))
+    }
+
+    /// Click-drag to reorder (apps + folders) or form folders (apps only, >50%).
+    private func directDragGesture(
+        item: LaunchpadDisplayItem,
+        localIndex: Int,
+        pageWidth: CGFloat,
+        pageIndex: Int
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
+            .onChanged { value in
+                isDraggingTile = true
+                let translation = CGSize(
+                    width: value.translation.width + dragPageOffset,
+                    height: value.translation.height
+                )
+                maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
+                NotificationCenter.default.post(
+                    name: .inceptLaunchEditDragChanged,
+                    object: EditDragUpdate(id: item.id, translation: translation)
+                )
+            }
+            .onEnded { value in
+                defer {
+                    isDraggingTile = false
+                    dragPageOffset = 0
+                    NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
+                }
+
+                let translation = CGSize(
+                    width: value.translation.width + dragPageOffset,
+                    height: value.translation.height
+                )
+
+                // Unified resolver: >50% app merge, otherwise cell-based insert.
+                // Pass source localIndex + translation so insert lands between
+                // the intended neighbors (not a wrong row).
+                if let onResolveDrop {
+                    onResolveDrop(item.id, value.location, translation, currentPage, localIndex)
+                    return
+                }
+
+                if currentPage != pageIndex || translation != .zero {
+                    onMoveApp?(item.id, currentPage, localIndex)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.2) {
-                if !editMode {
-                    onEnterEditMode?()
-                }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 5)
-                    .onChanged { value in
-                        // Allow drag immediately after long-press enters edit
-                        // mode mid-gesture (no need to lift finger and re-drag).
-                        let canDrag = editMode || didEnterEditDuringDrag
-                        if !canDrag {
-                            // First drag event in normal mode: enter edit mode
-                            // and start dragging in one motion.
-                            didEnterEditDuringDrag = true
-                            onEnterEditMode?()
-                        }
-                        let active = editMode || didEnterEditDuringDrag
-                        guard active else { return }
+    }
 
-                        // Adjust for any page flips accumulated during this drag.
-                        let adjustedWidth = value.translation.width + dragPageOffset
-                        // Require over half a page width of movement per flip
-                        // to prevent rapid consecutive page changes (Bug 5).
-                        let threshold = pageWidth * 0.55
+    private func maybeFlipPageAtEdge(fingerX: CGFloat, pageWidth: CGFloat) {
+        let width = pageWidth > 0 ? pageWidth : pageWidthCache
+        guard width > 0 else { return }
+        let localX = fingerX - pageOriginX
+        let edgeZone: CGFloat = 56
+        let now = Date()
+        guard now.timeIntervalSince(lastEdgePageFlip) > 0.55 else { return }
 
-                        if adjustedWidth < -threshold, currentPage < pages.count - 1 {
-                            currentPage += 1
-                            dragPageOffset += pageWidth
-                        } else if adjustedWidth > threshold, currentPage > 0 {
-                            currentPage -= 1
-                            dragPageOffset -= pageWidth
-                        }
-
-                        NotificationCenter.default.post(
-                            name: .inceptLaunchEditDragChanged,
-                            object: EditDragUpdate(
-                                id: item.id,
-                                translation: CGSize(
-                                    width: value.translation.width + dragPageOffset,
-                                    height: value.translation.height
-                                )
-                            )
-                        )
-                    }
-                    .onEnded { value in
-                        let active = editMode || didEnterEditDuringDrag
-                        guard active else { return }
-                        let adjustedWidth = value.translation.width + dragPageOffset
-                        let translation = CGSize(width: adjustedWidth, height: value.translation.height)
-
-                        // ---- Folder drop detection ----
-                        // If the dragged tile overlaps > 50 % with a folder
-                        // tile, drop into that folder instead of reordering.
-                        if case .app = item.kind,
-                           let myFrame = tileFrames.first(where: { $0.id == item.id })?.frame {
-                            let draggedFrame = myFrame.offsetBy(dx: translation.width, dy: translation.height)
-                            let draggedArea = max(1, draggedFrame.width * draggedFrame.height)
-                            for folderInfo in tileFrames where folderInfo.isFolder && folderInfo.id != item.id {
-                                let overlap = draggedFrame.intersection(folderInfo.frame)
-                                let overlapArea = max(0, overlap.width * overlap.height)
-                                if overlapArea / draggedArea > 0.5,
-                                   let folderItem = pages.flatMap({ $0 }).first(where: { $0.id == folderInfo.id }) {
-                                    onDropItem(item.id, folderItem)
-                                    dragPageOffset = 0
-                                    didEnterEditDuringDrag = false
-                                    NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
-                                    return
-                                }
-                            }
-                        }
-
-                        // ---- Normal reorder ----
-                        let tilesPerRow = GridMetrics.columns
-                        let colDelta = Int((adjustedWidth / (GridMetrics.tileWidth + GridMetrics.columnSpacing)).rounded())
-                        let rowDelta = Int((value.translation.height / (GridMetrics.tileHeight + GridMetrics.rowSpacing)).rounded())
-
-                        let currentRow = localIndex / tilesPerRow
-                        let currentCol = localIndex % tilesPerRow
-
-                        let targetCol = max(0, min(tilesPerRow - 1, currentCol + colDelta))
-                        let targetRow = max(0, currentRow + rowDelta)
-                        let targetIndex = targetRow * tilesPerRow + targetCol
-
-                        if currentPage != pageIndex || targetIndex != localIndex {
-                            onMoveApp?(item.id, currentPage, targetIndex)
-                        }
-
-                        dragPageOffset = 0
-                        didEnterEditDuringDrag = false
-                        NotificationCenter.default.post(
-                            name: .inceptLaunchEditDragEnded,
-                            object: nil
-                        )
-                    }
-            )
-            .modifier(DraggableModifier(enabled: !editMode, id: item.id))
-            .dropDestination(for: String.self) { droppedIDs, _ in
-                guard !editMode else { return false }
-                guard let sourceID = droppedIDs.first, sourceID != item.id else { return false }
-                onDropItem(sourceID, item)
-                return true
-            }
-            .modifier(TileFramePreferenceModifier(id: item.id, isFolder: {
-                if case .folder = item.kind { return true }
-                return false
-            }()))
+        if localX < edgeZone, currentPage > 0 {
+            currentPage -= 1
+            dragPageOffset -= width
+            lastEdgePageFlip = now
+            onPageChange?(currentPage)
+        } else if localX > width - edgeZone, currentPage < pages.count - 1 {
+            currentPage += 1
+            dragPageOffset += width
+            lastEdgePageFlip = now
+            onPageChange?(currentPage)
+        }
     }
 
     @ViewBuilder
@@ -300,6 +293,7 @@ struct LaunchpadGridView: View {
         guard pages.count > 0 else { return 0 }
         return min(max(0, value), pages.count - 1)
     }
+
 }
 
 // MARK: - Tile Frame Preference Helper
@@ -316,20 +310,6 @@ private struct TileFramePreferenceModifier: ViewModifier {
                     value: [TileFrameInfo(id: id, frame: proxy.frame(in: .named("overlay")), isFolder: isFolder)]
                 )
             }
-        }
-    }
-}
-
-/// Conditionally applies .draggable — avoids the ternary-with-nil issue.
-private struct DraggableModifier: ViewModifier {
-    let enabled: Bool
-    let id: String
-
-    func body(content: Content) -> some View {
-        if enabled {
-            content.draggable(id)
-        } else {
-            content
         }
     }
 }

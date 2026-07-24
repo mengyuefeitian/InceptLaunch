@@ -27,7 +27,11 @@ final class GlobalHotKeyManager: @unchecked Sendable {
             { _, _, userData in
                 guard let userData else { return noErr }
                 let manager = Unmanaged<GlobalHotKeyManager>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { manager.onToggle() }
+                // Hop to main; overlay activation must not race Carbon's own
+                // event unwind (that was stealing key focus back).
+                DispatchQueue.main.async {
+                    manager.onToggle()
+                }
                 return noErr
             },
             1, &eventType, selfPtr, &eventHandlerRef

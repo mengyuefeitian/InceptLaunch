@@ -154,19 +154,18 @@ struct LayoutStore {
         removeEmptyTrailingPages()
     }
 
-    /// Removes an app from whatever folder it's in and places it back on the
-    /// grid **at the folder's position** (not the last page).
-    /// When the folder drops to ≤ 1 members it is dissolved: the folder tile
-    /// is removed and the last remaining app (if any) takes its place.
-    /// Returns `true` when the folder was dissolved.
+    /// Pulls an app out of its folder **without** placing it on the grid.
+    /// Used mid-drag so the floating ghost can follow the pointer; the caller
+    /// later places it via `insertApp` / `createFolder` / `addAppToFolder`.
+    /// Returns whether the folder was dissolved (and the leftover app id, if any,
+    /// which is placed at the folder's former slot).
     @discardableResult
-    mutating func removeAppFromFolder(appID: String) -> Bool {
+    mutating func extractAppFromFolder(_ appID: String) -> (dissolved: Bool, leftoverAppID: String?) {
         guard let folderIndex = layout.folders.firstIndex(where: { $0.items.contains(appID) }) else {
-            return false
+            return (false, nil)
         }
         let folderID = layout.folders[folderIndex].id
 
-        // Locate the folder tile on the grid.
         var folderPage = 0
         var folderSlot = 0
         outer: for (pi, page) in layout.pages.enumerated() {
@@ -179,38 +178,113 @@ struct LayoutStore {
             }
         }
 
-        // Remove the app from the folder's member list.
         layout.folders[folderIndex].items.removeAll { $0 == appID }
         let remaining = layout.folders[folderIndex].items
 
         if remaining.count <= 1 {
-            // ---- Dissolve the folder ----
-            // Remove the folder tile from the page.
             layout.pages[folderPage].removeAll { item in
                 if case .folder(let id) = item { return id == folderID }
                 return false
             }
             layout.enlargedFolderIDs.remove(folderID)
             layout.folders.remove(at: folderIndex)
-
-            // Place the DRAGGED-OUT app at the folder's old slot (it must
-            // appear on the grid — previously it vanished here).
-            let slot = min(folderSlot, layout.pages[folderPage].count)
-            layout.pages[folderPage].insert(.app(appID), at: slot)
-            // Place the last remaining app (if any) right after it.
+            var leftover: String? = nil
             if let lastApp = remaining.first {
-                layout.pages[folderPage].insert(.app(lastApp), at: slot + 1)
+                let slot = min(folderSlot, layout.pages[folderPage].count)
+                layout.pages[folderPage].insert(.app(lastApp), at: slot)
+                leftover = lastApp
             }
-            compactPages()
-            return true
+            reflowOverflow(from: folderPage)
+            return (true, leftover)
+        }
+        return (false, nil)
+    }
+
+    /// Inserts an app onto a page at `index`, pushing later items forward and
+    /// spilling overflow to subsequent pages. Enforces cell capacity so a
+    /// page never visually grows past the design row count (e.g. 4×7).
+    mutating func insertApp(appID: String, toPage page: Int, atIndex index: Int) {
+        // Ensure the app is not already on any page (avoid duplicates).
+        removeItem(id: "app:\(appID)")
+        if layout.pages.isEmpty { layout.pages = [[]] }
+        let targetPage = min(max(0, page), layout.pages.count - 1)
+        let slot = min(max(0, index), layout.pages[targetPage].count)
+        layout.pages[targetPage].insert(.app(appID), at: slot)
+        reflowOverflow(from: targetPage)
+    }
+
+    /// Removes an app from whatever folder it's in and places it back on the
+    /// grid so it stays **visible**.
+    ///
+    /// Placement priority:
+    /// 1. Explicit `toPage` / `atIndex` (drop position under the pointer)
+    /// 2. Otherwise the folder tile's page/slot
+    ///
+    /// Returns `true` when the folder was dissolved.
+    @discardableResult
+    mutating func removeAppFromFolder(
+        appID: String,
+        toPage: Int? = nil,
+        atIndex: Int? = nil
+    ) -> Bool {
+        // Remember folder location before extract for fallback placement.
+        var folderPage = 0
+        var folderSlot = 0
+        if let folder = layout.folders.first(where: { $0.items.contains(appID) }) {
+            outer: for (pi, page) in layout.pages.enumerated() {
+                for (ii, item) in page.enumerated() {
+                    if case .folder(let id) = item, id == folder.id {
+                        folderPage = pi
+                        folderSlot = ii
+                        break outer
+                    }
+                }
+            }
         }
 
-        // ---- Folder survives: insert the dragged-out app beside it ----
-        let slot = min(folderSlot, layout.pages[folderPage].count)
-        layout.pages[folderPage].insert(.app(appID), at: slot)
-        // If the page overflows, flow items forward into dense pages.
-        compactPages()
-        return false
+        let (dissolved, _) = extractAppFromFolder(appID)
+
+        let alreadyOnGrid = layout.pages.contains { page in
+            page.contains { if case .app(let id) = $0 { return id == appID }; return false }
+        }
+        guard !alreadyOnGrid else { return dissolved }
+
+        if layout.pages.isEmpty { layout.pages = [[]] }
+        let targetPage: Int = {
+            if let toPage { return min(max(0, toPage), max(0, layout.pages.count - 1)) }
+            return min(folderPage, max(0, layout.pages.count - 1))
+        }()
+        let slot: Int = {
+            if let atIndex { return min(max(0, atIndex), layout.pages[targetPage].count) }
+            // Default: beside where the folder is / was.
+            if targetPage == folderPage { return min(folderSlot, layout.pages[targetPage].count) }
+            return layout.pages[targetPage].count
+        }()
+        layout.pages[targetPage].insert(.app(appID), at: slot)
+        reflowOverflow(from: targetPage)
+        return dissolved
+    }
+
+    /// When a page exceeds capacity, move trailing items onto the next page
+    /// (inserting at the front so order is preserved). Cascades forward.
+    /// Unlike `compactPages`, this never pulls items *backward* from later
+    /// pages, so an insert on the page the user is viewing stays there.
+    private mutating func reflowOverflow(from startPage: Int) {
+        let capacity = max(1, layout.effectivePageCapacity)
+        var page = max(0, startPage)
+        while page < layout.pages.count {
+            var cells = layout.pages[page].reduce(0) { $0 + cellCost($1) }
+            while cells > capacity, let last = layout.pages[page].last {
+                layout.pages[page].removeLast()
+                cells -= cellCost(last)
+                if page + 1 >= layout.pages.count {
+                    layout.pages.append([])
+                }
+                layout.pages[page + 1].insert(last, at: 0)
+            }
+            page += 1
+        }
+        removeEmptyTrailingPages()
     }
 
     mutating func renameFolder(id: String, name: String, now: Date = Date()) {
@@ -381,6 +455,7 @@ struct LayoutStore {
     }
 
     /// Marks a folder as enlarged (displayed as a 2×2 tile with 3×3 internal grid).
+    /// Caller must repaginate — enlarging costs +3 cells and can overflow a page.
     mutating func enlargeFolder(id: String) {
         layout.enlargedFolderIDs.insert(id)
     }
@@ -388,6 +463,18 @@ struct LayoutStore {
     /// Reverts a folder back to its normal 1×1 tile size.
     mutating func shrinkFolder(id: String) {
         layout.enlargedFolderIDs.remove(id)
+    }
+
+    /// Public overflow reflow so ViewModel can enforce capacity after enlarge.
+    mutating func enforcePageCapacity() {
+        if layout.pages.isEmpty { return }
+        reflowOverflow(from: 0)
+        // Also walk every page in case earlier pages were under capacity after
+        // a shrink; reflowOverflow only pushes forward, which is enough to
+        // stop 5-row pages.
+        for i in layout.pages.indices {
+            reflowOverflow(from: i)
+        }
     }
 
     /// Whether a folder is currently in enlarged mode.

@@ -16,12 +16,16 @@ struct FolderPopupView: View {
     var editDragID: String? = nil
     var editDragTranslation: CGSize = .zero
     var onEnterEditMode: (() -> Void)? = nil
-    /// Called when an app is dragged out of the folder. Returns the app to the grid.
-    var onDragOut: ((String) -> Void)? = nil
+    var onCancelEditMode: (() -> Void)? = nil
+    /// Called mid-drag once the pointer leaves the folder — closes popup and
+    /// starts a floating ghost under the cursor.
+    var onDragOutBegan: ((String, CGPoint) -> Void)? = nil
+    /// Called on drop after drag-out (or local reorder-out).
+    var onDragOutEnded: ((String, CGPoint) -> Void)? = nil
 
     @State private var isEditingName = false
     @State private var draftName = ""
-    @State private var jiggle = false
+    @State private var leftFolder = false
     @FocusState private var nameFieldFocused: Bool
 
     private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
@@ -33,7 +37,7 @@ struct FolderPopupView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if editMode {
-                        onEnterEditMode?()
+                        onCancelEditMode?()
                     } else {
                         onClose()
                     }
@@ -62,17 +66,6 @@ struct FolderPopupView: View {
                     : .opacity
             )
         }
-        .onChange(of: editMode) { _, newValue in
-            if newValue {
-                withAnimation(.linear(duration: 0.18).repeatForever(autoreverses: true)) {
-                    jiggle = true
-                }
-            } else {
-                withAnimation(.linear(duration: 0.18)) {
-                    jiggle = false
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -82,23 +75,24 @@ struct FolderPopupView: View {
             title: member.name,
             kind: .app(member)
         )
-        let isBeingDragged = editMode && editDragID == member.id
+        let isBeingDragged = editDragID == member.id && !leftFolder
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
-        // Random jiggle angle per cell (stable across renders)
-        let jiggleAngle: Double = {
+        let jiggleAmp: Double = {
             var generator = SeededGenerator(seed: UInt64(member.id.hashValue & 0xFFFFFFFF))
-            return Double.random(in: -1.0...1.0, using: &generator)
+            return Double.random(in: 0.2...0.35, using: &generator)
         }()
 
-        AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
-            .scaleEffect(isBeingDragged ? 0.85 : 1.0)
-            .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
-            .rotationEffect(
-                editMode && !isBeingDragged
-                    ? (jiggle ? .degrees(jiggleAngle) : .degrees(-jiggleAngle))
-                    : .degrees(0)
-            )
-            .offset(dragTrans)
+        TimelineView(.animation(minimumInterval: 0.05, paused: !editMode || isBeingDragged)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate
+            let angle = (editMode && !isBeingDragged) ? sin(phase * 22.0) * jiggleAmp : 0.0
+            AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
+                .scaleEffect(isBeingDragged ? 1.1 : 1.0)
+                .shadow(color: isBeingDragged ? .black.opacity(0.4) : .clear, radius: 14, y: 6)
+                .rotationEffect(.degrees(angle))
+                .offset(dragTrans)
+                .opacity(leftFolder && editDragID == member.id ? 0 : 1)
+                .zIndex(isBeingDragged ? 100 : 0)
+        }
             .modifier(TileTrashMenu(
                 item: displayItem,
                 onTrash: { _ in onTrash(member) },
@@ -106,35 +100,49 @@ struct FolderPopupView: View {
             ))
             .onTapGesture {
                 if editMode {
-                    onEnterEditMode?()
+                    onCancelEditMode?()
                 } else {
                     onLaunch(member)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.3) {
-                if !editMode {
-                    onEnterEditMode?()
-                }
-            }
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
+                    .onEnded { _ in
+                        onEnterEditMode?()
+                    }
+            )
             .gesture(
-                DragGesture(minimumDistance: 5)
+                DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
                     .onChanged { value in
+                        // Once we've handed off to the AppKit floating-drag
+                        // monitor, stop touching layout from this gesture —
+                        // the popup is about to unmount.
+                        if leftFolder { return }
+
+                        let distance = hypot(value.translation.width, value.translation.height)
                         NotificationCenter.default.post(
                             name: .inceptLaunchEditDragChanged,
                             object: EditDragUpdate(id: member.id, translation: value.translation)
                         )
+
+                        // Leave the folder once the pointer travels far enough.
+                        // Closing the popup kills this SwiftUI gesture; the
+                        // AppKit monitor continues tracking mouse drag/up.
+                        if distance > 90 {
+                            leftFolder = true
+                            onDragOutBegan?(member.id, value.location)
+                        }
                     }
                     .onEnded { value in
-                        // If dragged far enough, remove from folder
-                        let distance = sqrt(value.translation.width * value.translation.width
-                                          + value.translation.height * value.translation.height)
-                        if distance > 60 {
-                            onDragOut?(member.id)
+                        // If we never left the folder, just clear the local drag.
+                        // If we did leave, AppKit monitor owns mouse-up / drop.
+                        if !leftFolder {
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragEnded,
+                                object: nil
+                            )
                         }
-                        NotificationCenter.default.post(
-                            name: .inceptLaunchEditDragEnded,
-                            object: nil
-                        )
+                        leftFolder = false
                     }
             )
     }
@@ -176,6 +184,10 @@ struct FolderPopupView: View {
         }
         isEditingName = false
     }
+}
+
+extension Notification.Name {
+    static let inceptLaunchFloatingDragMoved = Notification.Name("inceptLaunchFloatingDragMoved")
 }
 
 /// Deterministic random number generator seeded by a UInt64 value.

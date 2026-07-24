@@ -12,15 +12,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let prefs = (try? PreferencesStore().load()) ?? .default
         IconSwitcher.apply(prefs.appIconStyle)
         menuBarController = MenuBarController(overlay: overlay)
-        hotKeyManager = GlobalHotKeyManager { [overlay] in overlay.toggle() }
+        // Hotkey must open (or toggle) and then re-assert keyboard focus —
+        // Carbon hotkeys fire while another app is frontmost.
+        hotKeyManager = GlobalHotKeyManager { [overlay] in
+            DispatchQueue.main.async {
+                overlay.toggle()
+            }
+        }
         hotKeyManager?.start()
-        // If accessibility permission is missing, the system will show its own prompt
-        // via AXIsProcessTrustedWithOptions. Don't show our own modal alert — it
-        // would appear on top of the overlay and block all interactions.
         // Launch straight into the full-screen launchpad overlay.
         overlay.show()
     }
 
+    /// Dock icon click: always open fullscreen launchpad.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         overlay.show()
         return true

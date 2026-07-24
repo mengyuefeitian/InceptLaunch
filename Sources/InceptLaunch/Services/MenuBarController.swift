@@ -1,42 +1,75 @@
 import AppKit
 
 @MainActor
-final class MenuBarController {
+final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let overlay: OverlayWindowController
     private let settings = SettingsWindowController()
+    private let statusMenu = NSMenu()
 
     init(overlay: OverlayWindowController) {
         self.overlay = overlay
-        if let symbolImage = NSImage(systemSymbolName: "square.grid.3x3.fill",
-                                     accessibilityDescription: "InceptLaunch") {
+        super.init()
+
+        if let symbolImage = NSImage(
+            systemSymbolName: "square.grid.3x3.fill",
+            accessibilityDescription: "InceptLaunch"
+        ) {
             let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
             if let rendered = symbolImage.withSymbolConfiguration(config) {
                 rendered.isTemplate = true
                 statusItem.button?.image = rendered
             }
         }
-        let menu = NSMenu()
 
-        let openItem = NSMenuItem(title: Localizer.t("menubar.open"), action: #selector(open), keyEquivalent: "")
+        let openItem = NSMenuItem(
+            title: Localizer.t("menubar.open"),
+            action: #selector(open),
+            keyEquivalent: ""
+        )
         openItem.target = self
-        menu.addItem(openItem)
+        statusMenu.addItem(openItem)
 
-        let settingsItem = NSMenuItem(title: Localizer.t("menubar.settings"), action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(
+            title: Localizer.t("menubar.settings"),
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
         settingsItem.target = self
-        menu.addItem(settingsItem)
+        statusMenu.addItem(settingsItem)
 
-        menu.addItem(NSMenuItem.separator())
+        statusMenu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: Localizer.t("menubar.quit"), action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(
+            title: Localizer.t("menubar.quit"),
+            action: #selector(quit),
+            keyEquivalent: "q"
+        )
         quitItem.target = self
-        menu.addItem(quitItem)
+        statusMenu.addItem(quitItem)
 
-        statusItem.menu = menu
+        // Important: do NOT set statusItem.menu permanently — that makes left
+        // click open the menu instead of the overlay.
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(statusItemClicked(_:))
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            guard let button = statusItem.button else { return }
+            // Pop menu under the status item without assigning statusItem.menu
+            // (avoids performClick recursion / left-click-opens-menu).
+            let origin = NSPoint(x: 0, y: button.bounds.height + 2)
+            statusMenu.popUp(positioning: nil, at: origin, in: button)
+            return
+        }
+        overlay.show()
     }
 
     @objc private func open() {
-        overlay.toggle()
+        overlay.show()
     }
 
     @objc private func openSettings() {

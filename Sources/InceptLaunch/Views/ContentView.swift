@@ -1,151 +1,89 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     let scrollModel: OverlayScrollModel
     @Bindable var viewModel: LaunchpadViewModel
     let preferences: UserPreferences
-    @FocusState private var searchFocused: Bool
 
-    /// Index into preferences.backgroundImages for carousel rotation.
     @State private var backgroundIndex = 0
 
     private var isSearching: Bool {
         !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Effective animation flag: false when reduceMotion is on.
     private var animEnabled: Bool { !preferences.reduceMotion }
 
-    var body: some View {
-        ZStack {
-            backgroundLayer
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if viewModel.editMode {
-                        // First click cancels jiggle; second click (no longer
-                        // in edit mode) dismisses the overlay.
-                        viewModel.editMode = false
-                    } else {
-                        dismiss()
-                    }
-                }
+    /// Must match AppKit search chrome so results/grid never paint under it.
+    private var searchChromeHeight: CGFloat { OverlaySearchChrome.chromeHeight }
 
-            Group {
-                if isSearching {
-                    SearchResultsView(
-                        results: viewModel.visiblePages.first ?? [],
-                        onLaunch: { item in handleTap(item) },
-                        onTrash: { item in
-                            Task { await viewModel.moveToTrash(item.id) }
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                backgroundLayer
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .contentShape(Rectangle())
+                    .onTapGesture { handleBlankTap() }
+
+                // Hard split: top chrome reserved, bottom content clipped.
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: searchChromeHeight)
+                        .allowsHitTesting(false)
+
+                    contentBody
+                        .frame(
+                            width: geo.size.width,
+                            height: max(0, geo.size.height - searchChromeHeight)
+                        )
+                        .clipped()
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+
+                if let folder = viewModel.openFolder {
+                    FolderPopupView(
+                        item: folder,
+                        onLaunch: { record in
+                            _ = AppLauncher().launch(record)
+                            viewModel.openFolder = nil
+                            dismiss()
                         },
-                        onHide: { item in
-                            viewModel.hideApp(id: item.id)
+                        onRename: { newName in
+                            viewModel.renameFolder(id: folder.id, name: newName)
+                            viewModel.openFolder?.title = newName
                         },
-                        onDismiss: { dismiss() },
-                        animate: animEnabled && preferences.animateSearch
-                    )
-                } else {
-                    LaunchpadGridView(
-                        pages: viewModel.visiblePages,
-                        rows: viewModel.gridRows,
-                        enlargedFolderIDs: viewModel.enlargedFolderIDs,
-                        onLaunch: { item in handleTap(item) },
-                        onDropItem: { sourceID, target in
-                            viewModel.handleDrop(sourceID: sourceID, onto: target)
-                        },
-                        onTrash: { item in
-                            Task { await viewModel.moveToTrash(item.id) }
-                        },
-                        onHide: { item in
-                            viewModel.hideApp(id: item.id)
-                        },
-                        onEnlarge: { item in
-                            viewModel.enlargeFolder(id: item.id)
-                        },
-                        onShrink: { item in
-                            viewModel.shrinkFolder(id: item.id)
-                        },
-                        onDismiss: { dismiss() },
-                        animatePageFlip: animEnabled && preferences.animatePageFlip,
-                        animateIcons: animEnabled && preferences.animateIcons,
-                        animateFolder: animEnabled && preferences.animateFolder,
-                        animateDrag: animEnabled && preferences.animateDrag,
-                        onPageChange: { newPage in
-                            if preferences.backgroundMode == .uploaded && preferences.autoCarousel {
-                                advanceBackground()
+                        onTrash: { record in
+                            Task { await viewModel.moveToTrash(record.id) }
+                            viewModel.openFolder?.members.removeAll { $0.id == record.id }
+                            if viewModel.openFolder?.members.isEmpty == true {
+                                viewModel.openFolder = nil
                             }
                         },
+                        onClose: { viewModel.openFolder = nil },
+                        animate: animEnabled && preferences.animateFolder,
                         editMode: viewModel.editMode,
                         editDragID: viewModel.editDragID,
                         editDragTranslation: viewModel.editDragTranslation,
                         onEnterEditMode: {
-                            viewModel.editMode.toggle()
+                            viewModel.editMode = true
                         },
-                        onMoveApp: { sourceID, targetPage, targetIndex in
-                            viewModel.moveAppInGrid(sourceID: sourceID, targetPage: targetPage, targetIndex: targetIndex)
+                        onCancelEditMode: {
+                            viewModel.editMode = false
                         },
-                        tileFrames: viewModel.tileFrames
+                        onDragOutBegan: { appID, point in
+                            viewModel.beginFloatingDragOut(appID: appID, at: point)
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchStartFloatingDrag,
+                                object: appID
+                            )
+                        },
+                        onDragOutEnded: { _, _ in }
                     )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .zIndex(2)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.top, 110)
-            .zIndex(1)
-            .contextMenu {
-                Button {
-                    viewModel.tidyGrid()
-                } label: {
-                    Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
-                }
-            }
-
-            if let folder = viewModel.openFolder {
-                FolderPopupView(
-                    item: folder,
-                    onLaunch: { record in
-                        _ = AppLauncher().launch(record)
-                        viewModel.openFolder = nil
-                        dismiss()
-                    },
-                    onRename: { newName in
-                        viewModel.renameFolder(id: folder.id, name: newName)
-                        viewModel.openFolder?.title = newName
-                    },
-                    onTrash: { record in
-                        Task { await viewModel.moveToTrash(record.id) }
-                        viewModel.openFolder?.members.removeAll { $0.id == record.id }
-                        if viewModel.openFolder?.members.isEmpty == true {
-                            viewModel.openFolder = nil
-                        }
-                    },
-                    onClose: { viewModel.openFolder = nil },
-                    animate: animEnabled && preferences.animateFolder,
-                    editMode: viewModel.editMode,
-                    editDragID: viewModel.editDragID,
-                    editDragTranslation: viewModel.editDragTranslation,
-                    onEnterEditMode: {
-                        viewModel.editMode.toggle()
-                    },
-                    onDragOut: { appID in
-                        let dissolved = viewModel.removeAppFromFolder(appID: appID)
-                        if dissolved {
-                            viewModel.openFolder = nil
-                        } else {
-                            viewModel.openFolder?.members.removeAll { $0.id == appID }
-                        }
-                    }
-                )
-                .zIndex(2)
-            }
-
-            // Search field — always on top of everything in the ZStack.
-            VStack {
-                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                    .padding(.top, 48)
-                Spacer()
-            }
-            .zIndex(10)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         .coordinateSpace(name: "overlay")
         .onPreferenceChange(TileFramePreferenceKey.self) { frames in
@@ -161,20 +99,13 @@ struct ContentView: View {
             value: viewModel.openFolder?.id
         )
         .onExitCommand {
-            if viewModel.openFolder != nil {
-                viewModel.openFolder = nil
-            } else {
-                dismiss()
-            }
+            handleBlankTap()
         }
         .task {
             viewModel.bootstrapScan()
         }
         .onAppear {
             syncScrollHijack()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchFocusSearch)) { _ in
-            searchFocused = true
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
         .onChange(of: viewModel.openFolder?.id) { syncScrollHijack() }
@@ -185,8 +116,95 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragEnded)) { _ in
-            viewModel.editDragID = nil
-            viewModel.editDragTranslation = .zero
+            if viewModel.floatingDragApp == nil {
+                viewModel.editDragID = nil
+                viewModel.editDragTranslation = .zero
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditModeCancelled)) { _ in
+            viewModel.editMode = false
+        }
+    }
+
+    @ViewBuilder
+    private var contentBody: some View {
+        if isSearching {
+            SearchResultsView(
+                results: viewModel.visiblePages.first ?? [],
+                onLaunch: { item in handleTap(item) },
+                onTrash: { item in
+                    Task { await viewModel.moveToTrash(item.id) }
+                },
+                onHide: { item in
+                    viewModel.hideApp(id: item.id)
+                },
+                onDismiss: { dismiss() },
+                animate: animEnabled && preferences.animateSearch
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            LaunchpadGridView(
+                pages: viewModel.visiblePages,
+                rows: viewModel.gridRows,
+                enlargedFolderIDs: viewModel.enlargedFolderIDs,
+                onLaunch: { item in handleTap(item) },
+                onDropItem: { sourceID, target in
+                    viewModel.handleDrop(sourceID: sourceID, onto: target)
+                },
+                onTrash: { item in
+                    Task { await viewModel.moveToTrash(item.id) }
+                },
+                onHide: { item in
+                    viewModel.hideApp(id: item.id)
+                },
+                onEnlarge: { item in
+                    viewModel.enlargeFolder(id: item.id)
+                },
+                onShrink: { item in
+                    viewModel.shrinkFolder(id: item.id)
+                },
+                onDismiss: { dismiss() },
+                animatePageFlip: animEnabled && preferences.animatePageFlip,
+                animateIcons: animEnabled && preferences.animateIcons,
+                animateFolder: animEnabled && preferences.animateFolder,
+                animateDrag: animEnabled && preferences.animateDrag,
+                onPageChange: { newPage in
+                    viewModel.currentPage = newPage
+                    if preferences.backgroundMode == .uploaded && preferences.autoCarousel {
+                        advanceBackground()
+                    }
+                },
+                editMode: viewModel.editMode,
+                editDragID: viewModel.editDragID,
+                editDragTranslation: viewModel.editDragTranslation,
+                onEnterEditMode: {
+                    viewModel.editMode = true
+                },
+                onCancelEditMode: {
+                    viewModel.editMode = false
+                },
+                onMoveApp: { sourceID, targetPage, targetIndex in
+                    viewModel.moveAppInGrid(sourceID: sourceID, targetPage: targetPage, targetIndex: targetIndex)
+                },
+                onResolveDrop: { sourceID, point, translation, page, localIndex in
+                    viewModel.resolveDrop(
+                        sourceID: sourceID,
+                        at: point,
+                        translation: translation,
+                        page: page,
+                        sourceIndex: localIndex
+                    )
+                },
+                tileFrames: viewModel.tileFrames
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contextMenu {
+                Button {
+                    viewModel.tidyGrid()
+                } label: {
+                    Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
+                }
+            }
         }
     }
 
@@ -239,7 +257,16 @@ struct ContentView: View {
         backgroundIndex = (backgroundIndex + 1) % preferences.backgroundImages.count
     }
 
-    // MARK: - Helpers
+    private func handleBlankTap() {
+        // Order: jiggle → folder → exit fullscreen (including while searching).
+        if viewModel.editMode {
+            viewModel.editMode = false
+        } else if viewModel.openFolder != nil {
+            viewModel.openFolder = nil
+        } else if viewModel.floatingDragApp == nil {
+            dismiss()
+        }
+    }
 
     private func syncScrollHijack() {
         scrollModel.update(isSearching: isSearching, isFolderOpen: viewModel.openFolder != nil)
@@ -258,4 +285,9 @@ struct ContentView: View {
     private func dismiss() {
         NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
     }
+}
+
+extension Notification.Name {
+    static let inceptLaunchStartFloatingDrag = Notification.Name("inceptLaunchStartFloatingDrag")
+    static let inceptLaunchClearSearch = Notification.Name("inceptLaunchClearSearch")
 }
