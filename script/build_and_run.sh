@@ -36,11 +36,11 @@ mkdir -p "$APP_RESOURCES"
 if [ -f "$ICON_SOURCE" ]; then
   cp "$ICON_SOURCE" "$APP_RESOURCES/$APP_NAME.icns"
 fi
-# Copy icon variants for runtime switching
+# Runtime icons only: optimized .icns + small thumb_*.png for settings picker.
+# Full-size source PNGs live in Resources/Icons/backup/ and are not packaged.
 if [ -d "$ROOT_DIR/Resources/Icons" ]; then
-  cp "$ROOT_DIR/Resources/Icons/"*.icns "$APP_RESOURCES/"
-  # Also copy PNG thumbnails for the settings icon picker
-  cp "$ROOT_DIR/Resources/Icons/"*.png "$APP_RESOURCES/" 2>/dev/null || true
+  cp "$ROOT_DIR/Resources/Icons/"*.icns "$APP_RESOURCES/" 2>/dev/null || true
+  cp "$ROOT_DIR/Resources/Icons/"thumb_*.png "$APP_RESOURCES/" 2>/dev/null || true
 fi
 
 cat >"$INFO_PLIST" <<PLIST
