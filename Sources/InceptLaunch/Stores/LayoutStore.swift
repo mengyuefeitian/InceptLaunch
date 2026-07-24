@@ -205,7 +205,8 @@ struct LayoutStore {
         // ---- Folder survives: insert the dragged-out app beside it ----
         let slot = min(folderSlot, layout.pages[folderPage].count)
         layout.pages[folderPage].insert(.app(appID), at: slot)
-        removeEmptyTrailingPages()
+        // If the page overflows, flow items forward into dense pages.
+        compactPages()
         return false
     }
 
@@ -389,5 +390,54 @@ struct LayoutStore {
     /// Whether a folder is currently in enlarged mode.
     func isEnlarged(_ id: String) -> Bool {
         layout.enlargedFolderIDs.contains(id)
+    }
+
+    /// Dissolves folders that have lost all (or all but one) members.
+    /// Zero-member folders are removed entirely; one-member folders are
+    /// replaced by the remaining app at the folder's grid position.
+    /// Called during bootstrap to clean up historical leftovers and after
+    /// any operation that removes apps from folders.
+    mutating func dissolveEmptyFolders() {
+        var changed = false
+        // Iterate in reverse so removals don't shift indices.
+        for folderIndex in layout.folders.indices.reversed() {
+            let folder = layout.folders[folderIndex]
+            // Skip directory-backed folders (managed by the scanner).
+            if folder.id.hasPrefix("dir:") { continue }
+            guard folder.items.count <= 1 else { continue }
+
+            // Locate the folder tile on the grid.
+            var folderPage: Int? = nil
+            var folderSlot = 0
+            outer: for (pi, page) in layout.pages.enumerated() {
+                for (ii, item) in page.enumerated() {
+                    if case .folder(let id) = item, id == folder.id {
+                        folderPage = pi
+                        folderSlot = ii
+                        break outer
+                    }
+                }
+            }
+
+            // Remove the folder tile from the page.
+            if let fp = folderPage {
+                layout.pages[fp].removeAll { item in
+                    if case .folder(let id) = item { return id == folder.id }
+                    return false
+                }
+                // Place the last remaining app (if any) at the folder's old slot.
+                if let lastApp = folder.items.first {
+                    let slot = min(folderSlot, layout.pages[fp].count)
+                    layout.pages[fp].insert(.app(lastApp), at: slot)
+                }
+            }
+
+            layout.enlargedFolderIDs.remove(folder.id)
+            layout.folders.remove(at: folderIndex)
+            changed = true
+        }
+        if changed {
+            removeEmptyTrailingPages()
+        }
     }
 }

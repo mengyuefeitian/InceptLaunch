@@ -95,14 +95,6 @@ struct ContentView: View {
                 }
             }
 
-            // Search field pinned to the top so it never gets pushed off-screen.
-            VStack {
-                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                    .padding(.top, 48)
-                Spacer()
-            }
-            .zIndex(2)
-
             if let folder = viewModel.openFolder {
                 FolderPopupView(
                     item: folder,
@@ -141,6 +133,10 @@ struct ContentView: View {
                 )
                 .zIndex(1)
             }
+        }
+        .overlay(alignment: .top) {
+            SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                .padding(.top, 48)
         }
         .coordinateSpace(name: "overlay")
         .onPreferenceChange(TileFramePreferenceKey.self) { frames in

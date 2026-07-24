@@ -23,7 +23,7 @@ struct LaunchpadGridView: View {
     var editDragTranslation: CGSize = .zero
     var onEnterEditMode: (() -> Void)? = nil
     var onMoveApp: ((String, Int, Int) -> Void)? = nil
-    var tileFrames: [CGRect] = []
+    var tileFrames: [TileFrameInfo] = []
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -109,7 +109,7 @@ struct LaunchpadGridView: View {
 
         tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
             .layoutEnlarged(enlarged)
-            .scaleEffect(isBeingDragged ? 1.12 : 1.0)
+            .scaleEffect(isBeingDragged ? 0.85 : 1.0)
             .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
             .rotationEffect(
                 editMode && !isBeingDragged
@@ -147,10 +147,6 @@ struct LaunchpadGridView: View {
                         let adjustedWidth = value.translation.width + dragPageOffset
                         let threshold = pageWidth * 0.15
 
-                        // Linear cross-page: flip one page at a time as the
-                        // drag crosses each boundary.  dragPageOffset keeps
-                        // the adjusted translation near zero after each flip
-                        // so the next flip requires another full threshold.
                         if adjustedWidth < -threshold, currentPage < pages.count - 1 {
                             currentPage += 1
                             dragPageOffset += pageWidth
@@ -172,9 +168,31 @@ struct LaunchpadGridView: View {
                     }
                     .onEnded { value in
                         guard editMode else { return }
-                        let tilesPerRow = GridMetrics.columns
                         let adjustedWidth = value.translation.width + dragPageOffset
+                        let translation = CGSize(width: adjustedWidth, height: value.translation.height)
 
+                        // ---- Folder drop detection ----
+                        // If the dragged tile overlaps > 50 % with a folder
+                        // tile, drop into that folder instead of reordering.
+                        if case .app = item.kind,
+                           let myFrame = tileFrames.first(where: { $0.id == item.id })?.frame {
+                            let draggedFrame = myFrame.offsetBy(dx: translation.width, dy: translation.height)
+                            let draggedArea = max(1, draggedFrame.width * draggedFrame.height)
+                            for folderInfo in tileFrames where folderInfo.isFolder && folderInfo.id != item.id {
+                                let overlap = draggedFrame.intersection(folderInfo.frame)
+                                let overlapArea = max(0, overlap.width * overlap.height)
+                                if overlapArea / draggedArea > 0.5,
+                                   let folderItem = pages.flatMap({ $0 }).first(where: { $0.id == folderInfo.id }) {
+                                    onDropItem(item.id, folderItem)
+                                    dragPageOffset = 0
+                                    NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
+                                    return
+                                }
+                            }
+                        }
+
+                        // ---- Normal reorder ----
+                        let tilesPerRow = GridMetrics.columns
                         let colDelta = Int((adjustedWidth / (GridMetrics.tileWidth + GridMetrics.columnSpacing)).rounded())
                         let rowDelta = Int((value.translation.height / (GridMetrics.tileHeight + GridMetrics.rowSpacing)).rounded())
 
@@ -185,7 +203,6 @@ struct LaunchpadGridView: View {
                         let targetRow = max(0, currentRow + rowDelta)
                         let targetIndex = targetRow * tilesPerRow + targetCol
 
-                        // Single data-model move at drag end (not during drag).
                         if currentPage != pageIndex || targetIndex != localIndex {
                             onMoveApp?(item.id, currentPage, targetIndex)
                         }
@@ -204,7 +221,10 @@ struct LaunchpadGridView: View {
                 onDropItem(sourceID, item)
                 return true
             }
-            .modifier(TileFramePreferenceModifier())
+            .modifier(TileFramePreferenceModifier(id: item.id, isFolder: {
+                if case .folder = item.kind { return true }
+                return false
+            }()))
     }
 
     @ViewBuilder
@@ -257,12 +277,15 @@ struct LaunchpadGridView: View {
 // MARK: - Tile Frame Preference Helper
 
 private struct TileFramePreferenceModifier: ViewModifier {
+    let id: String
+    let isFolder: Bool
+
     func body(content: Content) -> some View {
         content.background {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: TileFramePreferenceKey.self,
-                    value: [proxy.frame(in: .named("overlay"))]
+                    value: [TileFrameInfo(id: id, frame: proxy.frame(in: .named("overlay")), isFolder: isFolder)]
                 )
             }
         }

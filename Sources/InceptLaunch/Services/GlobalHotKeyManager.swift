@@ -1,40 +1,61 @@
 import AppKit
-import ApplicationServices
+import Carbon
 
-final class GlobalHotKeyManager {
+/// Registers a system-wide hot key (Option+Space by default) using the
+/// Carbon RegisterEventHotKey API, which works globally WITHOUT requiring
+/// accessibility permission — unlike NSEvent.addGlobalMonitorForEvents.
+final class GlobalHotKeyManager: @unchecked Sendable {
     private let onToggle: () -> Void
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    private var hotKeyRef: EventHotKeyRef?
+    private var eventHandlerRef: EventHandlerRef?
 
     init(onToggle: @escaping () -> Void) {
         self.onToggle = onToggle
     }
 
     func start() {
-        // Global monitor: fires when OTHER apps are focused.
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [onToggle] event in
-            if event.modifierFlags.contains(.option), event.keyCode == 49 {
-                onToggle()
-            }
-        }
-        // Local monitor: fires when InceptLaunch itself is the key app
-        // (e.g. overlay is showing). Without this the hotkey cannot
-        // dismiss the overlay.
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [onToggle] event in
-            if event.modifierFlags.contains(.option), event.keyCode == 49 {
-                onToggle()
-                return nil // consume
-            }
-            return event
-        }
+        let hotKeyID = EventHotKeyID(signature: 0x494E4350, id: 1) // "INCP"
+
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, _, userData in
+                guard let userData else { return noErr }
+                let manager = Unmanaged<GlobalHotKeyManager>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { manager.onToggle() }
+                return noErr
+            },
+            1, &eventType, selfPtr, &eventHandlerRef
+        )
+
+        // Option (⌥) + Space — keycode 49, modifier 2048 (optionKey)
+        RegisterEventHotKey(
+            UInt32(kVK_Space),
+            UInt32(optionKey),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
     }
 
     func stop() {
-        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
-        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
+        }
+        if let handler = eventHandlerRef {
+            RemoveEventHandler(handler)
+            eventHandlerRef = nil
+        }
     }
 
-    /// Returns true if the app has accessibility permission (required for global monitors).
+    /// Returns true if the app has accessibility permission.
     static var hasAccessibility: Bool {
         AXIsProcessTrusted()
     }
@@ -42,14 +63,13 @@ final class GlobalHotKeyManager {
     /// Prompt the user to grant accessibility permission. Opens System Settings.
     @MainActor
     static func requestAccessibility() {
-        // kAXTrustedCheckOptionPrompt == "AXTrustedCheckOptionPrompt" as CFString
         let key = "AXTrustedCheckOptionPrompt" as CFString
         let options = [key: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
     }
 
     deinit {
-        if let m = globalMonitor { NSEvent.removeMonitor(m) }
-        if let m = localMonitor { NSEvent.removeMonitor(m) }
+        if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
+        if let handler = eventHandlerRef { RemoveEventHandler(handler) }
     }
 }

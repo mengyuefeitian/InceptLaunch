@@ -91,7 +91,7 @@ struct FolderPopupView: View {
         }()
 
         AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
-            .scaleEffect(isBeingDragged ? 1.12 : 1.0)
+            .scaleEffect(isBeingDragged ? 0.85 : 1.0)
             .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
             .rotationEffect(
                 editMode && !isBeingDragged
@@ -119,14 +119,12 @@ struct FolderPopupView: View {
             .gesture(
                 DragGesture(minimumDistance: 5)
                     .onChanged { value in
-                        guard editMode else { return }
                         NotificationCenter.default.post(
                             name: .inceptLaunchEditDragChanged,
                             object: EditDragUpdate(id: member.id, translation: value.translation)
                         )
                     }
                     .onEnded { value in
-                        guard editMode else { return }
                         // If dragged far enough, remove from folder
                         let distance = sqrt(value.translation.width * value.translation.width
                                           + value.translation.height * value.translation.height)

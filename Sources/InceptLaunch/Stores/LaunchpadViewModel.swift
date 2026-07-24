@@ -31,9 +31,9 @@ final class LaunchpadViewModel {
 
     /// Frames of all interactive tile views in the overlay's content-view
     /// coordinate space (origin top-left). Updated via PreferenceKey from
-    /// LaunchpadGridView. Used by the dismiss monitor to distinguish tile
-    /// clicks from empty-space clicks.
-    var tileFrames: [CGRect] = []
+    /// LaunchpadGridView. Includes tile identity so the edit-mode drag can
+    /// detect overlap with folder tiles.
+    var tileFrames: [TileFrameInfo] = []
 
     /// True once the PreferenceKey has reported at least one batch of tile
     /// frames. Before this, dismiss monitors default to "allow" (pass the
@@ -132,6 +132,10 @@ final class LaunchpadViewModel {
             !folderMemberIDs.contains($0)
         }
         layoutStore.appendNewApps(topLevelIDs)
+
+        // Clean up folders that have been depleted (0 or 1 members) —
+        // removes historical empty folders and dissolves single-app folders.
+        layoutStore.dissolveEmptyFolders()
     }
 
     func launchSelected() -> LaunchResult? {
