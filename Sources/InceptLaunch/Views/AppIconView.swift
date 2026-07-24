@@ -5,11 +5,22 @@ struct AppIconView: View {
     let item: LaunchpadDisplayItem
     var iconSize: CGFloat = 104
     var tileHeight: CGFloat = 150
+    var showHiddenBadge: Bool = false
 
     var body: some View {
         VStack(spacing: 10) {
             iconView
                 .frame(width: iconSize, height: iconSize)
+                .overlay(alignment: .bottomTrailing) {
+                    if showHiddenBadge {
+                        Image(systemName: "eye.fill")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(3)
+                            .background(Circle().fill(.black.opacity(0.55)))
+                            .offset(x: 2, y: 2)
+                    }
+                }
             Text(item.title)
                 .font(.callout)
                 .lineLimit(2)

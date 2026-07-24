@@ -29,7 +29,8 @@ struct SearchResultsView: View {
                     AppIconView(
                         item: item,
                         iconSize: GridMetrics.iconSize,
-                        tileHeight: GridMetrics.tileHeight
+                        tileHeight: GridMetrics.tileHeight,
+                        showHiddenBadge: item.isHiddenApp
                     )
                     .frame(width: GridMetrics.tileWidth, height: GridMetrics.tileHeight)
                     .modifier(TileTrashMenu(
