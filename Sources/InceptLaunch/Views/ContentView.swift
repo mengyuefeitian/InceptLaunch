@@ -26,72 +26,66 @@ struct ContentView: View {
                     dismiss()
                 }
 
-            VStack(spacing: 0) {
-                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                    .padding(.top, 90)
-                    .padding(.bottom, 20)
-
-                Group {
-                    if isSearching {
-                        SearchResultsView(
-                            results: viewModel.visiblePages.first ?? [],
-                            onLaunch: { item in handleTap(item) },
-                            onTrash: { item in
-                                Task { await viewModel.moveToTrash(item.id) }
-                            },
-                            onHide: { item in
-                                viewModel.hideApp(id: item.id)
-                            },
-                            onDismiss: { dismiss() },
-                            animate: animEnabled && preferences.animateSearch
-                        )
-                    } else {
-                        LaunchpadGridView(
-                            pages: viewModel.visiblePages,
-                            rows: viewModel.gridRows,
-                            enlargedFolderIDs: viewModel.enlargedFolderIDs,
-                            onLaunch: { item in handleTap(item) },
-                            onDropItem: { sourceID, target in
-                                viewModel.handleDrop(sourceID: sourceID, onto: target)
-                            },
-                            onTrash: { item in
-                                Task { await viewModel.moveToTrash(item.id) }
-                            },
-                            onHide: { item in
-                                viewModel.hideApp(id: item.id)
-                            },
-                            onEnlarge: { item in
-                                viewModel.enlargeFolder(id: item.id)
-                            },
-                            onShrink: { item in
-                                viewModel.shrinkFolder(id: item.id)
-                            },
-                            onDismiss: { dismiss() },
-                            animatePageFlip: animEnabled && preferences.animatePageFlip,
-                            animateIcons: animEnabled && preferences.animateIcons,
-                            animateFolder: animEnabled && preferences.animateFolder,
-                            animateDrag: animEnabled && preferences.animateDrag,
-                            onPageChange: { newPage in
-                                if preferences.backgroundMode == .uploaded && preferences.autoCarousel {
-                                    advanceBackground()
-                                }
-                            },
-                            editMode: viewModel.editMode,
-                            editDragID: viewModel.editDragID,
-                            editDragTranslation: viewModel.editDragTranslation,
-                            onEnterEditMode: {
-                                viewModel.editMode.toggle()
-                            },
-                            onMoveApp: { sourceID, targetPage, targetIndex in
-                                viewModel.moveAppInGrid(sourceID: sourceID, targetPage: targetPage, targetIndex: targetIndex)
-                            },
-                            tileFrames: viewModel.tileFrames
-                        )
-                    }
+            Group {
+                if isSearching {
+                    SearchResultsView(
+                        results: viewModel.visiblePages.first ?? [],
+                        onLaunch: { item in handleTap(item) },
+                        onTrash: { item in
+                            Task { await viewModel.moveToTrash(item.id) }
+                        },
+                        onHide: { item in
+                            viewModel.hideApp(id: item.id)
+                        },
+                        onDismiss: { dismiss() },
+                        animate: animEnabled && preferences.animateSearch
+                    )
+                } else {
+                    LaunchpadGridView(
+                        pages: viewModel.visiblePages,
+                        rows: viewModel.gridRows,
+                        enlargedFolderIDs: viewModel.enlargedFolderIDs,
+                        onLaunch: { item in handleTap(item) },
+                        onDropItem: { sourceID, target in
+                            viewModel.handleDrop(sourceID: sourceID, onto: target)
+                        },
+                        onTrash: { item in
+                            Task { await viewModel.moveToTrash(item.id) }
+                        },
+                        onHide: { item in
+                            viewModel.hideApp(id: item.id)
+                        },
+                        onEnlarge: { item in
+                            viewModel.enlargeFolder(id: item.id)
+                        },
+                        onShrink: { item in
+                            viewModel.shrinkFolder(id: item.id)
+                        },
+                        onDismiss: { dismiss() },
+                        animatePageFlip: animEnabled && preferences.animatePageFlip,
+                        animateIcons: animEnabled && preferences.animateIcons,
+                        animateFolder: animEnabled && preferences.animateFolder,
+                        animateDrag: animEnabled && preferences.animateDrag,
+                        onPageChange: { newPage in
+                            if preferences.backgroundMode == .uploaded && preferences.autoCarousel {
+                                advanceBackground()
+                            }
+                        },
+                        editMode: viewModel.editMode,
+                        editDragID: viewModel.editDragID,
+                        editDragTranslation: viewModel.editDragTranslation,
+                        onEnterEditMode: {
+                            viewModel.editMode.toggle()
+                        },
+                        onMoveApp: { sourceID, targetPage, targetIndex in
+                            viewModel.moveAppInGrid(sourceID: sourceID, targetPage: targetPage, targetIndex: targetIndex)
+                        },
+                        tileFrames: viewModel.tileFrames
+                    )
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, 110)
             .zIndex(1)
             .contextMenu {
                 Button {
@@ -100,6 +94,14 @@ struct ContentView: View {
                     Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
                 }
             }
+
+            // Search field pinned to the top so it never gets pushed off-screen.
+            VStack {
+                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                    .padding(.top, 48)
+                Spacer()
+            }
+            .zIndex(2)
 
             if let folder = viewModel.openFolder {
                 FolderPopupView(
@@ -129,10 +131,11 @@ struct ContentView: View {
                         viewModel.editMode.toggle()
                     },
                     onDragOut: { appID in
-                        viewModel.removeAppFromFolder(appID: appID)
-                        viewModel.openFolder?.members.removeAll { $0.id == appID }
-                        if viewModel.openFolder?.members.isEmpty == true {
+                        let dissolved = viewModel.removeAppFromFolder(appID: appID)
+                        if dissolved {
                             viewModel.openFolder = nil
+                        } else {
+                            viewModel.openFolder?.members.removeAll { $0.id == appID }
                         }
                     }
                 )

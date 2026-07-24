@@ -109,7 +109,6 @@ struct LaunchpadGridView: View {
 
         tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
             .layoutEnlarged(enlarged)
-            .opacity(isBeingDragged ? 0.0 : 1.0)
             .scaleEffect(isBeingDragged ? 1.12 : 1.0)
             .shadow(color: isBeingDragged ? .black.opacity(0.35) : .clear, radius: 10, y: 5)
             .rotationEffect(

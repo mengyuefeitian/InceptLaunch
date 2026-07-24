@@ -241,9 +241,12 @@ final class LaunchpadViewModel {
     }
 
     /// Removes an app from its folder and places it back on the grid.
-    func removeAppFromFolder(appID: String) {
-        layoutStore.removeAppFromFolder(appID: appID)
+    /// Returns `true` if the folder was dissolved (≤ 1 members remaining).
+    @discardableResult
+    func removeAppFromFolder(appID: String) -> Bool {
+        let dissolved = layoutStore.removeAppFromFolder(appID: appID)
         persistLayout()
+        return dissolved
     }
 
     /// All currently-hidden app records, for the settings management list.
