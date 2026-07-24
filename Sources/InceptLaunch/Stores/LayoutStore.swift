@@ -193,12 +193,15 @@ struct LayoutStore {
             layout.enlargedFolderIDs.remove(folderID)
             layout.folders.remove(at: folderIndex)
 
-            // Place the last remaining app (if any) at the folder's old slot.
+            // Place the DRAGGED-OUT app at the folder's old slot (it must
+            // appear on the grid — previously it vanished here).
+            let slot = min(folderSlot, layout.pages[folderPage].count)
+            layout.pages[folderPage].insert(.app(appID), at: slot)
+            // Place the last remaining app (if any) right after it.
             if let lastApp = remaining.first {
-                let slot = min(folderSlot, layout.pages[folderPage].count)
-                layout.pages[folderPage].insert(.app(lastApp), at: slot)
+                layout.pages[folderPage].insert(.app(lastApp), at: slot + 1)
             }
-            removeEmptyTrailingPages()
+            compactPages()
             return true
         }
 

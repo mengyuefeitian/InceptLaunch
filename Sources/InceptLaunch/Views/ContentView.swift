@@ -22,8 +22,13 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    // Tap on background dismisses the overlay
-                    dismiss()
+                    if viewModel.editMode {
+                        // First click cancels jiggle; second click (no longer
+                        // in edit mode) dismisses the overlay.
+                        viewModel.editMode = false
+                    } else {
+                        dismiss()
+                    }
                 }
 
             Group {
@@ -131,12 +136,16 @@ struct ContentView: View {
                         }
                     }
                 )
-                .zIndex(1)
+                .zIndex(2)
             }
-        }
-        .overlay(alignment: .top) {
-            SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                .padding(.top, 48)
+
+            // Search field — always on top of everything in the ZStack.
+            VStack {
+                SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                    .padding(.top, 48)
+                Spacer()
+            }
+            .zIndex(10)
         }
         .coordinateSpace(name: "overlay")
         .onPreferenceChange(TileFramePreferenceKey.self) { frames in
@@ -163,7 +172,6 @@ struct ContentView: View {
         }
         .onAppear {
             syncScrollHijack()
-            searchFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchFocusSearch)) { _ in
             searchFocused = true

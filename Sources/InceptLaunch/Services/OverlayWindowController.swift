@@ -165,10 +165,17 @@ final class OverlayWindowController {
                 return event
             }
 
-            // Click is outside the search field — defocus if it was focused.
-            // The background layer's tap gesture will handle dismissing the overlay.
+            // Click is outside the search field.
+            // If the search field was focused, defocus it AND handle the
+            // dismiss/edit-cancel in this same click (no second click needed).
             if eventWindow.firstResponder is NSTextView {
                 eventWindow.makeFirstResponder(nil)
+                if viewModel.editMode {
+                    viewModel.editMode = false
+                } else {
+                    self.hide()
+                }
+                return nil
             }
 
             // Let SwiftUI handle all other clicks (tiles, background, etc.)

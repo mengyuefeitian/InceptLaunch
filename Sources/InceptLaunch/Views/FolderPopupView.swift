@@ -64,11 +64,11 @@ struct FolderPopupView: View {
         }
         .onChange(of: editMode) { _, newValue in
             if newValue {
-                withAnimation(.linear(duration: 0.15).repeatForever(autoreverses: true)) {
+                withAnimation(.linear(duration: 0.18).repeatForever(autoreverses: true)) {
                     jiggle = true
                 }
             } else {
-                withAnimation(.linear(duration: 0.15)) {
+                withAnimation(.linear(duration: 0.18)) {
                     jiggle = false
                 }
             }
@@ -87,7 +87,7 @@ struct FolderPopupView: View {
         // Random jiggle angle per cell (stable across renders)
         let jiggleAngle: Double = {
             var generator = SeededGenerator(seed: UInt64(member.id.hashValue & 0xFFFFFFFF))
-            return Double.random(in: -2.0...2.0, using: &generator)
+            return Double.random(in: -1.0...1.0, using: &generator)
         }()
 
         AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)

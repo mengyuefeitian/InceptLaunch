@@ -31,6 +31,9 @@ struct LaunchpadGridView: View {
     /// Accumulated page-width offset during an edit-mode drag so the tile can
     /// be dragged linearly across multiple pages (not just first ↔ last).
     @State private var dragPageOffset: CGFloat = 0
+    /// True when the current drag gesture entered edit mode mid-gesture
+    /// (user long-pressed then dragged without lifting finger).
+    @State private var didEnterEditDuringDrag = false
 
     var body: some View {
         VStack(spacing: 18) {
@@ -47,11 +50,19 @@ struct LaunchpadGridView: View {
                 }
                 .offset(x: -CGFloat(currentPage) * width + dragOffset)
                 .animation(
-                    animatePageFlip ? .spring(response: 0.35, dampingFraction: 0.85) : nil,
+                    editMode
+                        ? nil  // Instant page flips during edit-mode drag (no crazy visual flipping)
+                        : (animatePageFlip ? .spring(response: 0.35, dampingFraction: 0.85) : nil),
                     value: currentPage
                 )
                 .gesture(editMode ? nil : dragGesture(width: width))
-                .onTapGesture { if !editMode { onDismiss() } }
+                .onTapGesture {
+                    if editMode {
+                        onEnterEditMode?()  // Cancel jiggle first
+                    } else {
+                        onDismiss()
+                    }
+                }
             }
             .clipped()
 
@@ -69,12 +80,13 @@ struct LaunchpadGridView: View {
         }
         .onChange(of: editMode) { _, newValue in
             dragPageOffset = 0
+            if !newValue { didEnterEditDuringDrag = false }
             if newValue {
-                withAnimation(.linear(duration: 0.15).repeatForever(autoreverses: true)) {
+                withAnimation(.linear(duration: 0.18).repeatForever(autoreverses: true)) {
                     jiggle = true
                 }
             } else {
-                withAnimation(.linear(duration: 0.15)) {
+                withAnimation(.linear(duration: 0.18)) {
                     jiggle = false
                 }
             }
@@ -101,10 +113,10 @@ struct LaunchpadGridView: View {
         let enlarged = enlargedFolderIDs.contains(item.id)
         let isBeingDragged = editMode && editDragID == item.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
-        // Per-tile random jiggle angle (stable across renders)
+        // Per-tile random jiggle angle (stable across renders) — subtle amplitude
         let tileJiggleAngle: Double = {
             var generator = SeededGenerator(seed: UInt64(item.id.hashValue & 0xFFFFFFFF))
-            return Double.random(in: -2.5...2.5, using: &generator)
+            return Double.random(in: -1.2...1.2, using: &generator)
         }()
 
         tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
@@ -134,7 +146,7 @@ struct LaunchpadGridView: View {
                     onLaunch(item)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.3) {
+            .onLongPressGesture(minimumDuration: 0.2) {
                 if !editMode {
                     onEnterEditMode?()
                 }
@@ -142,10 +154,23 @@ struct LaunchpadGridView: View {
             .gesture(
                 DragGesture(minimumDistance: 5)
                     .onChanged { value in
-                        guard editMode else { return }
+                        // Allow drag immediately after long-press enters edit
+                        // mode mid-gesture (no need to lift finger and re-drag).
+                        let canDrag = editMode || didEnterEditDuringDrag
+                        if !canDrag {
+                            // First drag event in normal mode: enter edit mode
+                            // and start dragging in one motion.
+                            didEnterEditDuringDrag = true
+                            onEnterEditMode?()
+                        }
+                        let active = editMode || didEnterEditDuringDrag
+                        guard active else { return }
+
                         // Adjust for any page flips accumulated during this drag.
                         let adjustedWidth = value.translation.width + dragPageOffset
-                        let threshold = pageWidth * 0.15
+                        // Require over half a page width of movement per flip
+                        // to prevent rapid consecutive page changes (Bug 5).
+                        let threshold = pageWidth * 0.55
 
                         if adjustedWidth < -threshold, currentPage < pages.count - 1 {
                             currentPage += 1
@@ -167,7 +192,8 @@ struct LaunchpadGridView: View {
                         )
                     }
                     .onEnded { value in
-                        guard editMode else { return }
+                        let active = editMode || didEnterEditDuringDrag
+                        guard active else { return }
                         let adjustedWidth = value.translation.width + dragPageOffset
                         let translation = CGSize(width: adjustedWidth, height: value.translation.height)
 
@@ -185,6 +211,7 @@ struct LaunchpadGridView: View {
                                    let folderItem = pages.flatMap({ $0 }).first(where: { $0.id == folderInfo.id }) {
                                     onDropItem(item.id, folderItem)
                                     dragPageOffset = 0
+                                    didEnterEditDuringDrag = false
                                     NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
                                     return
                                 }
@@ -208,6 +235,7 @@ struct LaunchpadGridView: View {
                         }
 
                         dragPageOffset = 0
+                        didEnterEditDuringDrag = false
                         NotificationCenter.default.post(
                             name: .inceptLaunchEditDragEnded,
                             object: nil
