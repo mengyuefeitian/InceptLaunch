@@ -248,6 +248,16 @@ final class LaunchpadViewModel {
         persistLayout()
     }
 
+    func refreshOpenFolder() {
+        guard let folder = openFolder, case .folder(let f) = folder.kind else { return }
+        guard let updated = layoutStore.layout.folders.first(where: { $0.id == f.id }) else { return }
+        let recordsByID = appIndex.records
+        let members = updated.items
+            .compactMap { recordsByID[$0] }
+            .filter { !$0.isHidden && !$0.isMissing }
+        openFolder = LaunchpadDisplayItem(id: updated.id, title: updated.name, kind: .folder(updated), members: members)
+    }
+
     /// Moves an app's bundle to the system Trash (recoverable) and, once that
     /// succeeds, removes it from the grid and folders and persists the layout.
     func moveToTrash(_ itemID: String) async {

@@ -77,7 +77,13 @@ struct ContentView: View {
                                 object: appID
                             )
                         },
-                        onDragOutEnded: { _, _ in }
+                        onDragOutEnded: { _, _ in },
+                        onReorder: { appID, newIndex in
+                            if case .folder(let f) = folder.kind {
+                                viewModel.reorderInFolder(folderID: f.id, appID: appID, toIndex: newIndex)
+                                viewModel.refreshOpenFolder()
+                            }
+                        }
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)

@@ -22,10 +22,14 @@ struct FolderPopupView: View {
     var onDragOutBegan: ((String, CGPoint) -> Void)? = nil
     /// Called on drop after drag-out (or local reorder-out).
     var onDragOutEnded: ((String, CGPoint) -> Void)? = nil
+    /// Called during drag to reorder an app within the folder.
+    var onReorder: ((String, Int) -> Void)? = nil
 
     @State private var isEditingName = false
     @State private var draftName = ""
     @State private var leftFolder = false
+    @State private var memberFrames: [String: CGRect] = [:]
+    @State private var reorderDragID: String? = nil
     @FocusState private var nameFieldFocused: Bool
 
     private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
@@ -53,6 +57,7 @@ struct FolderPopupView: View {
                             folderMemberCell(member: member)
                         }
                     }
+                    .coordinateSpace(name: "folderGrid")
                     .padding(.horizontal, 26)
                     .padding(.bottom, 26)
                 }
@@ -75,7 +80,7 @@ struct FolderPopupView: View {
             title: member.name,
             kind: .app(member)
         )
-        let isBeingDragged = editDragID == member.id && !leftFolder
+        let isBeingDragged = (editDragID == member.id && !leftFolder) || reorderDragID == member.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
         let jiggleAmp: Double = {
             var generator = SeededGenerator(seed: UInt64(member.id.hashValue & 0xFFFFFFFF))
@@ -114,29 +119,34 @@ struct FolderPopupView: View {
             .gesture(
                 DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
                     .onChanged { value in
-                        // Once we've handed off to the AppKit floating-drag
-                        // monitor, stop touching layout from this gesture —
-                        // the popup is about to unmount.
                         if leftFolder { return }
 
                         let distance = hypot(value.translation.width, value.translation.height)
-                        NotificationCenter.default.post(
-                            name: .inceptLaunchEditDragChanged,
-                            object: EditDragUpdate(id: member.id, translation: value.translation)
-                        )
 
-                        // Leave the folder once the pointer travels far enough.
-                        // Closing the popup kills this SwiftUI gesture; the
-                        // AppKit monitor continues tracking mouse drag/up.
-                        if distance > 90 {
+                        if distance >= 90 {
                             leftFolder = true
+                            reorderDragID = nil
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragChanged,
+                                object: EditDragUpdate(id: member.id, translation: value.translation)
+                            )
                             onDragOutBegan?(member.id, value.location)
+                        } else {
+                            reorderDragID = member.id
+                            let targetIndex = computeReorderIndex(
+                                dragID: member.id,
+                                location: value.location
+                            )
+                            if let targetIndex,
+                               let currentIndex = item.members.firstIndex(where: { $0.id == member.id }),
+                               targetIndex != currentIndex {
+                                onReorder?(member.id, targetIndex)
+                            }
                         }
                     }
-                    .onEnded { value in
-                        // If we never left the folder, just clear the local drag.
-                        // If we did leave, AppKit monitor owns mouse-up / drop.
+                    .onEnded { _ in
                         if !leftFolder {
+                            reorderDragID = nil
                             NotificationCenter.default.post(
                                 name: .inceptLaunchEditDragEnded,
                                 object: nil
@@ -144,6 +154,17 @@ struct FolderPopupView: View {
                         }
                         leftFolder = false
                     }
+            )
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            memberFrames[member.id] = geo.frame(in: .named("overlay"))
+                        }
+                        .onChange(of: geo.frame(in: .named("overlay"))) { _, newFrame in
+                            memberFrames[member.id] = newFrame
+                        }
+                }
             )
     }
 
@@ -175,6 +196,22 @@ struct FolderPopupView: View {
                     nameFieldFocused = true
                 }
         }
+    }
+
+    private func computeReorderIndex(dragID: String, location: CGPoint) -> Int? {
+        let sorted = item.members.enumerated()
+            .compactMap { (index, member) -> (Int, CGRect)? in
+                guard let frame = memberFrames[member.id] else { return nil }
+                return (index, frame)
+            }
+            .sorted { $0.1.minY < $1.1.minY || ($0.1.minY == $1.1.minY && $0.1.minX < $1.1.minX) }
+
+        for (index, frame) in sorted {
+            if location.x < frame.midX && location.y < frame.maxY {
+                return index
+            }
+        }
+        return item.members.count - 1
     }
 
     private func commitName() {
