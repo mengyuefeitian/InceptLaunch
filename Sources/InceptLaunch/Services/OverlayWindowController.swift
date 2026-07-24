@@ -193,13 +193,6 @@ final class OverlayWindowController {
                 return event  // Let the tile's gesture handle it
             }
 
-            // DEBUG LOG: empty space click
-            let frameCount = viewModel.tileFrames.count
-            let firstFewFrames = viewModel.tileFrames.prefix(3).map {
-                String(format: "(%.0f,%.0f,%.0f×%.0f)", $0.origin.x, $0.origin.y, $0.size.width, $0.size.height)
-            }.joined(separator: ", ")
-            print("[InceptLaunch] Empty-space click at contentViewPoint=(\(contentViewPoint.x.rounded()), \(contentViewPoint.y.rounded())), tileFramesReady=\(viewModel.tileFramesReady), tileFrames.count=\(frameCount), first frames: [\(firstFewFrames)]")
-
             // Empty space click — dismiss and consume the event.
             NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
             return nil

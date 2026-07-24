@@ -97,11 +97,20 @@ struct LaunchpadGridView: View {
         let enlarged = enlargedFolderIDs.contains(item.id)
         let isBeingDragged = editMode && editDragID == item.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
+        // Per-tile random jiggle angle (stable across renders)
+        let tileJiggleAngle: Double = {
+            var generator = SeededGenerator(seed: UInt64(item.id.hashValue & 0xFFFFFFFF))
+            return Double.random(in: -2.5...2.5, using: &generator)
+        }()
 
         tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
             .layoutEnlarged(enlarged)
             .opacity(isBeingDragged ? 0.3 : 1.0)
-            .rotationEffect(jiggleAngle(isBeingDragged: isBeingDragged))
+            .rotationEffect(
+                editMode && !isBeingDragged
+                    ? (jiggle ? .degrees(tileJiggleAngle) : .degrees(-tileJiggleAngle))
+                    : .degrees(0)
+            )
             .offset(dragTrans)
             .modifier(TileTrashMenu(
                 item: item,
@@ -114,7 +123,6 @@ struct LaunchpadGridView: View {
             ))
             .contentShape(Rectangle())
             .onTapGesture {
-                print("[InceptLaunch] onTapGesture fired for item=\(item.id), kind=\(item.kind), editMode=\(editMode)")
                 if editMode {
                     onEnterEditMode?()
                 } else {
@@ -122,14 +130,82 @@ struct LaunchpadGridView: View {
                 }
             }
             .onLongPressGesture(minimumDuration: 0.6) {
-                print("[InceptLaunch] Long-press fired for item=\(item.id), editMode=\(editMode)")
                 if !editMode {
                     onEnterEditMode?()
                 }
             }
-            .simultaneousGesture(editMode && !isBeingDragged
-                ? editDragGesture(item: item, pageWidth: pageWidth, pageIndex: pageIndex, localIndex: localIndex)
-                : nil
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        guard editMode else { return }
+                        NotificationCenter.default.post(
+                            name: .inceptLaunchEditDragChanged,
+                            object: EditDragUpdate(id: item.id, translation: value.translation)
+                        )
+
+                        // Cross-page detection
+                        let threshold = pageWidth * 0.15
+                        if value.translation.width < -threshold, currentPage > 0 {
+                            let newPage = currentPage - 1
+                            currentPage = newPage
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragChanged,
+                                object: EditDragUpdate(id: item.id, translation: CGSize(
+                                    width: value.translation.width + pageWidth,
+                                    height: value.translation.height
+                                ))
+                            )
+                            onPageChange?(newPage)
+                            onMoveApp?(item.id, newPage, 0)
+                        } else if value.translation.width > threshold, currentPage < pages.count - 1 {
+                            let newPage = currentPage + 1
+                            currentPage = newPage
+                            NotificationCenter.default.post(
+                                name: .inceptLaunchEditDragChanged,
+                                object: EditDragUpdate(id: item.id, translation: CGSize(
+                                    width: value.translation.width - pageWidth,
+                                    height: value.translation.height
+                                ))
+                            )
+                            onPageChange?(newPage)
+                            onMoveApp?(item.id, newPage, 0)
+                        }
+                    }
+                    .onEnded { value in
+                        guard editMode else { return }
+                        // Calculate drop target based on drag translation
+                        // Each tile is approximately tileHeight tall with rowSpacing gap
+                        let tileWidth = GridMetrics.tileWidth
+                        let rowSpacing = GridMetrics.rowSpacing
+
+                        // Calculate how many tiles the drag moved (approximately)
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+
+                        // Simple heuristic: if dragged significantly, move to adjacent position
+                        if abs(dx) > tileWidth * 0.5 || abs(dy) > (tileHeight + rowSpacing) * 0.5 {
+                            // Calculate target index based on current position and drag direction
+                            let currentIndex = localIndex
+                            let tilesPerRow = 5
+                            let currentRow = currentIndex / tilesPerRow
+                            let currentCol = currentIndex % tilesPerRow
+
+                            let colDelta = Int((dx / tileWidth).rounded())
+                            let rowDelta = Int((dy / (tileHeight + rowSpacing)).rounded())
+
+                            let targetCol = max(0, min(tilesPerRow - 1, currentCol + colDelta))
+                            let targetRow = max(0, currentRow + rowDelta)
+                            let targetIndex = targetRow * tilesPerRow + targetCol
+
+                            onMoveApp?(item.id, pageIndex, targetIndex)
+                        }
+
+                        // Clear drag state
+                        NotificationCenter.default.post(
+                            name: .inceptLaunchEditDragEnded,
+                            object: nil
+                        )
+                    }
             )
             .modifier(DraggableModifier(enabled: !editMode, id: item.id))
             .dropDestination(for: String.self) { droppedIDs, _ in
@@ -141,11 +217,6 @@ struct LaunchpadGridView: View {
             .modifier(TileFramePreferenceModifier())
     }
 
-    private func jiggleAngle(isBeingDragged: Bool) -> Angle {
-        guard editMode && !isBeingDragged else { return .degrees(0) }
-        return jiggle ? .degrees(1.5) : .degrees(-1.5)
-    }
-
     @ViewBuilder
     private func tileView(item: LaunchpadDisplayItem, iconSize: CGFloat, tileHeight: CGFloat, enlarged: Bool) -> some View {
         if enlarged, case .folder = item.kind {
@@ -153,107 +224,6 @@ struct LaunchpadGridView: View {
         } else {
             AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
         }
-    }
-
-    // MARK: - Edit mode drag gesture
-
-    private func editDragGesture(item: LaunchpadDisplayItem, pageWidth: CGFloat, pageIndex: Int, localIndex: Int) -> some Gesture {
-        DragGesture(minimumDistance: 5)
-            .onChanged { value in
-                onEnterEditMode?()  // ensure edit mode is on
-                // We can't mutate @Observable from here directly, but we can
-                // use the callback pattern. Store translation via a notification.
-                NotificationCenter.default.post(
-                    name: .inceptLaunchEditDragChanged,
-                    object: EditDragUpdate(id: item.id, translation: value.translation)
-                )
-
-                // Cross-page detection
-                let threshold = pageWidth * 0.15
-                if value.translation.width < -threshold, currentPage > 0 {
-                    let newPage = currentPage - 1
-                    currentPage = newPage
-                    NotificationCenter.default.post(
-                        name: .inceptLaunchEditDragChanged,
-                        object: EditDragUpdate(id: item.id, translation: CGSize(
-                            width: value.translation.width + pageWidth,
-                            height: value.translation.height
-                        ))
-                    )
-                    onPageChange?(newPage)
-                    onMoveApp?(item.id, newPage, 0)
-                } else if value.translation.width > threshold, currentPage < pages.count - 1 {
-                    let newPage = currentPage + 1
-                    currentPage = newPage
-                    NotificationCenter.default.post(
-                        name: .inceptLaunchEditDragChanged,
-                        object: EditDragUpdate(id: item.id, translation: CGSize(
-                            width: value.translation.width - pageWidth,
-                            height: value.translation.height
-                        ))
-                    )
-                    onPageChange?(newPage)
-                    onMoveApp?(item.id, newPage, 0)
-                }
-            }
-            .onEnded { value in
-                // Find the tile under the drop point
-                let frames = tileFrames
-                let dropTranslation = value.translation
-
-                // Find the source tile's frame (approximate by finding the tile
-                // whose frame is closest to where we expect it)
-                var bestFrame: CGRect?
-                var bestDist: CGFloat = .greatestFiniteMagnitude
-                for frame in frames {
-                    let dist = abs(frame.midX - (frame.midX + dropTranslation.width))
-                    if dist < bestDist {
-                        bestDist = dist
-                        bestFrame = frame
-                    }
-                }
-
-                if let sourceFrame = bestFrame {
-                    let dropCenter = CGPoint(
-                        x: sourceFrame.midX + dropTranslation.width,
-                        y: sourceFrame.midY + dropTranslation.height
-                    )
-
-                    for (index, frame) in frames.enumerated() {
-                        if frame.contains(dropCenter) {
-                            let targetPage = pageForFrameIndex(index)
-                            let targetIndex = indexInPage(forFrameIndex: index, page: targetPage)
-                            onMoveApp?(item.id, targetPage, targetIndex)
-                            break
-                        }
-                    }
-                }
-
-                // Clear drag state
-                NotificationCenter.default.post(
-                    name: .inceptLaunchEditDragEnded,
-                    object: nil
-                )
-            }
-    }
-
-    private func pageForFrameIndex(_ frameIndex: Int) -> Int {
-        var cumulative = 0
-        for (pageIndex, page) in pages.enumerated() {
-            cumulative += page.count
-            if frameIndex < cumulative {
-                return pageIndex
-            }
-        }
-        return currentPage
-    }
-
-    private func indexInPage(forFrameIndex frameIndex: Int, page: Int) -> Int {
-        var cumulative = 0
-        for pageIndex in 0..<page {
-            cumulative += pages[pageIndex].count
-        }
-        return max(0, frameIndex - cumulative)
     }
 
     // MARK: - Normal page drag gesture

@@ -84,12 +84,17 @@ struct FolderPopupView: View {
         )
         let isBeingDragged = editMode && editDragID == member.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
+        // Random jiggle angle per cell (stable across renders)
+        let jiggleAngle: Double = {
+            var generator = SeededGenerator(seed: UInt64(member.id.hashValue & 0xFFFFFFFF))
+            return Double.random(in: -2.0...2.0, using: &generator)
+        }()
 
         AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
             .opacity(isBeingDragged ? 0.3 : 1.0)
             .rotationEffect(
                 editMode && !isBeingDragged
-                    ? (jiggle ? .degrees(1.5) : .degrees(-1.5))
+                    ? (jiggle ? .degrees(jiggleAngle) : .degrees(-jiggleAngle))
                     : .degrees(0)
             )
             .offset(dragTrans)
@@ -110,29 +115,28 @@ struct FolderPopupView: View {
                     onEnterEditMode?()
                 }
             }
-            .simultaneousGesture(
-                editMode && !isBeingDragged
-                    ? DragGesture(minimumDistance: 5)
-                        .onChanged { value in
-                            onEnterEditMode?()
-                            NotificationCenter.default.post(
-                                name: .inceptLaunchEditDragChanged,
-                                object: EditDragUpdate(id: member.id, translation: value.translation)
-                            )
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        guard editMode else { return }
+                        NotificationCenter.default.post(
+                            name: .inceptLaunchEditDragChanged,
+                            object: EditDragUpdate(id: member.id, translation: value.translation)
+                        )
+                    }
+                    .onEnded { value in
+                        guard editMode else { return }
+                        // If dragged far enough, remove from folder
+                        let distance = sqrt(value.translation.width * value.translation.width
+                                          + value.translation.height * value.translation.height)
+                        if distance > 60 {
+                            onDragOut?(member.id)
                         }
-                        .onEnded { value in
-                            // If dragged far enough, remove from folder
-                            let distance = sqrt(value.translation.width * value.translation.width
-                                              + value.translation.height * value.translation.height)
-                            if distance > 80 {
-                                onDragOut?(member.id)
-                            }
-                            NotificationCenter.default.post(
-                                name: .inceptLaunchEditDragEnded,
-                                object: nil
-                            )
-                        }
-                    : nil
+                        NotificationCenter.default.post(
+                            name: .inceptLaunchEditDragEnded,
+                            object: nil
+                        )
+                    }
             )
     }
 
@@ -172,5 +176,23 @@ struct FolderPopupView: View {
             onRename(trimmed)
         }
         isEditingName = false
+    }
+}
+
+/// Deterministic random number generator seeded by a UInt64 value.
+/// Used to give each tile a stable random jiggle angle.
+struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        self.state = seed == 0 ? 0xdead_beef : seed
+    }
+
+    mutating func next() -> UInt64 {
+        // xorshift64
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return state
     }
 }

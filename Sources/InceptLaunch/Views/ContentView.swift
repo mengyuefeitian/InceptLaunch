@@ -16,18 +16,21 @@ struct ContentView: View {
     /// Effective animation flag: false when reduceMotion is on.
     private var animEnabled: Bool { !preferences.reduceMotion }
 
+    /// Top padding for the search field — proportional to screen height.
+    private var searchFieldTopPadding: CGFloat {
+        let screenHeight = NSScreen.main?.frame.height ?? 900
+        return max(80, screenHeight * 0.1)
+    }
+
     var body: some View {
         ZStack {
             backgroundLayer
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                GeometryReader { geo in
-                    SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
-                        .padding(.top, max(60, geo.size.height * 0.08))
-                }
-                .frame(height: 120)
-                .padding(.bottom, 12)
+                // Spacer pushes the grid down, leaving room for search field at top
+                Spacer()
+                    .frame(height: searchFieldTopPadding)
 
                 Group {
                     if isSearching {
@@ -98,8 +101,13 @@ struct ContentView: View {
                     Label(Localizer.t("menu.tidyGrid"), systemImage: "square.grid.3x3.fill")
                 }
             }
-            // Tap on empty space dismisses — handled by the grid/search views themselves
-            // and the overlay click monitor in OverlayWindowController.
+
+            // Search field as overlay — always at fixed position from top
+            SearchFieldView(text: $viewModel.searchText, focused: $searchFocused)
+                .frame(maxWidth: 420)
+                .padding(.top, searchFieldTopPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .zIndex(2)
 
             if let folder = viewModel.openFolder {
                 FolderPopupView(
@@ -141,7 +149,6 @@ struct ContentView: View {
             if !frames.isEmpty {
                 viewModel.tileFramesReady = true
             }
-            print("[InceptLaunch] TileFramePreference: \(frames.count) frames collected, ready=\(viewModel.tileFramesReady)")
         }
         .animation(
             (animEnabled && preferences.animateFolder)
