@@ -268,6 +268,7 @@ struct ContentView: View {
         if viewModel.editMode {
             viewModel.editMode = false
         } else if viewModel.openFolder != nil {
+            DiagLog.write("handleBlankTap closing folder")
             viewModel.openFolder = nil
         } else if viewModel.floatingDragApp == nil {
             dismiss()

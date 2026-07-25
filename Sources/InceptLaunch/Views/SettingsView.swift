@@ -64,7 +64,12 @@ struct SettingsView: View {
     }
 
     private func savePreferences() {
-        try? preferencesStore.save(preferences)
+        do {
+            try preferencesStore.save(preferences)
+            DiagLog.write("preferences saved OK, showSystemApps=\(preferences.showSystemApplications)")
+        } catch {
+            DiagLog.write("preferences SAVE FAILED: \(error)")
+        }
     }
 }
 
@@ -209,10 +214,12 @@ struct AppManagementSettingsView: View {
         }
         .formStyle(.grouped)
         .onChange(of: preferences.showSystemApplications) { _, newValue in
+            DiagLog.write("showSystemApplications toggled to \(newValue), viewModel is \(viewModel == nil ? "nil" : "valid")")
             viewModel?.showSystemApplications = newValue
             onSave()
         }
         .onChange(of: preferences.showHiddenInSearch) { _, newValue in
+            DiagLog.write("showHiddenInSearch toggled to \(newValue), viewModel is \(viewModel == nil ? "nil" : "valid")")
             viewModel?.showHiddenInSearch = newValue
             onSave()
         }

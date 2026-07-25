@@ -104,28 +104,35 @@ final class LaunchpadViewModel {
         let recordsByID = appIndex.records
 
         if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let hiddenIDs = layoutStore.layout.hiddenAppIDs
             return [matcher.ranked(query: searchText, records: Array(recordsByID.values))
                 .filter { record in
                     if record.isMissing { return false }
-                    if record.isHidden && !showHiddenInSearch { return false }
-                    if !showSystemApplications && record.source == .systemApplications { return false }
+                    if hiddenIDs.contains(record.id) && !showHiddenInSearch { return false }
+                    if !showSystemApplications && Self.isSystemApp(record) { return false }
                     return true
                 }
-                .map { LaunchpadDisplayItem(id: $0.id, title: $0.name, kind: .app($0), isHiddenApp: $0.isHidden) }]
+                .map { LaunchpadDisplayItem(id: $0.id, title: $0.name, kind: .app($0), isHiddenApp: hiddenIDs.contains($0.id)) }]
         }
 
         return layoutStore.layout.pages.map { page in
             page.compactMap { item in
                 switch item {
                 case .app(let id):
-                    guard let record = recordsByID[id], !record.isHidden, !record.isMissing else { return nil }
-                    if !showSystemApplications && record.source == .systemApplications { return nil }
+                    guard let record = recordsByID[id], !record.isMissing else { return nil }
+                    if layoutStore.layout.hiddenAppIDs.contains(id) { return nil }
+                    if !showSystemApplications && Self.isSystemApp(record) { return nil }
                     return LaunchpadDisplayItem(id: id, title: record.name, kind: .app(record))
                 case .folder(let id):
                     guard let folder = layoutStore.layout.folders.first(where: { $0.id == id }) else { return nil }
-                    let members = folder.items
+                    if !showSystemApplications && id == LayoutStore.appleFolderID { return nil }
+                    var members = folder.items
                         .compactMap { recordsByID[$0] }
-                        .filter { !$0.isHidden && !$0.isMissing }
+                        .filter { !layoutStore.layout.hiddenAppIDs.contains($0.id) && !$0.isMissing }
+                    if !showSystemApplications {
+                        members = members.filter { !Self.isSystemApp($0) }
+                        if members.isEmpty { return nil }
+                    }
                     return LaunchpadDisplayItem(id: id, title: folder.name, kind: .folder(folder), members: members)
                 }
             }
@@ -254,7 +261,7 @@ final class LaunchpadViewModel {
         let recordsByID = appIndex.records
         let members = updated.items
             .compactMap { recordsByID[$0] }
-            .filter { !$0.isHidden && !$0.isMissing }
+            .filter { !layoutStore.layout.hiddenAppIDs.contains($0.id) && !$0.isMissing }
         openFolder = LaunchpadDisplayItem(id: updated.id, title: updated.name, kind: .folder(updated), members: members)
     }
 
@@ -334,6 +341,7 @@ final class LaunchpadViewModel {
     /// keep a floating ghost under the pointer. Does **not** place on the grid yet.
     func beginFloatingDragOut(appID: String, at point: CGPoint) {
         guard let record = appIndex.records[appID] else { return }
+        DiagLog.write("beginFloatingDragOut appID=\(appID) — closing folder")
         _ = layoutStore.extractAppFromFolder(appID)
         openFolder = nil
         floatingDragApp = record
@@ -638,6 +646,10 @@ final class LaunchpadViewModel {
 
     private static func isFolderID(_ id: String) -> Bool {
         id.hasPrefix("folder:") || id.hasPrefix("dir:")
+    }
+
+    private static func isSystemApp(_ record: AppRecord) -> Bool {
+        record.source == .systemApplications || record.bundleID?.hasPrefix("com.apple.") == true
     }
 
     private func persistLayout() {

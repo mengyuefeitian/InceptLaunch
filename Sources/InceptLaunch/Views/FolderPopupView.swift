@@ -30,6 +30,7 @@ struct FolderPopupView: View {
     @State private var leftFolder = false
     @State private var memberFrames: [String: CGRect] = [:]
     @State private var reorderDragID: String? = nil
+    @State private var panelFrame: CGRect = .zero
     @FocusState private var nameFieldFocused: Bool
 
     private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
@@ -40,6 +41,7 @@ struct FolderPopupView: View {
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    DiagLog.write("FolderPopup backdrop tap fired")
                     if editMode {
                         onCancelEditMode?()
                     } else {
@@ -65,6 +67,13 @@ struct FolderPopupView: View {
             }
             .frame(width: 780)
             .liquidGlass(cornerRadius: 32, fallbackOpacity: 0.22)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { panelFrame = geo.frame(in: .named("overlay")) }
+                        .onChange(of: geo.frame(in: .named("overlay"))) { _, f in panelFrame = f }
+                }
+            )
             .transition(
                 animate
                     ? .scale(scale: 0.6).combined(with: .opacity)
@@ -103,13 +112,6 @@ struct FolderPopupView: View {
                 onTrash: { _ in onTrash(member) },
                 editMode: editMode
             ))
-            .onTapGesture {
-                if editMode {
-                    onCancelEditMode?()
-                } else {
-                    onLaunch(member)
-                }
-            }
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
                     .onEnded { _ in
@@ -117,13 +119,16 @@ struct FolderPopupView: View {
                     }
             )
             .gesture(
-                DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("overlay"))
                     .onChanged { value in
                         if leftFolder { return }
 
                         let distance = hypot(value.translation.width, value.translation.height)
+                        DiagLog.write("folder drag onChanged distance=\(distance)")
+                        guard distance >= 6 else { return }
 
-                        if distance >= 90 {
+                        let outsidePanel = !panelFrame.insetBy(dx: -20, dy: -20).contains(value.location)
+                        if outsidePanel {
                             leftFolder = true
                             reorderDragID = nil
                             NotificationCenter.default.post(
@@ -144,8 +149,16 @@ struct FolderPopupView: View {
                             }
                         }
                     }
-                    .onEnded { _ in
-                        if !leftFolder {
+                    .onEnded { value in
+                        let distance = hypot(value.translation.width, value.translation.height)
+                        DiagLog.write("folder drag onEnded distance=\(distance) leftFolder=\(leftFolder)")
+                        if distance < 6 {
+                            if editMode {
+                                onCancelEditMode?()
+                            } else {
+                                onLaunch(member)
+                            }
+                        } else if !leftFolder {
                             reorderDragID = nil
                             NotificationCenter.default.post(
                                 name: .inceptLaunchEditDragEnded,
