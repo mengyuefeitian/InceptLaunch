@@ -41,6 +41,7 @@ struct LaunchpadGridView: View {
     @State private var pageOriginX: CGFloat = 0
     /// True while a tile drag is active (so blank-tap doesn't steal the gesture).
     @State private var isDraggingTile = false
+    @State private var hoveredFolderID: String? = nil
 
     var body: some View {
         VStack(spacing: 18) {
@@ -157,7 +158,7 @@ struct LaunchpadGridView: View {
                 : 0.0
 
             tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
-                .scaleEffect(isBeingDragged ? 1.1 : 1.0)
+                .scaleEffect(isBeingDragged ? 1.1 : (isFolder && hoveredFolderID == item.id ? 1.08 : 1.0))
                 .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
                 .rotationEffect(.degrees(angle))
                 .offset(dragTrans)
@@ -223,6 +224,19 @@ struct LaunchpadGridView: View {
                     }
                 }
 
+                // Folder scale-up feedback: check if pointer is over a folder tile
+                let folderTarget = tileFrames.first { info in
+                    info.isFolder
+                    && info.id != item.id
+                    && info.frame.insetBy(dx: -10, dy: -10).contains(value.location)
+                }
+                let newHover = folderTarget?.id
+                if newHover != hoveredFolderID {
+                    withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
+                        hoveredFolderID = newHover
+                    }
+                }
+
                 NotificationCenter.default.post(
                     name: .inceptLaunchEditDragChanged,
                     object: EditDragUpdate(id: item.id, translation: translation)
@@ -233,6 +247,10 @@ struct LaunchpadGridView: View {
                 )
             }
             .onEnded { value in
+                withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
+                    hoveredFolderID = nil
+                }
+
                 defer {
                     isDraggingTile = false
                     dragPageOffset = 0
