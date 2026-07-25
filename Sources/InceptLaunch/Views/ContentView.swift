@@ -157,6 +157,7 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragEnded)) { _ in
+            viewModel.endLiveReorder()
             viewModel.gridDragItem = nil
             viewModel.gridDragLocation = .zero
         }
@@ -235,6 +236,7 @@ struct ContentView: View {
                     )
                 },
                 onLiveReorder: { draggedID, toIndex, page in
+                    viewModel.beginLiveReorder(draggedID: draggedID, page: page)
                     if animEnabled && preferences.animateDrag {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             viewModel.liveReorder(draggedID: draggedID, toIndex: toIndex, page: page)

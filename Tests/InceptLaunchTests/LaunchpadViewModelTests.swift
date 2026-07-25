@@ -521,6 +521,32 @@ import Testing
     #expect(folder?.members.map(\.id) == [appC.id, appA.id, appB.id])
 }
 
+@MainActor @Test func cancelLiveReorderRestoresOriginalOrder() {
+    let appA = makeRecord("Alpha")
+    let appB = makeRecord("Beta")
+    let appC = makeRecord("Gamma")
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            appA.id: appA, appB.id: appB, appC.id: appC
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.app(appA.id), .app(appB.id), .app(appC.id)]],
+            folders: [],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    viewModel.beginLiveReorder(draggedID: appC.id, page: 0)
+    viewModel.liveReorder(draggedID: appC.id, toIndex: 0, page: 0)
+    #expect(viewModel.visiblePages[0].map(\.id) == [appC.id, appA.id, appB.id])
+
+    viewModel.cancelLiveReorder(page: 0)
+    #expect(viewModel.visiblePages[0].map(\.id) == [appA.id, appB.id, appC.id])
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true

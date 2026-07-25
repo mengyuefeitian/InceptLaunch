@@ -334,6 +334,12 @@ struct LayoutStore {
         removeEmptyTrailingPages()
     }
 
+    /// Restores a page's items to a previously-snapshotted state (drag cancellation rollback).
+    mutating func restorePage(_ items: [LaunchpadItem], at page: Int) {
+        guard layout.pages.indices.contains(page) else { return }
+        layout.pages[page] = items
+    }
+
     mutating func createFolder(name: String, appIDs: [String], now: Date) -> LaunchpadFolder {
         let folder = LaunchpadFolder(
             id: "folder:\(UUID().uuidString)",

@@ -339,6 +339,31 @@ final class LaunchpadViewModel {
         refreshOpenFolder()
     }
 
+    /// Original position before live reorder began (for rollback on cancel).
+    private var preReorderPage: [LaunchpadItem] = []
+    private var preReorderDragID: String?
+
+    func beginLiveReorder(draggedID: String, page: Int) {
+        guard preReorderDragID == nil else { return }
+        preReorderDragID = draggedID
+        if layoutStore.layout.pages.indices.contains(page) {
+            preReorderPage = layoutStore.layout.pages[page]
+        }
+    }
+
+    func cancelLiveReorder(page: Int) {
+        guard preReorderDragID != nil else { return }
+        layoutStore.restorePage(preReorderPage, at: page)
+        preReorderDragID = nil
+        preReorderPage = []
+    }
+
+    func endLiveReorder() {
+        preReorderDragID = nil
+        preReorderPage = []
+        persistLayout()
+    }
+
     /// Removes an app from its folder and places it at an explicit grid slot.
     @discardableResult
     func removeAppFromFolder(appID: String, toPage: Int? = nil, atIndex: Int? = nil) -> Bool {
