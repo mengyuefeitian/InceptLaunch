@@ -116,6 +116,10 @@ struct LaunchpadGridView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, 24)
+        .animation(
+            animateDrag ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
+            value: page.map(\.id)
+        )
     }
 
     @ViewBuilder
