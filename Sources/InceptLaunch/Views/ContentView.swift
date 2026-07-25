@@ -80,8 +80,13 @@ struct ContentView: View {
                         onDragOutEnded: { _, _ in },
                         onReorder: { appID, newIndex in
                             if case .folder(let f) = folder.kind {
-                                viewModel.reorderInFolder(folderID: f.id, appID: appID, toIndex: newIndex)
-                                viewModel.refreshOpenFolder()
+                                if animEnabled && preferences.animateDrag {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        viewModel.liveReorderInFolder(folderID: f.id, appID: appID, toIndex: newIndex)
+                                    }
+                                } else {
+                                    viewModel.liveReorderInFolder(folderID: f.id, appID: appID, toIndex: newIndex)
+                                }
                             }
                         }
                     )

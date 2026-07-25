@@ -30,6 +30,7 @@ struct FolderPopupView: View {
     @State private var leftFolder = false
     @State private var memberFrames: [String: CGRect] = [:]
     @State private var reorderDragID: String? = nil
+    @State private var folderDragLocation: CGPoint = .zero
     @State private var panelFrame: CGRect = .zero
     @FocusState private var nameFieldFocused: Bool
 
@@ -62,6 +63,10 @@ struct FolderPopupView: View {
                     .coordinateSpace(name: "folderGrid")
                     .padding(.horizontal, 26)
                     .padding(.bottom, 26)
+                    .animation(
+                        animate ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
+                        value: item.members.map(\.id)
+                    )
                 }
                 .frame(maxHeight: 560)
             }
@@ -79,6 +84,22 @@ struct FolderPopupView: View {
                     ? .scale(scale: 0.6).combined(with: .opacity)
                     : .opacity
             )
+
+            if let dragID = reorderDragID,
+               let dragMember = item.members.first(where: { $0.id == dragID }),
+               animate {
+                AppIconView(
+                    item: LaunchpadDisplayItem(id: dragMember.id, title: dragMember.name, kind: .app(dragMember)),
+                    iconSize: 88,
+                    tileHeight: 128
+                )
+                .scaleEffect(1.15)
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                .opacity(0.9)
+                .position(folderDragLocation)
+                .allowsHitTesting(false)
+                .zIndex(10)
+            }
         }
     }
 
@@ -104,7 +125,7 @@ struct FolderPopupView: View {
                 .shadow(color: isBeingDragged ? .black.opacity(0.4) : .clear, radius: 14, y: 6)
                 .rotationEffect(.degrees(angle))
                 .offset(dragTrans)
-                .opacity(leftFolder && editDragID == member.id ? 0 : 1)
+                .opacity(leftFolder && editDragID == member.id ? 0 : (reorderDragID == member.id && animate ? 0 : 1))
                 .zIndex(isBeingDragged ? 100 : 0)
         }
             .modifier(TileTrashMenu(
@@ -138,6 +159,7 @@ struct FolderPopupView: View {
                             onDragOutBegan?(member.id, value.location)
                         } else {
                             reorderDragID = member.id
+                            folderDragLocation = value.location
                             let targetIndex = computeReorderIndex(
                                 dragID: member.id,
                                 location: value.location
@@ -160,6 +182,7 @@ struct FolderPopupView: View {
                             }
                         } else if !leftFolder {
                             reorderDragID = nil
+                            folderDragLocation = .zero
                             NotificationCenter.default.post(
                                 name: .inceptLaunchEditDragEnded,
                                 object: nil
