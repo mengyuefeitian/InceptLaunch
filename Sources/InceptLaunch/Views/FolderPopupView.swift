@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// A Launchpad-style zoomed folder: a dark frosted panel listing the contained
@@ -10,6 +11,8 @@ struct FolderPopupView: View {
     let onTrash: (AppRecord) -> Void
     let onClose: () -> Void
     var animate: Bool = true
+    var wallpaperImage: NSImage? = nil
+    var backgroundBlur: Double = 0.72
 
     // Edit mode support
     var editMode: Bool = false
@@ -40,17 +43,31 @@ struct FolderPopupView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    DiagLog.write("FolderPopup backdrop tap fired")
-                    if editMode {
-                        onCancelEditMode?()
-                    } else {
-                        onClose()
-                    }
+            // Blurred wallpaper backdrop matching the main grid aesthetic
+            Group {
+                if let wallpaperImage {
+                    Image(nsImage: wallpaperImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .blur(radius: 40)
+                } else {
+                    Color.black
                 }
+            }
+            .ignoresSafeArea()
+            .overlay(
+                Color.black.opacity(backgroundBlur * 0.5)
+                    .ignoresSafeArea()
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                DiagLog.write("FolderPopup backdrop tap fired")
+                if editMode {
+                    onCancelEditMode?()
+                } else {
+                    onClose()
+                }
+            }
 
             VStack(spacing: 20) {
                 titleView

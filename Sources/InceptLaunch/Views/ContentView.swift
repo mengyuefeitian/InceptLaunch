@@ -63,6 +63,8 @@ struct ContentView: View {
                         },
                         onClose: { viewModel.openFolder = nil },
                         animate: animEnabled && preferences.animateFolder,
+                        wallpaperImage: DesktopWallpaperCapture.currentImage,
+                        backgroundBlur: preferences.backgroundBlur,
                         editMode: viewModel.editMode,
                         editDragID: viewModel.editDragID,
                         editDragTranslation: viewModel.editDragTranslation,
