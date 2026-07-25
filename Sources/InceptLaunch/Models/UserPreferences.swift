@@ -53,12 +53,16 @@ struct UserPreferences: Codable, Equatable {
         case system  // Follow system language
         case chinese // Force Chinese
         case english // Force English
+        case japanese // Force Japanese
+        case korean // Force Korean
 
         var displayName: String {
             switch self {
             case .system: return "跟随系统"
             case .chinese: return "简体中文"
             case .english: return "English"
+            case .japanese: return "日本語"
+            case .korean: return "한국어"
             }
         }
     }

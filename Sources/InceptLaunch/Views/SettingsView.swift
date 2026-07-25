@@ -28,6 +28,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @State private var preferences = UserPreferences.default
     @State private var selectedCategory: SettingsCategory? = .general
+    @State private var languageVersion = 0
     private let preferencesStore = PreferencesStore()
     weak var viewModel: LaunchpadViewModel?
 
@@ -52,6 +53,7 @@ struct SettingsView: View {
                 Text("")
             }
         }
+        .id(languageVersion)
         .frame(width: 700, height: 520)
         .onAppear {
             preferences = (try? preferencesStore.load()) ?? .default
@@ -60,6 +62,9 @@ struct SettingsView: View {
         .onChange(of: preferences.language) { _, newLang in
             Localizer.setLanguage(newLang)
             savePreferences()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchLanguageChanged)) { _ in
+            languageVersion += 1
         }
     }
 
@@ -82,7 +87,7 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section(Localizer.t("settings.language")) {
-                Picker("Language", selection: $preferences.language) {
+                Picker(Localizer.t("settings.languagePicker"), selection: $preferences.language) {
                     ForEach(UserPreferences.Language.allCases, id: \.self) { lang in
                         Text(lang.displayName).tag(lang)
                     }
