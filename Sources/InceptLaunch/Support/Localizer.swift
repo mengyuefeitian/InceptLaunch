@@ -137,6 +137,17 @@ struct Localizer {
 
         // Accessibility
         "accessibility.prompt": "InceptLaunch needs Accessibility permission to use global shortcuts. Please enable it in System Settings > Privacy & Security > Accessibility.",
+
+        // Layout settings
+        "settings.layout": "Layout",
+        "settings.gridRows": "Rows per page",
+        "settings.gridRowsAuto": "Auto",
+        "settings.gridColumns": "Columns per page",
+        "settings.iconSize": "Icon size",
+        "settings.iconSizeSmall": "Small",
+        "settings.iconSizeMedium": "Medium",
+        "settings.iconSizeLarge": "Large",
+        "settings.showAppNames": "Show app names",
     ]
 
     // MARK: - Chinese (Simplified)
@@ -223,6 +234,17 @@ struct Localizer {
 
         // Accessibility
         "accessibility.prompt": "InceptLaunch 需要辅助功能权限才能使用全局快捷键。请在系统设置 > 隐私与安全性 > 辅助功能中启用。",
+
+        // Layout settings
+        "settings.layout": "布局",
+        "settings.gridRows": "每页行数",
+        "settings.gridRowsAuto": "自动",
+        "settings.gridColumns": "每页列数",
+        "settings.iconSize": "图标大小",
+        "settings.iconSizeSmall": "小",
+        "settings.iconSizeMedium": "中",
+        "settings.iconSizeLarge": "大",
+        "settings.showAppNames": "显示应用名称",
     ]
 
     // MARK: - Japanese
@@ -309,6 +331,17 @@ struct Localizer {
 
         // Accessibility
         "accessibility.prompt": "InceptLaunchはグローバルショートカットを使用するためにアクセシビリティ権限が必要です。システム設定 > プライバシーとセキュリティ > アクセシビリティで有効にしてください。",
+
+        // Layout settings
+        "settings.layout": "レイアウト",
+        "settings.gridRows": "ページあたりの行数",
+        "settings.gridRowsAuto": "自動",
+        "settings.gridColumns": "ページあたりの列数",
+        "settings.iconSize": "アイコンサイズ",
+        "settings.iconSizeSmall": "小",
+        "settings.iconSizeMedium": "中",
+        "settings.iconSizeLarge": "大",
+        "settings.showAppNames": "アプリ名を表示",
     ]
 
     // MARK: - Korean
@@ -395,9 +428,113 @@ struct Localizer {
 
         // Accessibility
         "accessibility.prompt": "InceptLaunch는 글로벌 단축키를 사용하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 > 개인 정보 보호 및 보안 > 손쉬운 사용에서 활성화해 주세요.",
+
+        // Layout settings
+        "settings.layout": "레이아웃",
+        "settings.gridRows": "페이지당 행 수",
+        "settings.gridRowsAuto": "자동",
+        "settings.gridColumns": "페이지당 열 수",
+        "settings.iconSize": "아이콘 크기",
+        "settings.iconSizeSmall": "작게",
+        "settings.iconSizeMedium": "중간",
+        "settings.iconSizeLarge": "크게",
+        "settings.showAppNames": "앱 이름 표시",
     ]
 
     // MARK: - Russian
 
-    static let ruStrings: [String: String] = [:]  // TODO: Task 2 will populate Russian translations
+    static let ruStrings: [String: String] = [
+        // Settings sections
+        "settings.launch": "Запуск",
+        "settings.appearance": "Внешний вид",
+        "settings.apps": "Приложения",
+        "settings.background": "Фон",
+        "settings.hiddenApps": "Скрытые приложения",
+        "settings.animations": "Анимации",
+        "settings.language": "Язык интерфейса",
+        "settings.languagePicker": "Настройки языка",
+
+        // Launch settings
+        "settings.hotKey": "Глобальное сочетание клавиш",
+        "settings.launchAtLogin": "Запускать при входе",
+        "settings.showMenuBarIcon": "Показывать значок в строке меню",
+        "settings.showDockIcon": "Показывать значок в Dock",
+
+        // Appearance settings
+        "settings.backgroundBlur": "Размытие фона",
+        "settings.reduceMotion": "Уменьшить движение",
+        "settings.appIcon": "Значок приложения",
+
+        // Background settings
+        "settings.showDesktop": "Показывать фон рабочего стола",
+        "settings.uploadBackground": "Загрузить фоновое изображение",
+        "settings.backgroundMode": "Режим фона",
+        "settings.autoCarousel": "Автоматическая карусель фона",
+        "settings.carouselHint": "Фоновые изображения меняются при каждом перелистывании",
+        "settings.firstImageHint": "Первое загруженное изображение используется как фон",
+        "settings.resetBackground": "Сбросить фон",
+        "settings.noHiddenApps": "Нет скрытых приложений",
+
+        // Animation settings
+        "settings.animateIcons": "Анимация значков",
+        "settings.animatePageFlip": "Анимация перелистывания",
+        "settings.animateFolder": "Анимация папок",
+        "settings.animateDrag": "Анимация перетаскивания",
+        "settings.animateSearch": "Анимация поиска",
+
+        // Apps settings
+        "settings.showSystemApps": "Показывать системные приложения",
+
+        // Settings navigation
+        "settings.general": "Основные",
+        "settings.interface": "Интерфейс",
+        "settings.appManagement": "Управление приложениями",
+        "settings.about": "О программе",
+        "settings.systemApps": "Системные приложения",
+        "settings.showHiddenInSearch": "Показывать скрытые в поиске",
+        "settings.title": "Настройки InceptLaunch",
+
+        // About
+        "about.version": "Версия",
+        "about.website": "Веб-сайт",
+        "about.wechatOA": "WeChat OA",
+        "about.copied": "Скопировано",
+
+        // Context menu
+        "menu.trash": "Переместить в корзину",
+        "menu.hide": "Скрыть",
+        "menu.unhide": "Показать",
+        "menu.enlargeFolder": "Увеличить папку",
+        "menu.shrinkFolder": "Уменьшить папку",
+        "menu.tidyGrid": "Упорядочить",
+        "menu.resetBackground": "Сбросить фон",
+        "menu.editModeHint": "Нажмите для выхода из режима редактирования",
+
+        // Settings actions
+        "settings.upload": "Загрузить",
+        "settings.chooseImage": "Выбрать изображение",
+
+        // Menu bar
+        "menubar.open": "Открыть InceptLaunch",
+        "menubar.settings": "Настройки…",
+        "menubar.logs": "Открыть файл журнала",
+        "menubar.quit": "Выйти",
+
+        // Search
+        "search.placeholder": "Поиск",
+
+        // Accessibility
+        "accessibility.prompt": "InceptLaunch требует разрешения на универсальный доступ для использования глобальных сочетаний клавиш. Включите его в Системные настройки > Конфиденциальность и безопасность > Универсальный доступ.",
+
+        // Layout settings
+        "settings.layout": "Раскладка",
+        "settings.gridRows": "Строк на странице",
+        "settings.gridRowsAuto": "Авто",
+        "settings.gridColumns": "Столбцов на странице",
+        "settings.iconSize": "Размер значков",
+        "settings.iconSizeSmall": "Маленький",
+        "settings.iconSizeMedium": "Средний",
+        "settings.iconSizeLarge": "Большой",
+        "settings.showAppNames": "Показывать названия приложений",
+    ]
 }
