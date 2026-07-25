@@ -156,6 +156,36 @@ struct AppearanceSettingsView: View {
                 }
             }
 
+            Section(Localizer.t("settings.layout")) {
+                Picker(Localizer.t("settings.gridRows"), selection: $preferences.gridRows) {
+                    Text(Localizer.t("settings.gridRowsAuto")).tag(0)
+                    Text("4").tag(4)
+                    Text("5").tag(5)
+                    Text("6").tag(6)
+                }
+                .pickerStyle(.segmented)
+
+                Picker(Localizer.t("settings.gridColumns"), selection: $preferences.gridColumns) {
+                    Text("6").tag(6)
+                    Text("7").tag(7)
+                    Text("8").tag(8)
+                    Text("9").tag(9)
+                    Text("10").tag(10)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section(Localizer.t("settings.iconSize")) {
+                Picker(Localizer.t("settings.iconSize"), selection: $preferences.iconSizeLevel) {
+                    Text(Localizer.t("settings.iconSizeSmall")).tag(UserPreferences.IconSizeLevel.small)
+                    Text(Localizer.t("settings.iconSizeMedium")).tag(UserPreferences.IconSizeLevel.medium)
+                    Text(Localizer.t("settings.iconSizeLarge")).tag(UserPreferences.IconSizeLevel.large)
+                }
+                .pickerStyle(.segmented)
+
+                Toggle(Localizer.t("settings.showAppNames"), isOn: $preferences.showAppNames)
+            }
+
             Section(Localizer.t("settings.background")) {
                 Picker(Localizer.t("settings.backgroundMode"), selection: $preferences.backgroundMode) {
                     Text(Localizer.t("settings.showDesktop")).tag(UserPreferences.BackgroundMode.desktop)
@@ -183,6 +213,10 @@ struct AppearanceSettingsView: View {
         .onChange(of: preferences.backgroundBlur) { _, _ in onSave() }
         .onChange(of: preferences.backgroundMode) { _, _ in onSave() }
         .onChange(of: preferences.autoCarousel) { _, _ in onSave() }
+        .onChange(of: preferences.gridRows) { _, _ in onSave() }
+        .onChange(of: preferences.gridColumns) { _, _ in onSave() }
+        .onChange(of: preferences.iconSizeLevel) { _, _ in onSave() }
+        .onChange(of: preferences.showAppNames) { _, _ in onSave() }
     }
 }
 
