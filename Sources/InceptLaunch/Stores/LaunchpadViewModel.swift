@@ -428,6 +428,12 @@ final class LaunchpadViewModel {
             return
         }
 
+        // Live reorder already positioned the item — skip insert calculation.
+        if preReorderDragID == sourceID {
+            clearFloatingDrag()
+            return
+        }
+
         // Insert / reorder.
         let onGrid = layoutStore.layout.pages.flatMap({ $0 }).contains { item in
             switch item {
@@ -693,6 +699,10 @@ final class LaunchpadViewModel {
 
     private static func isSystemApp(_ record: AppRecord) -> Bool {
         record.source == .systemApplications || record.bundleID?.hasPrefix("com.apple.") == true
+    }
+
+    func persistCurrentLayout() {
+        persistLayout()
     }
 
     private func persistLayout() {

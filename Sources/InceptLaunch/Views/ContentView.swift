@@ -88,6 +88,9 @@ struct ContentView: View {
                                     viewModel.liveReorderInFolder(folderID: f.id, appID: appID, toIndex: newIndex)
                                 }
                             }
+                        },
+                        onReorderEnded: {
+                            viewModel.persistCurrentLayout()
                         }
                     )
                     .frame(width: geo.size.width, height: geo.size.height)

@@ -24,6 +24,8 @@ struct FolderPopupView: View {
     var onDragOutEnded: ((String, CGPoint) -> Void)? = nil
     /// Called during drag to reorder an app within the folder.
     var onReorder: ((String, Int) -> Void)? = nil
+    /// Called when a folder-interior reorder drag ends (to persist layout).
+    var onReorderEnded: (() -> Void)? = nil
 
     @State private var isEditingName = false
     @State private var draftName = ""
@@ -183,6 +185,7 @@ struct FolderPopupView: View {
                         } else if !leftFolder {
                             reorderDragID = nil
                             folderDragLocation = .zero
+                            onReorderEnded?()
                             NotificationCenter.default.post(
                                 name: .inceptLaunchEditDragEnded,
                                 object: nil
