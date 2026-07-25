@@ -11,7 +11,7 @@ built with SwiftUI + AppKit for macOS Tahoe and newer.
 
 [![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos)
 [![Swift](https://img.shields.io/badge/Swift-6.3-orange?logo=swift)](https://www.swift.org)
-[![Release](https://img.shields.io/badge/release-1.0.0-brightgreen)](../../releases)
+[![Release](https://img.shields.io/badge/release-1.5.5-brightgreen)](../../releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [简体中文](README.md) | **English**
@@ -48,6 +48,19 @@ arrange once and rely on forever.
 - **Always one keystroke away** — open from anywhere with `⌥ Space`, the menu
   bar, or the Dock.
 
+## What's new in v1.5
+
+- **Live drag-reorder in main grid** — tiles gracefully make way while you drag,
+  a floating overlay follows your finger, and the layout is persisted on drop.
+- **Implicit spring animation** — grid tile position changes animate with a
+  spring, and honour the system "Reduce motion" setting.
+- **Internationalization (i18n)** — Japanese and Korean join the existing
+  languages, with live language switching and localized search and log output.
+- **Settings restructure** — moved to a sidebar navigation with a new "About"
+  page for a cleaner layout.
+- **Hidden-app badge** — hidden apps show an eye icon in search results so they
+  are easy to spot.
+
 ## Install
 
 Download the latest `InceptLaunch-*.dmg` from
@@ -75,22 +88,21 @@ Where InceptLaunch is headed, tracked against the original
 | **v0.1** Prototype | App scanning, grid, search, launch, menu bar | ✅ Done |
 | **v0.2** Core experience | Full-screen overlay, global hotkey, paging, settings, layout persistence | ✅ Done |
 | **v0.3** Manual organization | Drag to reorder, cross-page move, folders, Apple & directory folding | ✅ Done |
-| **v0.4** Full replica | Edit mode, move-to-trash, multi-display, animation polish, keyboard nav | 🚧 In progress |
-| **v1.0** Stable release | Performance, error handling, first-run guide, auto-update, signing & notarization | 📋 Planned |
+| **v0.4** Full replica | Edit mode, move-to-trash, multi-display, animation polish, keyboard nav | 🟡 Nearly done (multi-display remaining) |
+| **v1.5** Experience upgrade | Live drag-reorder animation, i18n (ja/ko), settings restructure, hidden-app badge | ✅ Done |
+| **v2.0** Stable release | Multi-display & Spaces, performance, first-run guide, auto-update, signing & notarization | 📋 Planned |
 
 ### Coming next
 
-- **Edit mode** — long-press to enter a jiggle mode for batch organizing and
-  hiding apps.
-- **Hide, don't delete** — hide low-value apps (helpers, uninstallers) and
-  restore them from settings.
 - **Multi-display & Spaces** — predictable overlay placement across monitors,
   full-screen apps, and Stage Manager, with focus restored on dismiss.
-- **Animation polish** — open/close, paging, and folder transitions that
-  respect the system "Reduce motion" setting.
+- **Edit mode** — long-press to enter a jiggle mode for batch organizing and
+  hiding apps.
 - **Multiple layouts** — switch between Work / Personal / Presentation grids.
 - **Old Launchpad migration** — experimentally import pages and folders from
   the legacy Launchpad database.
+- **Signing & notarization** — distribute via Developer ID so Gatekeeper
+  warnings disappear entirely.
 
 ## Design principles
 

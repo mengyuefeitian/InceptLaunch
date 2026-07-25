@@ -11,7 +11,7 @@
 
 [![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos)
 [![Swift](https://img.shields.io/badge/Swift-6.3-orange?logo=swift)](https://www.swift.org)
-[![Release](https://img.shields.io/badge/release-1.0.0-brightgreen)](../../releases)
+[![Release](https://img.shields.io/badge/release-1.5.5-brightgreen)](../../releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **简体中文** | [English](README_en.md)
@@ -36,6 +36,14 @@ InceptLaunch 把这种体验带了回来——一个安静、全屏的网格，�
 - **移到废纸篓** —— 长按或右键移除应用，带二次确认。
 - **一键唤起** —— 随时用 `⌥ Space`、菜单栏或 Dock 打开。
 
+## v1.5 新特性
+
+- **主网格实时拖拽重排** —— 拖动时瓦片自动让位，浮动覆盖层跟随手指，drop 后布局自动持久化。
+- **隐式弹簧动画** —— 网格瓦片的位置变化使用 spring 动画，流畅自然，遵循系统「减弱动态效果」设置。
+- **国际化 (i18n)** —— 新增日语、韩语，支持运行时切换语言，搜索与日志输出同步本地化。
+- **设置页重构** —— 改为侧边栏导航，新增「关于」页面，结构更清晰。
+- **隐藏应用徽章** —— 搜索结果中为隐藏应用显示眼睛图标，一目了然。
+
 ## 安装
 
 从 [Releases](../../releases) 下载最新的 `InceptLaunch-*.dmg`，打开后把 **InceptLaunch** 拖进 **Applications** 即可。
@@ -59,17 +67,17 @@ InceptLaunch 的演进方向，对照最初的[设计规格](docs/superpowers/sp
 | **v0.1** 原型 | 应用扫描、网格、搜索、启动、菜单栏 | ✅ 已完成 |
 | **v0.2** 基础体验 | 全屏 overlay、全局快捷键、分页、设置、布局持久化 | ✅ 已完成 |
 | **v0.3** 手动组织 | 拖拽排序、跨页移动、文件夹、Apple 与目录折叠 | ✅ 已完成 |
-| **v0.4** 完整复刻 | 编辑模式、移到废纸篓、多显示器、动画打磨、键盘导航 | 🚧 进行中 |
-| **v1.0** 稳定发布 | 性能、错误处理、首次使用引导、自动更新、签名与公证 | 📋 计划中 |
+| **v0.4** 完整复刻 | 编辑模式、移到废纸篓、多显示器、动画打磨、键盘导航 | 🟡 接近完成（仅剩多显示器） |
+| **v1.5** 体验升级 | 实时拖拽重排动画、i18n (日/韩)、设置页重构、隐藏应用徽章 | ✅ 已完成 |
+| **v2.0** 稳定发布 | 多显示器与 Space、性能、首次使用引导、自动更新、签名与公证 | 📋 计划中 |
 
 ### 接下来要做
 
-- **编辑模式** —— 长按进入抖动模式，批量整理和隐藏应用。
-- **隐藏而非删除** —— 隐藏低价值应用（helper、卸载器等），可在设置中恢复。
 - **多显示器与 Space** —— 在多显示器、全屏应用和 Stage Manager 下可预测地弹出，退出后焦点还原。
-- **动画打磨** —— 打开/关闭、翻页、文件夹过渡，并遵循系统「减弱动态效果」设置。
+- **编辑模式** —— 长按进入抖动模式，批量整理和隐藏应用。
 - **多套布局** —— 在工作 / 个人 / 演示网格之间切换。
 - **旧 Launchpad 迁移** —— 实验性地从旧版 Launchpad 数据库导入页面和文件夹。
+- **签名与公证** —— 通过 Developer ID 签名并公证，彻底消除 Gatekeeper 警告。
 
 ## 设计原则
 
