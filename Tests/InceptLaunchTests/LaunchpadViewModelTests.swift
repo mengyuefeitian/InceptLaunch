@@ -456,6 +456,71 @@ import Testing
     try? FileManager.default.removeItem(at: tempURL)
 }
 
+@MainActor @Test func liveReorderMovesItemWithoutPersisting() {
+    let appA = makeRecord("Alpha")
+    let appB = makeRecord("Beta")
+    let appC = makeRecord("Gamma")
+    let tempURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: tempURL))
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            appA.id: appA, appB.id: appB, appC.id: appC
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.app(appA.id), .app(appB.id), .app(appC.id)]],
+            folders: [],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace()),
+        layoutPersistence: persistence
+    )
+
+    viewModel.liveReorder(draggedID: appC.id, toIndex: 0, page: 0)
+
+    let visible = viewModel.visiblePages[0]
+    #expect(visible.map(\.id) == [appC.id, appA.id, appB.id])
+
+    // liveReorder must NOT persist (only final drop persists).
+    let saved = try? JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self, from: Data(contentsOf: tempURL)
+    )
+    #expect(saved == nil || saved?.pages[0] != [.app(appC.id), .app(appA.id), .app(appB.id)])
+    try? FileManager.default.removeItem(at: tempURL)
+}
+
+@MainActor @Test func liveReorderInFolderMovesMember() {
+    let appA = makeRecord("Alpha")
+    let appB = makeRecord("Beta")
+    let appC = makeRecord("Gamma")
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            appA.id: appA, appB.id: appB, appC.id: appC
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.folder("folder:test")]],
+            folders: [LaunchpadFolder(
+                id: "folder:test",
+                name: "Test",
+                items: [appA.id, appB.id, appC.id],
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1)
+            )],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    viewModel.liveReorderInFolder(folderID: "folder:test", appID: appC.id, toIndex: 0)
+
+    let folder = viewModel.visiblePages[0].first(where: { $0.id == "folder:test" })
+    #expect(folder?.members.map(\.id) == [appC.id, appA.id, appB.id])
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true

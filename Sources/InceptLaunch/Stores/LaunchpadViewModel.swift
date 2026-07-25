@@ -321,6 +321,18 @@ final class LaunchpadViewModel {
         persistLayout()
     }
 
+    /// Mid-drag live reorder: moves the item without persisting.
+    /// Called on every cell-boundary crossing during drag.
+    func liveReorder(draggedID: String, toIndex: Int, page: Int) {
+        layoutStore.moveItem(id: draggedID, toPage: page, index: toIndex)
+    }
+
+    /// Mid-drag live reorder within a folder: moves the member without persisting.
+    func liveReorderInFolder(folderID: String, appID: String, toIndex: Int) {
+        layoutStore.reorderFolderItem(folderID: folderID, appID: appID, toIndex: toIndex)
+        refreshOpenFolder()
+    }
+
     /// Removes an app from its folder and places it at an explicit grid slot.
     @discardableResult
     func removeAppFromFolder(appID: String, toPage: Int? = nil, atIndex: Int? = nil) -> Bool {
