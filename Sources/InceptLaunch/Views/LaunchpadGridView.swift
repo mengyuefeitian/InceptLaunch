@@ -233,6 +233,9 @@ struct LaunchpadGridView: View {
                     height: value.translation.height
                 )
 
+                // Unified resolver: >50% app merge, otherwise cell-based insert.
+                // Pass source localIndex + translation so insert lands between
+                // the intended neighbors (not a wrong row).
                 if let onResolveDrop {
                     onResolveDrop(item.id, value.location, translation, currentPage, localIndex)
                     return
@@ -247,7 +250,9 @@ struct LaunchpadGridView: View {
     private func computeGridTargetIndex(dragID: String, location: CGPoint, page: Int) -> Int {
         let pageItems = pages[page]
         let otherFrames = tileFrames
-            .filter { $0.id != dragID && pageItems.contains(where: { $0.id == $0.id }) }
+            .filter { frame in
+                frame.id != dragID && pageItems.contains(where: { $0.id == frame.id })
+            }
             .sorted { a, b in
                 let indexA = pageItems.firstIndex(where: { $0.id == a.id }) ?? 0
                 let indexB = pageItems.firstIndex(where: { $0.id == b.id }) ?? 0
