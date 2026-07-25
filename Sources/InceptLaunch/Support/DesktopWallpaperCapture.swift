@@ -3,6 +3,7 @@ import AppKit
 /// Captures the current desktop wallpaper image for use as the overlay background.
 /// `.ultraThinMaterial` doesn't work on borderless windows above the desktop layer,
 /// so we need to capture the actual wallpaper image.
+@MainActor
 enum DesktopWallpaperCapture {
     /// Known directories where macOS stores system wallpapers.
     private static let wallpaperDirectories = [
@@ -10,8 +11,24 @@ enum DesktopWallpaperCapture {
         "/System/Library/Desktop Pictures",
     ]
 
+    private static var cachedImage: NSImage?
+
     /// Returns the current desktop wallpaper as an NSImage, or nil if unavailable.
+    /// The result is cached so repeated accesses return the same instance (avoids
+    /// SwiftUI view-identity churn that causes background flicker during re-renders).
     static var currentImage: NSImage? {
+        if let cached = cachedImage { return cached }
+        let image = loadImage()
+        cachedImage = image
+        return image
+    }
+
+    /// Invalidates the cached wallpaper (call when the system wallpaper changes).
+    static func refresh() {
+        cachedImage = nil
+    }
+
+    private static func loadImage() -> NSImage? {
         // Primary: NSWorkspace API (works on most macOS versions)
         if let screen = NSScreen.main {
             if let url = NSWorkspace.shared.desktopImageURL(for: screen) {

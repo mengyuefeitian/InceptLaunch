@@ -7,6 +7,8 @@ struct ContentView: View {
     let preferences: UserPreferences
 
     @State private var backgroundIndex = 0
+    @State private var cachedUploadedImage: NSImage?
+    @State private var cachedUploadedPath: String?
 
     private var isSearching: Bool {
         !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -134,9 +136,11 @@ struct ContentView: View {
         }
         .onAppear {
             syncScrollHijack()
+            loadUploadedImage()
         }
         .onChange(of: viewModel.searchText) { syncScrollHijack() }
         .onChange(of: viewModel.openFolder?.id) { syncScrollHijack() }
+        .onChange(of: currentBackgroundPath) { loadUploadedImage() }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragChanged)) { note in
             if let update = note.object as? EditDragUpdate {
                 viewModel.editDragID = update.id
@@ -281,8 +285,7 @@ struct ContentView: View {
                     .background(.ultraThinMaterial)
             }
         case .uploaded:
-            if let path = currentBackgroundPath,
-               let nsImage = NSImage(contentsOfFile: path) {
+            if let nsImage = cachedUploadedImage {
                 ZStack {
                     Image(nsImage: nsImage)
                         .resizable()
@@ -308,6 +311,13 @@ struct ContentView: View {
     private func advanceBackground() {
         guard preferences.backgroundImages.count > 1 else { return }
         backgroundIndex = (backgroundIndex + 1) % preferences.backgroundImages.count
+    }
+
+    private func loadUploadedImage() {
+        let path = currentBackgroundPath
+        guard path != cachedUploadedPath else { return }
+        cachedUploadedPath = path
+        cachedUploadedImage = path.flatMap { NSImage(contentsOfFile: $0) }
     }
 
     private func handleBlankTap() {
