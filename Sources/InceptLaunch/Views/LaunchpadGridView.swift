@@ -27,6 +27,7 @@ struct LaunchpadGridView: View {
     var onMoveApp: ((String, Int, Int) -> Void)? = nil
     /// Unified drop: (sourceID, location, translation, page, sourceLocalIndex).
     var onResolveDrop: ((String, CGPoint, CGSize, Int, Int) -> Void)? = nil
+    var onLiveReorder: ((String, Int, Int) -> Void)? = nil
     var tileFrames: [TileFrameInfo] = []
 
     @State private var currentPage = 0
@@ -148,7 +149,7 @@ struct LaunchpadGridView: View {
                 .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
                 .rotationEffect(.degrees(angle))
                 .offset(dragTrans)
-                .opacity(isBeingDragged ? 0.92 : 1.0)
+                .opacity(isBeingDragged && animateDrag ? 0.0 : (isBeingDragged ? 0.92 : 1.0))
         }
         // zIndex on the Layout child so the dragged tile paints above folders
         // (not under them mid-drag).
@@ -196,9 +197,27 @@ struct LaunchpadGridView: View {
                     height: value.translation.height
                 )
                 maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
+
+                // Live reorder: compute target index from pointer position.
+                if animateDrag, let onLiveReorder {
+                    let targetIndex = computeGridTargetIndex(
+                        dragID: item.id,
+                        location: value.location,
+                        page: currentPage
+                    )
+                    let currentIndex = pages[currentPage].firstIndex(where: { $0.id == item.id }) ?? localIndex
+                    if targetIndex != currentIndex {
+                        onLiveReorder(item.id, targetIndex, currentPage)
+                    }
+                }
+
                 NotificationCenter.default.post(
                     name: .inceptLaunchEditDragChanged,
                     object: EditDragUpdate(id: item.id, translation: translation)
+                )
+                NotificationCenter.default.post(
+                    name: .inceptLaunchGridDragMoved,
+                    object: GridDragLocationUpdate(id: item.id, location: value.location)
                 )
             }
             .onEnded { value in
@@ -206,6 +225,7 @@ struct LaunchpadGridView: View {
                     isDraggingTile = false
                     dragPageOffset = 0
                     NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
+                    NotificationCenter.default.post(name: .inceptLaunchGridDragEnded, object: nil)
                 }
 
                 let translation = CGSize(
@@ -213,9 +233,6 @@ struct LaunchpadGridView: View {
                     height: value.translation.height
                 )
 
-                // Unified resolver: >50% app merge, otherwise cell-based insert.
-                // Pass source localIndex + translation so insert lands between
-                // the intended neighbors (not a wrong row).
                 if let onResolveDrop {
                     onResolveDrop(item.id, value.location, translation, currentPage, localIndex)
                     return
@@ -225,6 +242,24 @@ struct LaunchpadGridView: View {
                     onMoveApp?(item.id, currentPage, localIndex)
                 }
             }
+    }
+
+    private func computeGridTargetIndex(dragID: String, location: CGPoint, page: Int) -> Int {
+        let pageItems = pages[page]
+        let otherFrames = tileFrames
+            .filter { $0.id != dragID && pageItems.contains(where: { $0.id == $0.id }) }
+            .sorted { a, b in
+                let indexA = pageItems.firstIndex(where: { $0.id == a.id }) ?? 0
+                let indexB = pageItems.firstIndex(where: { $0.id == b.id }) ?? 0
+                return indexA < indexB
+            }
+
+        for (rank, info) in otherFrames.enumerated() {
+            if location.x < info.frame.midX && location.y < info.frame.maxY {
+                return rank
+            }
+        }
+        return pageItems.count - 1
     }
 
     private func maybeFlipPageAtEdge(fingerX: CGFloat, pageWidth: CGFloat) {
@@ -321,9 +356,16 @@ struct EditDragUpdate {
     let translation: CGSize
 }
 
+struct GridDragLocationUpdate {
+    let id: String
+    let location: CGPoint
+}
+
 extension Notification.Name {
     static let inceptLaunchEditDragChanged = Notification.Name("inceptLaunchEditDragChanged")
     static let inceptLaunchEditDragEnded = Notification.Name("inceptLaunchEditDragEnded")
+    static let inceptLaunchGridDragMoved = Notification.Name("inceptLaunchGridDragMoved")
+    static let inceptLaunchGridDragEnded = Notification.Name("inceptLaunchGridDragEnded")
 }
 
 /// Launchpad-style page indicator

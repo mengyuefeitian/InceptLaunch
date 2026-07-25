@@ -62,6 +62,12 @@ final class LaunchpadViewModel {
     /// Absolute pointer position in the overlay coordinate space for the ghost.
     var floatingDragPoint: CGPoint = .zero
 
+    /// The item currently being live-reorder-dragged on the main grid (for overlay rendering).
+    var gridDragItem: LaunchpadDisplayItem?
+
+    /// Absolute pointer position in overlay coordinate space during grid drag.
+    var gridDragLocation: CGPoint = .zero
+
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher
