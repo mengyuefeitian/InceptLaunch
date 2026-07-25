@@ -88,6 +88,20 @@ struct ContentView: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
                 }
+
+                if let dragItem = viewModel.gridDragItem {
+                    AppIconView(
+                        item: dragItem,
+                        iconSize: GridMetrics.iconSize,
+                        tileHeight: GridMetrics.tileHeight
+                    )
+                    .scaleEffect(1.15)
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                    .opacity(0.9)
+                    .position(viewModel.gridDragLocation)
+                    .allowsHitTesting(false)
+                    .zIndex(3)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -126,6 +140,20 @@ struct ContentView: View {
                 viewModel.editDragID = nil
                 viewModel.editDragTranslation = .zero
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragMoved)) { note in
+            if let update = note.object as? GridDragLocationUpdate {
+                if viewModel.gridDragItem == nil {
+                    viewModel.gridDragItem = viewModel.visiblePages
+                        .flatMap { $0 }
+                        .first(where: { $0.id == update.id })
+                }
+                viewModel.gridDragLocation = update.location
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragEnded)) { _ in
+            viewModel.gridDragItem = nil
+            viewModel.gridDragLocation = .zero
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditModeCancelled)) { _ in
             viewModel.editMode = false
@@ -200,6 +228,15 @@ struct ContentView: View {
                         page: page,
                         sourceIndex: localIndex
                     )
+                },
+                onLiveReorder: { draggedID, toIndex, page in
+                    if animEnabled && preferences.animateDrag {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            viewModel.liveReorder(draggedID: draggedID, toIndex: toIndex, page: page)
+                        }
+                    } else {
+                        viewModel.liveReorder(draggedID: draggedID, toIndex: toIndex, page: page)
+                    }
                 },
                 tileFrames: viewModel.tileFrames
             )
