@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 struct UserPreferences: Codable, Equatable {
     enum OverlayDisplayMode: String, Codable, Equatable {
@@ -48,6 +49,21 @@ struct UserPreferences: Codable, Equatable {
         case uploaded // Use uploaded background images
     }
 
+    /// Icon rendering size within a grid cell. Does not affect cell dimensions.
+    enum IconSizeLevel: String, Codable, Equatable, CaseIterable {
+        case small
+        case medium
+        case large
+
+        var multiplier: CGFloat {
+            switch self {
+            case .small: return 0.65
+            case .medium: return 0.80
+            case .large: return 1.0
+            }
+        }
+    }
+
     /// UI language preference.
     enum Language: String, Codable, Equatable, CaseIterable {
         case system  // Follow system language
@@ -55,6 +71,7 @@ struct UserPreferences: Codable, Equatable {
         case english // Force English
         case japanese // Force Japanese
         case korean // Force Korean
+        case russian // Force Russian
 
         var displayName: String {
             switch self {
@@ -63,6 +80,7 @@ struct UserPreferences: Codable, Equatable {
             case .english: return "English"
             case .japanese: return "日本語"
             case .korean: return "한국어"
+            case .russian: return "Русский"
             }
         }
     }
@@ -90,6 +108,11 @@ struct UserPreferences: Codable, Equatable {
     var animateSearch: Bool = true       // Search results transition
     var showHiddenInSearch: Bool = true
 
+    var gridRows: Int = 0          // 0 = auto (screen-adaptive), 4/5/6 = fixed
+    var gridColumns: Int = 7       // 6, 7, 8, 9, 10
+    var iconSizeLevel: IconSizeLevel = .medium
+    var showAppNames: Bool = true
+
     static let `default` = UserPreferences(
         hotKey: "option+space",
         launchAtLogin: false,
@@ -115,9 +138,10 @@ struct UserPreferences: Codable, Equatable {
         case language, backgroundMode, backgroundImages, autoCarousel
         case animateIcons, animatePageFlip, animateFolder, animateDrag, animateSearch
         case showHiddenInSearch
+        case gridRows, gridColumns, iconSizeLevel, showAppNames
     }
 
-    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true) {
+    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true, gridRows: Int = 0, gridColumns: Int = 7, iconSizeLevel: IconSizeLevel = .medium, showAppNames: Bool = true) {
         self.hotKey = hotKey
         self.launchAtLogin = launchAtLogin
         self.showMenuBarIcon = showMenuBarIcon
@@ -138,6 +162,10 @@ struct UserPreferences: Codable, Equatable {
         self.animateDrag = animateDrag
         self.animateSearch = animateSearch
         self.showHiddenInSearch = showHiddenInSearch
+        self.gridRows = gridRows
+        self.gridColumns = gridColumns
+        self.iconSizeLevel = iconSizeLevel
+        self.showAppNames = showAppNames
     }
 
     init(from decoder: Decoder) throws {
@@ -162,5 +190,9 @@ struct UserPreferences: Codable, Equatable {
         animateDrag = (try? c.decodeIfPresent(Bool.self, forKey: .animateDrag)) ?? true
         animateSearch = (try? c.decodeIfPresent(Bool.self, forKey: .animateSearch)) ?? true
         showHiddenInSearch = (try? c.decodeIfPresent(Bool.self, forKey: .showHiddenInSearch)) ?? true
+        gridRows = (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 0
+        gridColumns = (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 7
+        iconSizeLevel = (try? c.decodeIfPresent(IconSizeLevel.self, forKey: .iconSizeLevel)) ?? .medium
+        showAppNames = (try? c.decodeIfPresent(Bool.self, forKey: .showAppNames)) ?? true
     }
 }

@@ -6,7 +6,7 @@ extension Notification.Name {
 }
 
 enum AppLanguage {
-    case system, chinese, english, japanese, korean
+    case system, chinese, english, japanese, korean, russian
 
     static func from(_ lang: UserPreferences.Language) -> AppLanguage {
         switch lang {
@@ -15,6 +15,7 @@ enum AppLanguage {
         case .english: return .english
         case .japanese: return .japanese
         case .korean: return .korean
+        case .russian: return .russian
         }
     }
 }
@@ -38,6 +39,7 @@ struct Localizer {
             case "zh": return zhStrings[key] ?? key
             case "ja": return jaStrings[key] ?? key
             case "ko": return koStrings[key] ?? key
+            case "ru": return ruStrings[key] ?? enStrings[key] ?? key
             default: return enStrings[key] ?? key
             }
         }
@@ -46,6 +48,7 @@ struct Localizer {
         case .english: return enStrings[key] ?? key
         case .japanese: return jaStrings[key] ?? key
         case .korean: return koStrings[key] ?? key
+        case .russian: return ruStrings[key] ?? enStrings[key] ?? key
         case .system: return key
         }
     }
@@ -393,4 +396,8 @@ struct Localizer {
         // Accessibility
         "accessibility.prompt": "InceptLaunch는 글로벌 단축키를 사용하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 > 개인 정보 보호 및 보안 > 손쉬운 사용에서 활성화해 주세요.",
     ]
+
+    // MARK: - Russian
+
+    static let ruStrings: [String: String] = [:]  // TODO: Task 2 will populate Russian translations
 }
