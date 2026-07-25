@@ -108,8 +108,8 @@ struct LaunchpadGridView: View {
             tileHeight: tileHeight,
             minRows: rows
         ) {
-            ForEach(page.indices, id: \.self) { idx in
-                let item = page[idx]
+            ForEach(page) { item in
+                let idx = page.firstIndex(where: { $0.id == item.id }) ?? 0
                 tileCell(item: item, localIndex: idx, iconSize: iconSize, tileHeight: tileHeight, pageWidth: pageWidth, pageIndex: pageIndex)
             }
         }
