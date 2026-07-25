@@ -1,5 +1,13 @@
 import AppKit
 
+private final class VerticallyCenteredCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        let contentHeight = cellSize(forBounds: rect).height
+        let y = (rect.height - contentHeight) / 2
+        return NSRect(x: rect.origin.x, y: y, width: rect.width, height: contentHeight)
+    }
+}
+
 /// AppKit search field hosted directly on the overlay window.
 /// SwiftUI `TextField` inside a borderless full-screen `NSHostingView` has
 /// repeatedly failed to paint for users; a real `NSTextField` always shows.
@@ -47,7 +55,7 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         icon.contentTintColor = NSColor.white.withAlphaComponent(0.85)
         icon.imageScaling = .scaleProportionallyDown
 
-        field.placeholderString = "Search"
+        field.placeholderString = Localizer.t("search.placeholder")
         field.isBordered = false
         field.isBezeled = false
         field.drawsBackground = false
@@ -55,14 +63,18 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         field.font = NSFont.systemFont(ofSize: 15, weight: .medium)
         field.textColor = .white
         field.delegate = self
-        // Placeholder color via attributed string
         field.placeholderAttributedString = NSAttributedString(
-            string: "Search",
+            string: Localizer.t("search.placeholder"),
             attributes: [
                 .foregroundColor: NSColor.white.withAlphaComponent(0.45),
                 .font: NSFont.systemFont(ofSize: 15, weight: .medium)
             ]
         )
+        let centeredCell = VerticallyCenteredCell()
+        centeredCell.font = field.font
+        centeredCell.textColor = .white
+        centeredCell.placeholderAttributedString = field.placeholderAttributedString
+        field.cell = centeredCell
 
         container.addSubview(background)
         background.addSubview(icon)
@@ -95,7 +107,7 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         )
 
         icon.frame = NSRect(x: 14, y: (Self.fieldHeight - 16) / 2, width: 16, height: 16)
-        field.frame = NSRect(x: 38, y: 6, width: Self.fieldWidth - 52, height: Self.fieldHeight - 12)
+        field.frame = NSRect(x: 38, y: 0, width: Self.fieldWidth - 52, height: Self.fieldHeight)
     }
 
     func setText(_ text: String) {
@@ -120,6 +132,18 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
 
     func blur() {
         field.window?.makeFirstResponder(nil)
+    }
+
+    func refreshPlaceholder() {
+        let text = Localizer.t("search.placeholder")
+        field.placeholderString = text
+        field.placeholderAttributedString = NSAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: NSColor.white.withAlphaComponent(0.45),
+                .font: NSFont.systemFont(ofSize: 15, weight: .medium)
+            ]
+        )
     }
 
     func remove() {

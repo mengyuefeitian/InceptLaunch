@@ -146,6 +146,10 @@ struct AppearanceSettingsView: View {
                                 preferences.appIconStyle = style
                                 IconSwitcher.apply(style)
                                 onSave()
+                                NotificationCenter.default.post(
+                                    name: .inceptLaunchIconChanged,
+                                    object: style.rawValue
+                                )
                             }
                         }
                     }
@@ -153,7 +157,7 @@ struct AppearanceSettingsView: View {
             }
 
             Section(Localizer.t("settings.background")) {
-                Picker("Background mode", selection: $preferences.backgroundMode) {
+                Picker(Localizer.t("settings.backgroundMode"), selection: $preferences.backgroundMode) {
                     Text(Localizer.t("settings.showDesktop")).tag(UserPreferences.BackgroundMode.desktop)
                     Text(Localizer.t("settings.uploadBackground")).tag(UserPreferences.BackgroundMode.uploaded)
                 }

@@ -7,6 +7,7 @@ final class MenuBarController: NSObject {
     private let settings = SettingsWindowController()
     private let statusMenu = NSMenu()
     private var languageObserver: NSObjectProtocol?
+    private var iconObserver: NSObjectProtocol?
 
     private var settingsItem: NSMenuItem!
     private var logsItem: NSMenuItem!
@@ -16,16 +17,7 @@ final class MenuBarController: NSObject {
         self.overlay = overlay
         super.init()
 
-        if let symbolImage = NSImage(
-            systemSymbolName: "square.grid.3x3.fill",
-            accessibilityDescription: "InceptLaunch"
-        ) {
-            let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-            if let rendered = symbolImage.withSymbolConfiguration(config) {
-                rendered.isTemplate = true
-                statusItem.button?.image = rendered
-            }
-        }
+        applyIcon()
 
         settingsItem = NSMenuItem(title: "", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -53,6 +45,27 @@ final class MenuBarController: NSObject {
             MainActor.assumeIsolated {
                 self?.refreshMenuTitles()
             }
+        }
+
+        iconObserver = NotificationCenter.default.addObserver(
+            forName: .inceptLaunchIconChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.applyIcon()
+            }
+        }
+    }
+
+    private func applyIcon() {
+        let prefs = (try? PreferencesStore().load()) ?? .default
+        let name = prefs.appIconStyle.resourceName
+        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: 18, height: 18)
+            statusItem.button?.image = image
+        } else if let fallback = NSImage(named: "InceptLaunch") {
+            fallback.size = NSSize(width: 18, height: 18)
+            statusItem.button?.image = fallback
         }
     }
 

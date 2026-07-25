@@ -2,6 +2,7 @@ import Foundation
 
 extension Notification.Name {
     static let inceptLaunchLanguageChanged = Notification.Name("inceptLaunchLanguageChanged")
+    static let inceptLaunchIconChanged = Notification.Name("inceptLaunchIconChanged")
 }
 
 enum AppLanguage {
@@ -76,6 +77,7 @@ struct Localizer {
         // Background settings
         "settings.showDesktop": "Show desktop background",
         "settings.uploadBackground": "Upload background image",
+        "settings.backgroundMode": "Background mode",
         "settings.autoCarousel": "Auto carousel backgrounds",
         "settings.carouselHint": "Background images rotate on each page flip",
         "settings.firstImageHint": "Using the first uploaded image as background",
@@ -127,6 +129,9 @@ struct Localizer {
         "menubar.logs": "Open Log File",
         "menubar.quit": "Quit",
 
+        // Search
+        "search.placeholder": "Search",
+
         // Accessibility
         "accessibility.prompt": "InceptLaunch needs Accessibility permission to use global shortcuts. Please enable it in System Settings > Privacy & Security > Accessibility.",
     ]
@@ -158,6 +163,7 @@ struct Localizer {
         // Background settings
         "settings.showDesktop": "显示桌面背景",
         "settings.uploadBackground": "上传背景图",
+        "settings.backgroundMode": "背景模式",
         "settings.autoCarousel": "自动轮播背景图",
         "settings.carouselHint": "每次翻页自动切换背景图",
         "settings.firstImageHint": "默认以第一张图片为背景",
@@ -209,6 +215,9 @@ struct Localizer {
         "menubar.logs": "打开日志文件",
         "menubar.quit": "退出",
 
+        // Search
+        "search.placeholder": "搜索",
+
         // Accessibility
         "accessibility.prompt": "InceptLaunch 需要辅助功能权限才能使用全局快捷键。请在系统设置 > 隐私与安全性 > 辅助功能中启用。",
     ]
@@ -240,6 +249,7 @@ struct Localizer {
         // Background settings
         "settings.showDesktop": "デスクトップ背景を表示",
         "settings.uploadBackground": "背景画像をアップロード",
+        "settings.backgroundMode": "背景モード",
         "settings.autoCarousel": "背景の自動カルーセル",
         "settings.carouselHint": "ページをめくるたびに背景画像が切り替わります",
         "settings.firstImageHint": "最初のアップロード画像を背景として使用",
@@ -291,6 +301,9 @@ struct Localizer {
         "menubar.logs": "ログファイルを開く",
         "menubar.quit": "終了",
 
+        // Search
+        "search.placeholder": "検索",
+
         // Accessibility
         "accessibility.prompt": "InceptLaunchはグローバルショートカットを使用するためにアクセシビリティ権限が必要です。システム設定 > プライバシーとセキュリティ > アクセシビリティで有効にしてください。",
     ]
@@ -322,6 +335,7 @@ struct Localizer {
         // Background settings
         "settings.showDesktop": "데스크탑 배경 표시",
         "settings.uploadBackground": "배경 이미지 업로드",
+        "settings.backgroundMode": "배경 모드",
         "settings.autoCarousel": "배경 자동 캐러셀",
         "settings.carouselHint": "페이지를 넘길 때마다 배경 이미지가 전환됩니다",
         "settings.firstImageHint": "첫 번째 업로드 이미지를 배경으로 사용",
@@ -372,6 +386,9 @@ struct Localizer {
         "menubar.settings": "설정…",
         "menubar.logs": "로그 파일 열기",
         "menubar.quit": "종료",
+
+        // Search
+        "search.placeholder": "검색",
 
         // Accessibility
         "accessibility.prompt": "InceptLaunch는 글로벌 단축키를 사용하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 > 개인 정보 보호 및 보안 > 손쉬운 사용에서 활성화해 주세요.",

@@ -83,6 +83,15 @@ final class OverlayWindowController {
                 self?.searchChrome.blur()
             }
         }
+        NotificationCenter.default.addObserver(
+            forName: .inceptLaunchLanguageChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.searchChrome.refreshPlaceholder()
+            }
+        }
     }
 
     func toggle() {
