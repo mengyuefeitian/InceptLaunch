@@ -16,6 +16,8 @@ struct LaunchpadGridView: View {
     var animateIcons: Bool = true
     var animateFolder: Bool = true
     var animateDrag: Bool = true
+    var iconSizeLevel: UserPreferences.IconSizeLevel = .medium
+    var showAppNames: Bool = true
     var onPageChange: ((Int) -> Void)? = nil
 
     // Edit mode — backed by the ViewModel's @Observable properties.
@@ -303,7 +305,13 @@ struct LaunchpadGridView: View {
         if enlarged, case .folder = item.kind {
             EnlargedFolderTileView(item: item, tileHeight: tileHeight)
         } else {
-            AppIconView(item: item, iconSize: iconSize, tileHeight: tileHeight)
+            AppIconView(
+                item: item,
+                iconSize: iconSize,
+                tileHeight: tileHeight,
+                iconScale: iconSizeLevel.multiplier,
+                showName: showAppNames
+            )
         }
     }
 

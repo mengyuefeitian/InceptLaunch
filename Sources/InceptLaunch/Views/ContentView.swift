@@ -216,6 +216,8 @@ struct ContentView: View {
                 animateIcons: animEnabled && preferences.animateIcons,
                 animateFolder: animEnabled && preferences.animateFolder,
                 animateDrag: animEnabled && preferences.animateDrag,
+                iconSizeLevel: preferences.iconSizeLevel,
+                showAppNames: preferences.showAppNames,
                 onPageChange: { newPage in
                     viewModel.currentPage = newPage
                     if preferences.backgroundMode == .uploaded && preferences.autoCarousel {

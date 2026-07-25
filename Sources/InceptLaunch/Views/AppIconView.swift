@@ -6,11 +6,13 @@ struct AppIconView: View {
     var iconSize: CGFloat = 104
     var tileHeight: CGFloat = 150
     var showHiddenBadge: Bool = false
+    var iconScale: CGFloat = 1.0
+    var showName: Bool = true
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: showName ? 10 : 0) {
             iconView
-                .frame(width: iconSize, height: iconSize)
+                .frame(width: iconSize * iconScale, height: iconSize * iconScale)
                 .overlay(alignment: .bottomTrailing) {
                     if showHiddenBadge {
                         Image(systemName: "eye.fill")
@@ -21,11 +23,14 @@ struct AppIconView: View {
                             .offset(x: 2, y: 2)
                     }
                 }
-            Text(item.title)
-                .font(.callout)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white)
+                .frame(width: iconSize, height: iconSize)  // occupy full slot regardless of scale
+            if showName {
+                Text(item.title)
+                    .font(.callout)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+            }
         }
         .frame(width: 132, height: tileHeight)
         .contentShape(Rectangle())
