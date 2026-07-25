@@ -193,6 +193,7 @@ struct ContentView: View {
             LaunchpadGridView(
                 pages: viewModel.visiblePages,
                 rows: viewModel.gridRows,
+                columns: viewModel.gridColumns,
                 enlargedFolderIDs: viewModel.enlargedFolderIDs,
                 onLaunch: { item in handleTap(item) },
                 onDropItem: { sourceID, target in

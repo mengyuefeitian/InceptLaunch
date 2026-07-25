@@ -3,6 +3,7 @@ import SwiftUI
 struct LaunchpadGridView: View {
     let pages: [[LaunchpadDisplayItem]]
     let rows: Int
+    let columns: Int
     let enlargedFolderIDs: Set<String>
     let onLaunch: (LaunchpadDisplayItem) -> Void
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
@@ -43,12 +44,15 @@ struct LaunchpadGridView: View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                let fitted = (geo.size.height - CGFloat(rows - 1) * GridMetrics.rowSpacing) / CGFloat(rows)
-                let tileHeight = min(GridMetrics.tileHeight, max(96, fitted))
+                let gridAreaWidth = geo.size.width - 48  // 24pt horizontal padding each side
+                let gridAreaHeight = geo.size.height
+                let cell = GridMetrics.cellSize(rows: rows, columns: columns, availableWidth: gridAreaWidth, availableHeight: gridAreaHeight)
+                let tileWidth = cell.width
+                let tileHeight = min(cell.height, GridMetrics.tileHeight)
                 let iconSize = GridMetrics.iconSize * (tileHeight / GridMetrics.tileHeight)
                 HStack(spacing: 0) {
                     ForEach(pages.indices, id: \.self) { index in
-                        pageGrid(pages[index], iconSize: iconSize, tileHeight: tileHeight, pageWidth: width, pageIndex: index)
+                        pageGrid(pages[index], iconSize: iconSize, tileWidth: tileWidth, tileHeight: tileHeight, pageWidth: width, pageIndex: index)
                             .frame(width: width, height: geo.size.height, alignment: .center)
                     }
                 }
@@ -104,8 +108,10 @@ struct LaunchpadGridView: View {
     }
 
     @ViewBuilder
-    private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileHeight: CGFloat, pageWidth: CGFloat, pageIndex: Int) -> some View {
+    private func pageGrid(_ page: [LaunchpadDisplayItem], iconSize: CGFloat, tileWidth: CGFloat, tileHeight: CGFloat, pageWidth: CGFloat, pageIndex: Int) -> some View {
         LaunchpadGridLayout(
+            columns: columns,
+            tileWidth: tileWidth,
             tileHeight: tileHeight,
             minRows: rows
         ) {

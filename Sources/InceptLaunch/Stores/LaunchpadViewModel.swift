@@ -78,10 +78,16 @@ final class LaunchpadViewModel {
     private let trasher: AppTrashing
     private let screenHeight: CGFloat
 
-    /// Rows per page for the current display: full-size tiles, never
-    /// compressed — 1080p gets 4 rows, taller 4K/5K layouts get more.
+    var preferences: UserPreferences
+
+    /// Rows per page: user-configured (4/5/6) or auto from screen height.
     var gridRows: Int {
-        GridMetrics.rows(forScreenHeight: screenHeight)
+        GridMetrics.effectiveRows(preference: preferences.gridRows, screenHeight: screenHeight)
+    }
+
+    /// Columns per page: user-configured, clamped to 6–10.
+    var gridColumns: Int {
+        GridMetrics.effectiveColumns(preference: preferences.gridColumns)
     }
 
     init(
@@ -104,6 +110,7 @@ final class LaunchpadViewModel {
         self.layoutPersistence = layoutPersistence
         self.trasher = trasher
         self.screenHeight = screenHeight
+        self.preferences = (try? preferencesStore.load()) ?? .default
     }
 
     var visiblePages: [[LaunchpadDisplayItem]] {
@@ -198,7 +205,7 @@ final class LaunchpadViewModel {
         // the stored capacity value.
         let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
         layoutStore.repaginate(
-            capacity: GridMetrics.pageCapacity(rows: gridRows),
+            capacity: gridColumns * gridRows,
             force: hasEnlarged
         )
         let result = scanner.scanAll(directories: urls)
@@ -292,7 +299,7 @@ final class LaunchpadViewModel {
         layoutStore.enlargeFolder(id: id)
         // Enlarged = 4 cells; force overflow so we never paint a 5th row.
         layoutStore.repaginate(
-            capacity: GridMetrics.pageCapacity(rows: gridRows),
+            capacity: gridColumns * gridRows,
             force: true
         )
         persistLayout()
@@ -301,7 +308,7 @@ final class LaunchpadViewModel {
     func shrinkFolder(id: String) {
         layoutStore.shrinkFolder(id: id)
         layoutStore.repaginate(
-            capacity: GridMetrics.pageCapacity(rows: gridRows),
+            capacity: gridColumns * gridRows,
             force: true
         )
         persistLayout()

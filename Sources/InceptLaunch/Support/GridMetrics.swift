@@ -34,4 +34,24 @@ enum GridMetrics {
     static func pageCapacity(rows: Int) -> Int {
         columns * rows
     }
+
+    /// Returns the user-configured row count, or auto-calculates from screen height.
+    static func effectiveRows(preference: Int, screenHeight: CGFloat) -> Int {
+        if preference >= 4 && preference <= 6 {
+            return preference
+        }
+        return rows(forScreenHeight: screenHeight)
+    }
+
+    /// Returns the user-configured column count (clamped to valid range).
+    static func effectiveColumns(preference: Int) -> Int {
+        min(max(preference, 6), 10)
+    }
+
+    /// Computes cell dimensions for a fixed rows×cols grid within the given area.
+    static func cellSize(rows: Int, columns: Int, availableWidth: CGFloat, availableHeight: CGFloat) -> (width: CGFloat, height: CGFloat) {
+        let cellWidth = (availableWidth - CGFloat(columns - 1) * columnSpacing) / CGFloat(columns)
+        let cellHeight = (availableHeight - CGFloat(rows - 1) * rowSpacing) / CGFloat(rows)
+        return (max(cellWidth, 60), max(cellHeight, 60))
+    }
 }
