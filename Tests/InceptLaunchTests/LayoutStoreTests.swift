@@ -210,6 +210,42 @@ import Testing
     #expect(store.layout.pages == pages)
 }
 
+/// Several enlarged folders can sum to ≤28 cells yet still need a 5th row when
+/// packed on a 7×4 grid. Occupancy packing must spill to the next page.
+@Test func multipleEnlargedFoldersDoNotExceedConfiguredRows() {
+    // 3 enlarged folders (2×2 each) + 20 apps — cell sum = 3*4+20 = 32, but
+    // even a cell-valid 28-item mix can pack tall; use many enlarged + fillers.
+    let folders: [LaunchpadFolder] = (0..<4).map { i in
+        LaunchpadFolder(
+            id: "folder:e\(i)",
+            name: "E\(i)",
+            items: ["a\(i)0", "a\(i)1"],
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )
+    }
+    var page: [LaunchpadItem] = folders.map { .folder($0.id) }
+    page.append(contentsOf: (0..<16).map { .app("app\($0)") })
+    var store = LayoutStore(layout: .init(
+        pages: [page],
+        folders: folders,
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 4, iconSize: 72),
+        pageCapacity: 28,
+        enlargedFolderIDs: Set(folders.map(\.id))
+    ))
+
+    #expect(store.rowsUsedByOccupancy(page, columns: 7) > 4)
+
+    store.repaginate(capacity: 28, force: true)
+
+    for page in store.layout.pages {
+        #expect(store.rowsUsedByOccupancy(page, columns: 7) <= 4)
+    }
+    // Nothing lost.
+    #expect(store.layout.pages.flatMap { $0 }.count == page.count)
+}
+
 @Test func appendNewAppsUsesRecordedPageCapacity() {
     // Grid config says 7x5, but the recorded capacity (from a 4-row screen)
     // is 28 — new apps must start a new page at 28, not 35.

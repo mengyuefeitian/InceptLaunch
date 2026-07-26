@@ -7,32 +7,40 @@ struct LayoutStore {
         self.layout = layout
     }
 
-    /// Re-chunks all page items into pages of `capacity`, preserving order.
-    /// The grid's row count adapts to the screen height (4 rows on 1080p,
-    /// more on taller 4K/5K layouts), so the per-page capacity changes with
-    /// the display; existing layouts must be repaginated to match.
-    /// Enlarged folders consume 4 cells (2×2) instead of 1, so pagination
-    /// uses effective cell counts to avoid overflow.
+    /// Re-chunks all page items preserving order so each page packs into at
+    /// most `capacity` cells **and** at most `grid.rows` visual rows under the
+    /// same 2×2 occupancy rules as `LaunchpadGridLayout`.
+    ///
+    /// Cell-count alone is not enough: several enlarged folders can sum to
+    /// ≤28 cells yet still need a 5th row when laid out on a 7×4 grid.
     mutating func repaginate(capacity: Int, force: Bool = false) {
         guard capacity > 0 else { return }
-        guard force || layout.effectivePageCapacity != capacity else { return }
-        let items = layout.pages.flatMap { $0 }
-        var pages: [[LaunchpadItem]] = []
-        var current: [LaunchpadItem] = []
-        var currentCells = 0
-        for item in items {
-            let cost = cellCost(item)
-            if currentCells > 0 && currentCells + cost > capacity {
-                pages.append(current)
-                current = []
-                currentCells = 0
-            }
-            current.append(item)
-            currentCells += cost
-        }
-        pages.append(current)
-        layout.pages = pages
+        let columns = max(1, layout.grid.columns)
+        let maxRows = max(1, capacity / columns)
+        guard force
+            || layout.effectivePageCapacity != capacity
+            || layout.grid.rows != maxRows
+        else { return }
+
         layout.pageCapacity = capacity
+        layout.grid.rows = maxRows
+        let items = layout.pages.flatMap { $0 }
+        layout.pages = packItemsByOccupancy(
+            items,
+            columns: columns,
+            maxRows: maxRows,
+            capacity: capacity
+        )
+    }
+
+    /// Sets geometry used by occupancy packing, then pushes overflow forward.
+    mutating func updateGrid(columns: Int, rows: Int) {
+        let columns = max(1, columns)
+        let rows = max(1, rows)
+        layout.grid.columns = columns
+        layout.grid.rows = rows
+        layout.pageCapacity = columns * rows
+        enforcePageCapacity()
     }
 
     /// Updates the page capacity without global compaction. Only pushes
@@ -41,6 +49,8 @@ struct LayoutStore {
     mutating func updateCapacity(_ capacity: Int) {
         guard capacity > 0 else { return }
         layout.pageCapacity = capacity
+        let columns = max(1, layout.grid.columns)
+        layout.grid.rows = max(1, capacity / columns)
         enforcePageCapacity()
     }
 
@@ -274,18 +284,24 @@ struct LayoutStore {
         return dissolved
     }
 
-    /// When a page exceeds capacity, move trailing items onto the next page
-    /// (inserting at the front so order is preserved). Cascades forward.
-    /// Unlike `compactPages`, this never pulls items *backward* from later
-    /// pages, so an insert on the page the user is viewing stays there.
+    /// When a page exceeds cell capacity **or** packs past `grid.rows` under
+    /// 2×2 occupancy, move trailing items onto the next page (front-insert so
+    /// order is preserved). Cascades forward without pulling items backward.
     private mutating func reflowOverflow(from startPage: Int) {
+        let columns = max(1, layout.grid.columns)
+        let maxRows = max(1, layout.grid.rows)
         let capacity = max(1, layout.effectivePageCapacity)
         var page = max(0, startPage)
         while page < layout.pages.count {
-            var cells = layout.pages[page].reduce(0) { $0 + cellCost($1) }
-            while cells > capacity, let last = layout.pages[page].last {
+            while pageFits(
+                layout.pages[page],
+                columns: columns,
+                maxRows: maxRows,
+                capacity: capacity
+            ) == false,
+                let last = layout.pages[page].last
+            {
                 layout.pages[page].removeLast()
-                cells -= cellCost(last)
                 if page + 1 >= layout.pages.count {
                     layout.pages.append([])
                 }
@@ -449,32 +465,144 @@ struct LayoutStore {
         return 1
     }
 
-    /// Flattens every page (preserving item order) and re-chunks the items into
-    /// dense pages at the current capacity, filling gaps left by removed items
-    /// so the grid paginates with the fewest pages.  Enlarged folders consume
-    /// 4 cells (2×2) so they are accounted for when splitting pages.
+    /// Flattens every page (preserving order) and re-chunks with 2×2 occupancy
+    /// so no page needs more than `grid.rows` visual rows (or cell capacity).
     mutating func compactPages() {
+        let columns = max(1, layout.grid.columns)
+        let maxRows = max(1, layout.grid.rows)
         let capacity = max(1, layout.effectivePageCapacity)
         let items = layout.pages.flatMap { $0 }
         guard !items.isEmpty else {
             layout.pages = [[]]
             return
         }
+        layout.pages = packItemsByOccupancy(
+            items,
+            columns: columns,
+            maxRows: maxRows,
+            capacity: capacity
+        )
+    }
+
+    // MARK: - 2×2 occupancy packing (mirrors LaunchpadGridLayout)
+
+    /// Cell-sum and occupancy row limits must both pass.
+    func pageFits(
+        _ items: [LaunchpadItem],
+        columns: Int,
+        maxRows: Int,
+        capacity: Int
+    ) -> Bool {
+        let cells = items.reduce(0) { $0 + cellCost($1) }
+        if cells > capacity { return false }
+        return rowsUsedByOccupancy(items, columns: columns) <= maxRows
+    }
+
+    /// Rows needed by left-to-right / top-to-bottom packing with enlarged 2×2.
+    func rowsUsedByOccupancy(_ items: [LaunchpadItem], columns: Int) -> Int {
+        let columns = max(1, columns)
+        var occupied = Set<CellKey>()
+        var col = 0
+        var row = 0
+
+        for item in items {
+            while occupied.contains(CellKey(col: col, row: row)) {
+                col += 1
+                if col >= columns { col = 0; row += 1 }
+            }
+
+            if isEnlargedItem(item) {
+                var placeCol = col
+                var placeRow = row
+                var found = canPlaceEnlarged(col: placeCol, row: placeRow, columns: columns, occupied: occupied)
+                if !found {
+                    var scanCol = placeCol
+                    var scanRow = placeRow
+                    for _ in 0..<(columns * 40) {
+                        scanCol += 1
+                        if scanCol >= columns { scanCol = 0; scanRow += 1 }
+                        if canPlaceEnlarged(col: scanCol, row: scanRow, columns: columns, occupied: occupied) {
+                            placeCol = scanCol
+                            placeRow = scanRow
+                            found = true
+                            break
+                        }
+                    }
+                }
+                if found {
+                    occupied.insert(CellKey(col: placeCol, row: placeRow))
+                    occupied.insert(CellKey(col: placeCol + 1, row: placeRow))
+                    occupied.insert(CellKey(col: placeCol, row: placeRow + 1))
+                    occupied.insert(CellKey(col: placeCol + 1, row: placeRow + 1))
+                    col = placeCol + 2
+                    row = placeRow
+                } else {
+                    // Fallback 1×1 (same as layout)
+                    occupied.insert(CellKey(col: col, row: row))
+                    col += 1
+                }
+            } else {
+                occupied.insert(CellKey(col: col, row: row))
+                col += 1
+            }
+
+            if col >= columns { col = 0; row += 1 }
+        }
+
+        return (occupied.map(\.row).max() ?? -1) + 1
+    }
+
+    /// Pack items into pages that each respect cell capacity and ≤ `maxRows`.
+    private func packItemsByOccupancy(
+        _ items: [LaunchpadItem],
+        columns: Int,
+        maxRows: Int,
+        capacity: Int
+    ) -> [[LaunchpadItem]] {
+        let columns = max(1, columns)
+        let maxRows = max(1, maxRows)
+        let capacity = max(1, capacity)
         var pages: [[LaunchpadItem]] = []
         var current: [LaunchpadItem] = []
-        var currentCells = 0
         for item in items {
-            let cost = cellCost(item)
-            if currentCells > 0 && currentCells + cost > capacity {
+            var trial = current
+            trial.append(item)
+            if !current.isEmpty
+                && pageFits(trial, columns: columns, maxRows: maxRows, capacity: capacity) == false
+            {
                 pages.append(current)
-                current = []
-                currentCells = 0
+                current = [item]
+            } else {
+                current = trial
             }
-            current.append(item)
-            currentCells += cost
         }
-        pages.append(current)
-        layout.pages = pages
+        if !current.isEmpty { pages.append(current) }
+        return pages.isEmpty ? [[]] : pages
+    }
+
+    private func isEnlargedItem(_ item: LaunchpadItem) -> Bool {
+        if case .folder(let id) = item {
+            return layout.enlargedFolderIDs.contains(id)
+        }
+        return false
+    }
+
+    private func canPlaceEnlarged(
+        col: Int,
+        row: Int,
+        columns: Int,
+        occupied: Set<CellKey>
+    ) -> Bool {
+        guard col + 1 < columns else { return false }
+        return !occupied.contains(CellKey(col: col, row: row))
+            && !occupied.contains(CellKey(col: col + 1, row: row))
+            && !occupied.contains(CellKey(col: col, row: row + 1))
+            && !occupied.contains(CellKey(col: col + 1, row: row + 1))
+    }
+
+    private struct CellKey: Hashable {
+        let col: Int
+        let row: Int
     }
 
     /// Marks a folder as enlarged (displayed as a 2×2 tile with 3×3 internal grid).

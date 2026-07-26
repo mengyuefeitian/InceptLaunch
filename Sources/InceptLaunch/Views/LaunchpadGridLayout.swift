@@ -148,6 +148,8 @@ struct LaunchpadGridLayout: Layout {
 
     private func canPlaceEnlarged(col: Int, row: Int, occupied: Set<CellKey>) -> Bool {
         guard col + 1 < columns else { return false }
+        // minRows is the configured page row count — never let 2×2 span past it.
+        guard minRows <= 0 || row + 1 < minRows else { return false }
         return !occupied.contains(CellKey(col: col, row: row))
             && !occupied.contains(CellKey(col: col + 1, row: row))
             && !occupied.contains(CellKey(col: col, row: row + 1))

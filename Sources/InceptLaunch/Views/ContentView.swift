@@ -151,7 +151,7 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragEnded)) { _ in
-            if viewModel.floatingDragApp == nil {
+            if viewModel.floatingDragItemID == nil {
                 viewModel.editDragID = nil
                 viewModel.editDragTranslation = .zero
             }
@@ -261,11 +261,12 @@ struct ContentView: View {
                 tileFrames: viewModel.tileFrames,
                 externalMergeTargetID: viewModel.mergeTargetID,
                 externalCurrentPage: viewModel.currentPage,
-                onPromoteToFloatingDrag: { appID, point in
-                    viewModel.beginFloatingGridDrag(appID: appID, at: point)
+                onPromoteToFloatingDrag: { itemID, point in
+                    // Apps and folders — edge page-flip must not freeze the ghost.
+                    viewModel.beginFloatingGridDrag(itemID: itemID, at: point)
                     NotificationCenter.default.post(
                         name: .inceptLaunchStartFloatingDrag,
-                        object: appID
+                        object: itemID
                     )
                     // Kick live gap / merge sensing immediately on the new page.
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -346,7 +347,7 @@ struct ContentView: View {
         } else if viewModel.openFolder != nil {
             DiagLog.write("handleBlankTap closing folder")
             viewModel.openFolder = nil
-        } else if viewModel.floatingDragApp == nil {
+        } else if viewModel.floatingDragItemID == nil {
             dismiss()
         }
     }

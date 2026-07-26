@@ -56,8 +56,12 @@ final class LaunchpadViewModel {
     var showHiddenInSearch: Bool = true
 
     /// App extracted from a folder mid-drag — follows the pointer as a floating
-    /// ghost until drop resolves insert / merge.
+    /// ghost until drop resolves insert / merge. Also set for app grid handoff.
     var floatingDragApp: AppRecord?
+
+    /// Grid item id (app **or folder**) currently tracked by AppKit floating drag
+    /// after edge page-flip handoff / folder drag-out.
+    var floatingDragItemID: String? = nil
 
     /// Absolute pointer position in the overlay coordinate space for the ghost.
     var floatingDragPoint: CGPoint = .zero
@@ -205,14 +209,14 @@ final class LaunchpadViewModel {
         // Force re-pagination when enlarged folders exist because the
         // cell-counting logic changed (enlarged = 4 cells) without changing
         // the stored capacity value.
+        // Sync geometry first so 2×2 occupancy uses the configured rows/cols.
+        layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
         let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
         if hasEnlarged {
             layoutStore.repaginate(
                 capacity: gridColumns * gridRows,
                 force: true
             )
-        } else {
-            layoutStore.updateCapacity(gridColumns * gridRows)
         }
         let result = scanner.scanAll(directories: urls)
         applyScanResult(result)
@@ -225,9 +229,13 @@ final class LaunchpadViewModel {
     func applyGridSettingsChange() {
         let newPrefs = (try? preferencesStore.load()) ?? .default
         preferences = newPrefs
-        let newCapacity = gridColumns * gridRows
-        guard layoutStore.layout.effectivePageCapacity != newCapacity else { return }
-        layoutStore.updateCapacity(newCapacity)
+        let cols = gridColumns
+        let rows = gridRows
+        guard layoutStore.layout.grid.columns != cols
+            || layoutStore.layout.grid.rows != rows
+            || layoutStore.layout.effectivePageCapacity != cols * rows
+        else { return }
+        layoutStore.updateGrid(columns: cols, rows: rows)
         persistLayout()
     }
 
@@ -315,20 +323,16 @@ final class LaunchpadViewModel {
 
     func enlargeFolder(id: String) {
         layoutStore.enlargeFolder(id: id)
-        // Enlarged = 4 cells; force overflow so we never paint a 5th row.
-        layoutStore.repaginate(
-            capacity: gridColumns * gridRows,
-            force: true
-        )
+        // 2×2 occupancy can force a 5th visual row even when cell sum ≤ capacity.
+        layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
+        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
     func shrinkFolder(id: String) {
         layoutStore.shrinkFolder(id: id)
-        layoutStore.repaginate(
-            capacity: gridColumns * gridRows,
-            force: true
-        )
+        layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
+        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
@@ -414,6 +418,7 @@ final class LaunchpadViewModel {
         _ = layoutStore.extractAppFromFolder(appID)
         openFolder = nil
         floatingDragApp = record
+        floatingDragItemID = appID
         floatingDragPoint = point
         editDragID = appID
         mergeTargetID = nil
@@ -421,50 +426,62 @@ final class LaunchpadViewModel {
         persistLayout()
     }
 
-    /// Hand off a **grid** drag to AppKit floating tracking (e.g. after edge
-    /// page-flip). Keeps the app on the grid; SwiftUI DragGesture is abandoned
+    /// Hand off a **grid** drag (app or folder) to AppKit floating tracking after
+    /// edge page-flip. Keeps the item on the grid; SwiftUI DragGesture is abandoned
     /// so the ghost does not freeze at the screen edge.
-    func beginFloatingGridDrag(appID: String, at point: CGPoint) {
-        guard let record = appIndex.records[appID] else { return }
-        DiagLog.write("beginFloatingGridDrag appID=\(appID) — edge page handoff")
-        floatingDragApp = record
+    func beginFloatingGridDrag(itemID: String, at point: CGPoint) {
+        DiagLog.write("beginFloatingGridDrag itemID=\(itemID) — edge page handoff")
+        floatingDragItemID = itemID
+        floatingDragApp = appIndex.records[itemID] // nil for folders
         floatingDragPoint = point
-        editDragID = appID
+        editDragID = itemID
         mergeTargetID = nil
         gridDragItem = nil
         // Stay on grid; first updateFloatingDrag drives live gap on the new page.
     }
 
-    /// While AppKit floating ghost moves: park the app on the grid under the
-    /// pointer (live gap / 让位) and update folder-create merge sensing so
-    /// drag-out matches main-grid feedback after the folder closes.
+    /// While AppKit floating ghost moves: park the item on the grid under the
+    /// pointer (live gap / 让位) and, for apps, update folder-create merge sensing.
     func updateFloatingDrag(at point: CGPoint) {
-        guard let app = floatingDragApp else { return }
+        guard let itemID = floatingDragItemID else { return }
         floatingDragPoint = point
-        editDragID = app.id
+        editDragID = itemID
 
         let page = currentPage
-        beginLiveReorder(draggedID: app.id, page: page)
+        beginLiveReorder(draggedID: itemID, page: page)
 
-        let index = insertIndexByPoint(point: point, page: page, excluding: app.id)
-        if isAppOnGrid(app.id) {
-            if layoutIndex(of: app.id, on: page) != index {
-                liveReorder(draggedID: app.id, toIndex: index, page: page)
+        let index = insertIndexByPoint(point: point, page: page, excluding: itemID)
+        if isItemOnGrid(itemID) {
+            if layoutIndex(of: itemID, on: page) != index {
+                liveReorder(draggedID: itemID, toIndex: index, page: page)
             }
-        } else {
-            layoutStore.insertApp(appID: app.id, toPage: page, atIndex: index)
+        } else if !Self.isFolderID(itemID) {
+            // Extracted app not yet on grid — insert under pointer.
+            layoutStore.insertApp(appID: itemID, toPage: page, atIndex: index)
         }
 
-        mergeTargetID = mergePreviewID(sourceID: app.id, pointer: point, minRatio: 0.35)
+        // Folders never merge into other tiles — only reorder.
+        if Self.isFolderID(itemID) {
+            mergeTargetID = nil
+        } else {
+            mergeTargetID = mergePreviewID(sourceID: itemID, pointer: point, minRatio: 0.35)
+        }
     }
 
-    private func isAppOnGrid(_ appID: String) -> Bool {
+    private func isItemOnGrid(_ itemID: String) -> Bool {
         layoutStore.layout.pages.contains { page in
             page.contains { item in
-                if case .app(let id) = item { return id == appID }
-                return false
+                switch item {
+                case .app(let id): return id == itemID
+                case .folder(let id): return id == itemID
+                }
             }
         }
+    }
+
+    /// Display item for floating ghost title / folder chrome.
+    func gridDisplayItem(id: String) -> LaunchpadDisplayItem? {
+        visiblePages.flatMap { $0 }.first { $0.id == id }
     }
 
     /// Best merge target id for folder-create sensing (same geometry as drop).
@@ -564,6 +581,7 @@ final class LaunchpadViewModel {
 
     func clearFloatingDrag() {
         floatingDragApp = nil
+        floatingDragItemID = nil
         floatingDragPoint = .zero
         editDragID = nil
         editDragTranslation = .zero

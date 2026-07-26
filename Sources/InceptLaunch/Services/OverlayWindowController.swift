@@ -285,8 +285,8 @@ final class OverlayWindowController {
             return event
         }
 
-        // Floating drag owns the pointer.
-        if viewModel.floatingDragApp != nil {
+        // Floating drag owns the pointer (app or folder handoff / drag-out).
+        if viewModel.floatingDragItemID != nil {
             return event
         }
 
@@ -340,20 +340,27 @@ final class OverlayWindowController {
 
     private func installFloatingDragMonitor(appID: String?) {
         removeFloatingDragMonitor()
-        guard let appID, let window else { return }
+        // `appID` is a grid item id: app record id **or** folder id.
+        guard let itemID = appID, let window else { return }
 
         // Build AppKit ghost at current mouse position (window coords, bottom-left).
-        showFloatingGhost(for: appID, at: window.mouseLocationOutsideOfEventStream)
+        showFloatingGhost(for: itemID, at: window.mouseLocationOutsideOfEventStream)
+
+        // Grid handoff often happens while the pointer is still in the edge zone
+        // after one page flip — disarm until the finger leaves the edge so we
+        // never flip a second page immediately.
+        lastFloatingPageFlip = Date()
+        floatingEdgeArmed = false
 
         floatingDragMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDragged, .leftMouseUp]
         ) { [weak self] event in
             guard let self else { return event }
-            return self.handleFloatingDrag(event, appID: appID)
+            return self.handleFloatingDrag(event, itemID: itemID)
         }
     }
 
-    private func handleFloatingDrag(_ event: NSEvent, appID: String) -> NSEvent? {
+    private func handleFloatingDrag(_ event: NSEvent, itemID: String) -> NSEvent? {
         guard let window else { return event }
         let windowPoint = event.locationInWindow
 
@@ -372,7 +379,7 @@ final class OverlayWindowController {
         if event.type == .leftMouseUp {
             let point = swiftUIPoint(fromWindow: windowPoint, in: window)
             viewModel.resolveDrop(
-                sourceID: appID,
+                sourceID: itemID,
                 at: point,
                 page: viewModel.currentPage
             )
@@ -385,22 +392,39 @@ final class OverlayWindowController {
         return event
     }
 
-    private func showFloatingGhost(for appID: String, at windowPoint: NSPoint) {
+    private func showFloatingGhost(for itemID: String, at windowPoint: NSPoint) {
         removeFloatingGhost()
         guard let window, let content = window.contentView else { return }
-        guard let record = viewModel.appRecord(id: appID) else { return }
 
         let size: CGFloat = 96
         let container = NSView(frame: NSRect(x: 0, y: 0, width: size, height: size + 28))
         container.wantsLayer = true
         container.layer?.zPosition = 10_000
 
-        let icon = NSImageView(frame: NSRect(x: 0, y: 28, width: size, height: size))
-        icon.image = NSWorkspace.shared.icon(forFile: record.path)
-        icon.imageScaling = .scaleProportionallyUpOrDown
-        container.addSubview(icon)
+        let title: String
+        if let record = viewModel.appRecord(id: itemID) {
+            let icon = NSImageView(frame: NSRect(x: 0, y: 28, width: size, height: size))
+            icon.imageScaling = .scaleProportionallyUpOrDown
+            icon.image = NSWorkspace.shared.icon(forFile: record.path)
+            container.addSubview(icon)
+            title = record.name
+            viewModel.floatingDragApp = record
+        } else if let display = viewModel.gridDisplayItem(id: itemID) {
+            // Folder ghost must look like FolderTileView (2×2 member preview),
+            // not a system folder.fill symbol.
+            let tileHost = NSHostingView(rootView: FolderTileView(members: display.members, size: size))
+            tileHost.frame = NSRect(x: 0, y: 28, width: size, height: size)
+            tileHost.wantsLayer = true
+            tileHost.layer?.backgroundColor = NSColor.clear.cgColor
+            tileHost.layer?.isOpaque = false
+            container.addSubview(tileHost)
+            title = display.title
+            viewModel.floatingDragApp = nil
+        } else {
+            return
+        }
 
-        let label = NSTextField(labelWithString: record.name)
+        let label = NSTextField(labelWithString: title)
         label.font = NSFont.systemFont(ofSize: 11)
         label.textColor = .white
         label.alignment = .center
@@ -411,7 +435,7 @@ final class OverlayWindowController {
         // Always above SwiftUI hosting content and search chrome.
         content.addSubview(container, positioned: .above, relativeTo: nil)
         floatingGhostView = container
-        viewModel.floatingDragApp = record
+        viewModel.floatingDragItemID = itemID
         moveFloatingGhost(to: windowPoint)
     }
 
@@ -439,26 +463,36 @@ final class OverlayWindowController {
     }
 
     /// Edge page-flip while AppKit floating drag is active (grid handoff or
-    /// folder drag-out). Keeps `viewModel.currentPage` in sync so live gap
-    /// targets the page under the pointer.
+    /// folder drag-out). One page per edge visit: leave the zone to re-arm.
     private var lastFloatingPageFlip = Date.distantPast
+    private var floatingEdgeArmed = true
     private func maybeFlipPageDuringFloatingDrag(windowPoint: NSPoint, window: NSWindow) {
         let bounds = window.contentView?.bounds ?? window.frame
         let edgeZone: CGFloat = 56
+        let inLeft = windowPoint.x < edgeZone
+        let inRight = windowPoint.x > bounds.width - edgeZone
+
+        if !inLeft && !inRight {
+            floatingEdgeArmed = true
+            return
+        }
+        guard floatingEdgeArmed else { return }
+
         let now = Date()
-        guard now.timeIntervalSince(lastFloatingPageFlip) > 0.55 else { return }
+        guard now.timeIntervalSince(lastFloatingPageFlip) > 0.75 else { return }
         let pageCount = max(1, viewModel.visiblePages.count)
-        if windowPoint.x < edgeZone, viewModel.currentPage > 0 {
+        if inLeft, viewModel.currentPage > 0 {
             viewModel.currentPage -= 1
             lastFloatingPageFlip = now
+            floatingEdgeArmed = false
             NotificationCenter.default.post(
                 name: .inceptLaunchGoToPage,
                 object: viewModel.currentPage
             )
-        } else if windowPoint.x > bounds.width - edgeZone,
-                  viewModel.currentPage < pageCount - 1 {
+        } else if inRight, viewModel.currentPage < pageCount - 1 {
             viewModel.currentPage += 1
             lastFloatingPageFlip = now
+            floatingEdgeArmed = false
             NotificationCenter.default.post(
                 name: .inceptLaunchGoToPage,
                 object: viewModel.currentPage

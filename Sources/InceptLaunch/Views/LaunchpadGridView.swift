@@ -44,6 +44,9 @@ struct LaunchpadGridView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var dragPageOffset: CGFloat = 0
     @State private var lastEdgePageFlip = Date.distantPast
+    /// Must leave the edge zone after a flip before another flip can fire
+    /// (prevents one drag at the edge from skipping two pages).
+    @State private var edgeFlipArmed = true
     @State private var pageWidthCache: CGFloat = 0
     @State private var pageOriginX: CGFloat = 0
     /// True while a tile drag is active (so blank-tap doesn't steal the gesture).
@@ -130,18 +133,35 @@ struct LaunchpadGridView: View {
                 goTo(page)
             }
         }
+        // Floating drop ends AppKit tracking; the original SwiftUI DragGesture
+        // often never gets onEnded (tile was reparented). Clear handoff flags
+        // here or the next drag's onChanged is a no-op until a dummy gesture ends.
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragEnded)) { _ in
+            resetDragHandoffState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchEditDragEnded)) { _ in
+            resetDragHandoffState()
+        }
         .onChange(of: pages.count) {
             currentPage = clamp(currentPage)
         }
         .onChange(of: editMode) { _, _ in
             dragPageOffset = 0
             lastEdgePageFlip = .distantPast
-            handoffToFloating = false
+            edgeFlipArmed = true
+            resetDragHandoffState()
         }
         .onChange(of: externalCurrentPage) { _, page in
             guard let page, page != currentPage else { return }
             currentPage = clamp(page)
         }
+    }
+
+    private func resetDragHandoffState() {
+        handoffToFloating = false
+        isDraggingTile = false
+        dragPageOffset = 0
+        edgeFlipArmed = true
     }
 
     @ViewBuilder
@@ -250,15 +270,14 @@ struct LaunchpadGridView: View {
         let pageBefore = currentPage
         maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
 
-        // Page flipped under an app drag: SwiftUI DragGesture is bound to the
-        // source tile. Moving that tile to another page (or sliding the strip)
-        // kills the gesture and freezes the ghost at the edge. Hand off to the
+        // Page flipped under a drag (app or folder): SwiftUI DragGesture is bound
+        // to the source tile and dies when the strip/item moves. Hand off to the
         // AppKit floating monitor so tracking continues on the new page.
         let sourceIsApp: Bool = {
             if case .app = item.kind { return true }
             return false
         }()
-        if currentPage != pageBefore, sourceIsApp, onPromoteToFloatingDrag != nil {
+        if currentPage != pageBefore, onPromoteToFloatingDrag != nil {
             handoffToFloating = true
             mergeTargetID = nil
             hoveredFolderID = nil
@@ -324,9 +343,7 @@ struct LaunchpadGridView: View {
     ) {
         // Floating handoff owns drop — do not resolve twice.
         if handoffToFloating {
-            isDraggingTile = false
-            dragPageOffset = 0
-            handoffToFloating = false
+            resetDragHandoffState()
             return
         }
 
@@ -415,18 +432,31 @@ struct LaunchpadGridView: View {
         guard width > 0 else { return }
         let localX = fingerX - pageOriginX
         let edgeZone: CGFloat = 56
-        let now = Date()
-        guard now.timeIntervalSince(lastEdgePageFlip) > 0.55 else { return }
+        let inLeft = localX < edgeZone
+        let inRight = localX > width - edgeZone
 
-        if localX < edgeZone, currentPage > 0 {
+        // Hysteresis: after one flip, finger must leave the edge before re-arming.
+        if !inLeft && !inRight {
+            edgeFlipArmed = true
+            return
+        }
+        guard edgeFlipArmed else { return }
+
+        let now = Date()
+        // Slightly longer cooldown so handoff → floating doesn't double-flip.
+        guard now.timeIntervalSince(lastEdgePageFlip) > 0.75 else { return }
+
+        if inLeft, currentPage > 0 {
             currentPage -= 1
             dragPageOffset -= width
             lastEdgePageFlip = now
+            edgeFlipArmed = false
             onPageChange?(currentPage)
-        } else if localX > width - edgeZone, currentPage < pages.count - 1 {
+        } else if inRight, currentPage < pages.count - 1 {
             currentPage += 1
             dragPageOffset += width
             lastEdgePageFlip = now
+            edgeFlipArmed = false
             onPageChange?(currentPage)
         }
     }
