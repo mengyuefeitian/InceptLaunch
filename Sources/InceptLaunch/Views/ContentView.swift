@@ -259,7 +259,19 @@ struct ContentView: View {
                     }
                 },
                 tileFrames: viewModel.tileFrames,
-                externalMergeTargetID: viewModel.mergeTargetID
+                externalMergeTargetID: viewModel.mergeTargetID,
+                externalCurrentPage: viewModel.currentPage,
+                onPromoteToFloatingDrag: { appID, point in
+                    viewModel.beginFloatingGridDrag(appID: appID, at: point)
+                    NotificationCenter.default.post(
+                        name: .inceptLaunchStartFloatingDrag,
+                        object: appID
+                    )
+                    // Kick live gap / merge sensing immediately on the new page.
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        viewModel.updateFloatingDrag(at: point)
+                    }
+                }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contextMenu {

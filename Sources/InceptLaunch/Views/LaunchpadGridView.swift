@@ -35,6 +35,10 @@ struct LaunchpadGridView: View {
     /// Merge target from floating drag-out (folder closed → grid). Combined
     /// with local grid-drag merge sensing for folder-create frost preview.
     var externalMergeTargetID: String? = nil
+    /// Keep grid page in sync when floating drag flips pages externally.
+    var externalCurrentPage: Int? = nil
+    /// Hand off grid drag to AppKit floating tracking after edge page-flip.
+    var onPromoteToFloatingDrag: ((String, CGPoint) -> Void)? = nil
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -48,6 +52,8 @@ struct LaunchpadGridView: View {
     /// App (or folder) under the dragged app when overlap is high enough to
     /// create / join a folder — drives the frost plate preview on the target.
     @State private var mergeTargetID: String? = nil
+    /// SwiftUI drag handed off to floating monitor — ignore further gesture events.
+    @State private var handoffToFloating = false
 
     private var activeMergeTargetID: String? {
         mergeTargetID ?? externalMergeTargetID
@@ -119,12 +125,22 @@ struct LaunchpadGridView: View {
             let direction = (note.object as? Int) ?? 0
             goTo(currentPage + direction)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGoToPage)) { note in
+            if let page = note.object as? Int {
+                goTo(page)
+            }
+        }
         .onChange(of: pages.count) {
             currentPage = clamp(currentPage)
         }
         .onChange(of: editMode) { _, _ in
             dragPageOffset = 0
             lastEdgePageFlip = .distantPast
+            handoffToFloating = false
+        }
+        .onChange(of: externalCurrentPage) { _, page in
+            guard let page, page != currentPage else { return }
+            currentPage = clamp(page)
         }
     }
 
@@ -223,12 +239,36 @@ struct LaunchpadGridView: View {
         pageWidth: CGFloat,
         value: DragGesture.Value
     ) {
+        // After edge page-flip handoff, AppKit floating drag owns the gesture.
+        if handoffToFloating { return }
+
         isDraggingTile = true
         let translation = CGSize(
             width: value.translation.width + dragPageOffset,
             height: value.translation.height
         )
+        let pageBefore = currentPage
         maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
+
+        // Page flipped under an app drag: SwiftUI DragGesture is bound to the
+        // source tile. Moving that tile to another page (or sliding the strip)
+        // kills the gesture and freezes the ghost at the edge. Hand off to the
+        // AppKit floating monitor so tracking continues on the new page.
+        let sourceIsApp: Bool = {
+            if case .app = item.kind { return true }
+            return false
+        }()
+        if currentPage != pageBefore, sourceIsApp, onPromoteToFloatingDrag != nil {
+            handoffToFloating = true
+            mergeTargetID = nil
+            hoveredFolderID = nil
+            onPromoteToFloatingDrag?(item.id, value.location)
+            NotificationCenter.default.post(
+                name: .inceptLaunchEditDragChanged,
+                object: EditDragUpdate(id: item.id, translation: .zero)
+            )
+            return
+        }
 
         if animateDrag, let onLiveReorder {
             let targetIndex = computeGridTargetIndex(
@@ -257,10 +297,6 @@ struct LaunchpadGridView: View {
         // Folder-create / add-to-folder sensing (apps only as drag source).
         // Preview threshold is slightly below the drop merge threshold (50%) so
         // the frost plate appears just before the drop would commit.
-        let sourceIsApp: Bool = {
-            if case .app = item.kind { return true }
-            return false
-        }()
         let newMerge: String? = sourceIsApp
             ? mergePreviewTargetID(sourceID: item.id, location: value.location)
             : nil
@@ -286,6 +322,14 @@ struct LaunchpadGridView: View {
         pageIndex: Int,
         value: DragGesture.Value
     ) {
+        // Floating handoff owns drop — do not resolve twice.
+        if handoffToFloating {
+            isDraggingTile = false
+            dragPageOffset = 0
+            handoffToFloating = false
+            return
+        }
+
         withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
             hoveredFolderID = nil
             mergeTargetID = nil

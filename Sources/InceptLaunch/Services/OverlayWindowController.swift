@@ -9,6 +9,8 @@ extension Notification.Name {
     static let inceptLaunchEditModeCancelled = Notification.Name("inceptLaunchEditModeCancelled")
     /// Posted when grid rows/columns settings change so the overlay can re-layout.
     static let inceptLaunchGridSettingsChanged = Notification.Name("inceptLaunchGridSettingsChanged")
+    /// Absolute page index (Int) for grid while floating drag flips pages.
+    static let inceptLaunchGoToPage = Notification.Name("inceptLaunchGoToPage")
 }
 
 struct OverlayState {
@@ -358,8 +360,9 @@ final class OverlayWindowController {
         if event.type == .leftMouseDragged {
             moveFloatingGhost(to: windowPoint)
             // Sync pointer + drive grid live gap / folder-create sensing so
-            // drag-out matches main-grid feedback after the popup closes.
+            // drag-out (and edge page-flip handoff) match main-grid feedback.
             let point = swiftUIPoint(fromWindow: windowPoint, in: window)
+            self.maybeFlipPageDuringFloatingDrag(windowPoint: windowPoint, window: window)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 self.viewModel.updateFloatingDrag(at: point)
             }
@@ -432,6 +435,34 @@ final class OverlayWindowController {
         if let monitor = floatingDragMonitor {
             NSEvent.removeMonitor(monitor)
             floatingDragMonitor = nil
+        }
+    }
+
+    /// Edge page-flip while AppKit floating drag is active (grid handoff or
+    /// folder drag-out). Keeps `viewModel.currentPage` in sync so live gap
+    /// targets the page under the pointer.
+    private var lastFloatingPageFlip = Date.distantPast
+    private func maybeFlipPageDuringFloatingDrag(windowPoint: NSPoint, window: NSWindow) {
+        let bounds = window.contentView?.bounds ?? window.frame
+        let edgeZone: CGFloat = 56
+        let now = Date()
+        guard now.timeIntervalSince(lastFloatingPageFlip) > 0.55 else { return }
+        let pageCount = max(1, viewModel.visiblePages.count)
+        if windowPoint.x < edgeZone, viewModel.currentPage > 0 {
+            viewModel.currentPage -= 1
+            lastFloatingPageFlip = now
+            NotificationCenter.default.post(
+                name: .inceptLaunchGoToPage,
+                object: viewModel.currentPage
+            )
+        } else if windowPoint.x > bounds.width - edgeZone,
+                  viewModel.currentPage < pageCount - 1 {
+            viewModel.currentPage += 1
+            lastFloatingPageFlip = now
+            NotificationCenter.default.post(
+                name: .inceptLaunchGoToPage,
+                object: viewModel.currentPage
+            )
         }
     }
 

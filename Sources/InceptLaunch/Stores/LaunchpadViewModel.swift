@@ -417,7 +417,22 @@ final class LaunchpadViewModel {
         floatingDragPoint = point
         editDragID = appID
         mergeTargetID = nil
+        gridDragItem = nil
         persistLayout()
+    }
+
+    /// Hand off a **grid** drag to AppKit floating tracking (e.g. after edge
+    /// page-flip). Keeps the app on the grid; SwiftUI DragGesture is abandoned
+    /// so the ghost does not freeze at the screen edge.
+    func beginFloatingGridDrag(appID: String, at point: CGPoint) {
+        guard let record = appIndex.records[appID] else { return }
+        DiagLog.write("beginFloatingGridDrag appID=\(appID) — edge page handoff")
+        floatingDragApp = record
+        floatingDragPoint = point
+        editDragID = appID
+        mergeTargetID = nil
+        gridDragItem = nil
+        // Stay on grid; first updateFloatingDrag drives live gap on the new page.
     }
 
     /// While AppKit floating ghost moves: park the app on the grid under the
