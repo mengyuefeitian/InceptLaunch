@@ -147,7 +147,13 @@ struct FolderPopupView: View {
         TimelineView(.animation(minimumInterval: 0.05, paused: !editMode || isBeingDragged)) { context in
             let phase = context.date.timeIntervalSinceReferenceDate
             let angle = (editMode && !isBeingDragged) ? sin(phase * 22.0) * jiggleAmp : 0.0
-            AppIconView(item: displayItem, iconSize: folderIconSize, tileHeight: folderTileHeight)
+            AppIconView(
+                item: displayItem,
+                iconSize: folderIconSize,
+                tileWidth: folderTileWidth,
+                tileHeight: folderTileHeight
+                // No onActivate/onDrag* — folder cell owns tap + drag below.
+            )
                 .scaleEffect(isBeingDragged ? 1.1 : 1.0)
                 .shadow(color: isBeingDragged ? .black.opacity(0.4) : .clear, radius: 14, y: 6)
                 .rotationEffect(.degrees(angle))
@@ -155,6 +161,7 @@ struct FolderPopupView: View {
                 .opacity(leftFolder && editDragID == member.id ? 0 : (reorderDragID == member.id && animate ? 0 : 1))
                 .zIndex(isBeingDragged ? 100 : 0)
         }
+            .contentShape(Rectangle())
             .modifier(TileTrashMenu(
                 item: displayItem,
                 onTrash: { _ in onTrash(member) },
@@ -175,7 +182,11 @@ struct FolderPopupView: View {
                         DiagLog.write("folder drag onChanged distance=\(distance)")
                         guard distance >= 6 else { return }
 
-                        let outsidePanel = !panelFrame.insetBy(dx: -20, dy: -20).contains(value.location)
+                        // panelFrame is .zero until first layout — must not treat
+                        // that as "outside" or every drag immediately drag-outs.
+                        let outsidePanel = panelFrame.width > 1
+                            && panelFrame.height > 1
+                            && !panelFrame.insetBy(dx: -20, dy: -20).contains(value.location)
                         if outsidePanel {
                             leftFolder = true
                             reorderDragID = nil

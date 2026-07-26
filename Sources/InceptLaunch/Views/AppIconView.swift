@@ -15,36 +15,17 @@ struct AppIconView: View {
     var onDragChanged: ((DragGesture.Value) -> Void)? = nil
     var onDragEnded: ((DragGesture.Value) -> Void)? = nil
 
+    /// When embedded in FolderPopupView, all handlers are nil — do NOT attach
+    /// empty DragGesture/onTap or they steal the popup's reorder / drag-out.
+    private var handlesGridDrag: Bool {
+        onDragChanged != nil || onDragEnded != nil
+    }
+
     var body: some View {
         VStack(spacing: showName ? 10 : 0) {
-            iconView
-                .frame(width: iconSize * iconScale, height: iconSize * iconScale)
-                .overlay(alignment: .bottomTrailing) {
-                    if showHiddenBadge {
-                        Image(systemName: "eye.fill")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(3)
-                            .background(Circle().fill(.black.opacity(0.55)))
-                            .offset(x: 2, y: 2)
-                    }
-                }
-                .frame(width: iconSize, height: iconSize)
-                .contentShape(Rectangle())
-                .onTapGesture { onActivate?() }
-                .simultaneousGesture(longPress)
-                .gesture(tileDrag)
-
+            interactiveIcon
             if showName {
-                Text(item.title)
-                    .font(.callout)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onActivate?() }
-                    .simultaneousGesture(longPress)
-                    .gesture(tileDrag)
+                interactiveTitle
             }
         }
         // Layout reserves the full cell; no full-tile contentShape so blank
@@ -52,15 +33,44 @@ struct AppIconView: View {
         .frame(width: tileWidth, height: tileHeight)
     }
 
-    private var longPress: some Gesture {
-        LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
-            .onEnded { _ in onLongPress?() }
+    private var interactiveIcon: some View {
+        iconView
+            .frame(width: iconSize * iconScale, height: iconSize * iconScale)
+            .overlay(alignment: .bottomTrailing) {
+                if showHiddenBadge {
+                    Image(systemName: "eye.fill")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                        .background(Circle().fill(.black.opacity(0.55)))
+                        .offset(x: 2, y: 2)
+                }
+            }
+            .frame(width: iconSize, height: iconSize)
+            .contentShape(Rectangle())
+            .modifier(OptionalIconGestures(
+                onActivate: onActivate,
+                onLongPress: onLongPress,
+                onDragChanged: onDragChanged,
+                onDragEnded: onDragEnded,
+                attachDrag: handlesGridDrag
+            ))
     }
 
-    private var tileDrag: some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
-            .onChanged { value in onDragChanged?(value) }
-            .onEnded { value in onDragEnded?(value) }
+    private var interactiveTitle: some View {
+        Text(item.title)
+            .font(.callout)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.white)
+            .contentShape(Rectangle())
+            .modifier(OptionalIconGestures(
+                onActivate: onActivate,
+                onLongPress: onLongPress,
+                onDragChanged: onDragChanged,
+                onDragEnded: onDragEnded,
+                attachDrag: handlesGridDrag
+            ))
     }
 
     @ViewBuilder
@@ -71,6 +81,37 @@ struct AppIconView: View {
         case .folder:
             FolderTileView(members: item.members, size: iconSize * iconScale)
         }
+    }
+}
+
+/// Attaches tap / long-press / drag only when the corresponding handlers exist.
+/// Empty DragGesture must not be installed — it blocks parent gestures (folder popup).
+private struct OptionalIconGestures: ViewModifier {
+    var onActivate: (() -> Void)?
+    var onLongPress: (() -> Void)?
+    var onDragChanged: ((DragGesture.Value) -> Void)?
+    var onDragEnded: ((DragGesture.Value) -> Void)?
+    var attachDrag: Bool
+
+    func body(content: Content) -> some View {
+        var view: AnyView = AnyView(content)
+        if let onActivate {
+            view = AnyView(view.onTapGesture { onActivate() })
+        }
+        if let onLongPress {
+            view = AnyView(view.simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
+                    .onEnded { _ in onLongPress() }
+            ))
+        }
+        if attachDrag {
+            view = AnyView(view.gesture(
+                DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
+                    .onChanged { value in onDragChanged?(value) }
+                    .onEnded { value in onDragEnded?(value) }
+            ))
+        }
+        return view
     }
 }
 
