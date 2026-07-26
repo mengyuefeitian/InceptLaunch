@@ -1,3 +1,19 @@
+## 1.6.19 - 2026-07-26
+
+### Features
+- Folder popup uses blurred wallpaper background (Liquid Glass aesthetic)
+- Folder tiles scale up when a dragged app enters the acceptance threshold
+- Live gap and create-folder sensing when dragging apps out of folders onto the grid
+- Settings UI for grid layout, icon size (S/M/L), and show/hide app names
+- Dynamic grid rows/columns driven by user preferences
+- Russian localization and layout/icon preference keys
+
+### Fixes
+- Drag page-flip handoff to floating track, folder handoff ghost, and enlarged row overflow
+- Restore folder popup internal reorder and drag-out
+- Align search and enlarged folder frost with small-folder styling
+- Search frost, editable field, grid spacing, and enlarged folder bounds
+
 ## 1.5.5 - 2026-07-25
 
 ### Features
