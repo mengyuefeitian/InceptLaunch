@@ -258,7 +258,8 @@ struct ContentView: View {
                         viewModel.liveReorder(draggedID: draggedID, toIndex: toIndex, page: page)
                     }
                 },
-                tileFrames: viewModel.tileFrames
+                tileFrames: viewModel.tileFrames,
+                externalMergeTargetID: viewModel.mergeTargetID
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contextMenu {

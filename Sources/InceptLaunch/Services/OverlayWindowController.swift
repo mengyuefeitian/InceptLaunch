@@ -357,8 +357,12 @@ final class OverlayWindowController {
 
         if event.type == .leftMouseDragged {
             moveFloatingGhost(to: windowPoint)
-            // Also keep SwiftUI point in sync (top-left) for drop hit-testing.
-            viewModel.floatingDragPoint = swiftUIPoint(fromWindow: windowPoint, in: window)
+            // Sync pointer + drive grid live gap / folder-create sensing so
+            // drag-out matches main-grid feedback after the popup closes.
+            let point = swiftUIPoint(fromWindow: windowPoint, in: window)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                self.viewModel.updateFloatingDrag(at: point)
+            }
             return nil
         }
 
@@ -372,6 +376,7 @@ final class OverlayWindowController {
             removeFloatingGhost()
             removeFloatingDragMonitor()
             NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
+            NotificationCenter.default.post(name: .inceptLaunchGridDragEnded, object: nil)
             return nil
         }
         return event

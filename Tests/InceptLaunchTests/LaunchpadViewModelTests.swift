@@ -555,6 +555,47 @@ import Testing
     #expect(viewModel.visiblePages[0].map(\.id) == [appA.id, appB.id, appC.id])
 }
 
+/// Floating drag-out must park the app on the grid so live gap animation works.
+@MainActor @Test func updateFloatingDragInsertsAppOntoGrid() {
+    let appA = makeRecord("Alpha")
+    let appB = makeRecord("Beta")
+    let appC = makeRecord("Gamma")
+    // Keep 2+ members so extract does not dissolve the folder.
+    let folder = LaunchpadFolder(
+        id: "folder:test",
+        name: "Test",
+        items: [appB.id, appC.id],
+        createdAt: Date(timeIntervalSince1970: 1),
+        updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: [
+            appA.id: appA, appB.id: appB, appC.id: appC
+        ]),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [[.app(appA.id), .folder("folder:test")]],
+            folders: [folder],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 5, iconSize: 72)
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    viewModel.beginFloatingDragOut(appID: appC.id, at: CGPoint(x: 100, y: 100))
+    #expect(viewModel.floatingDragApp?.id == appC.id)
+    // Extracted: not yet on grid
+    #expect(!viewModel.visiblePages[0].contains(where: { $0.id == appC.id }))
+
+    viewModel.tileFrames = [
+        TileFrameInfo(id: appA.id, frame: CGRect(x: 0, y: 0, width: 100, height: 140), isFolder: false)
+    ]
+    viewModel.updateFloatingDrag(at: CGPoint(x: 200, y: 50))
+
+    #expect(viewModel.visiblePages[0].contains(where: { $0.id == appC.id }))
+    #expect(viewModel.editDragID == appC.id)
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true

@@ -62,6 +62,10 @@ final class LaunchpadViewModel {
     /// Absolute pointer position in the overlay coordinate space for the ghost.
     var floatingDragPoint: CGPoint = .zero
 
+    /// Tile under the pointer during drag that would receive create/join-folder.
+    /// Set by grid drag (via callback) or floating drag-out updates.
+    var mergeTargetID: String? = nil
+
     /// The item currently being live-reorder-dragged on the main grid (for overlay rendering).
     var gridDragItem: LaunchpadDisplayItem?
 
@@ -402,7 +406,8 @@ final class LaunchpadViewModel {
     }
 
     /// Mid-drag: pull the app out of the open folder, close the popup, and
-    /// keep a floating ghost under the pointer. Does **not** place on the grid yet.
+    /// keep a floating ghost under the pointer. Does **not** place on the grid yet
+    /// (first `updateFloatingDrag` inserts it for live gap + merge preview).
     func beginFloatingDragOut(appID: String, at point: CGPoint) {
         guard let record = appIndex.records[appID] else { return }
         DiagLog.write("beginFloatingDragOut appID=\(appID) — closing folder")
@@ -411,7 +416,60 @@ final class LaunchpadViewModel {
         floatingDragApp = record
         floatingDragPoint = point
         editDragID = appID
+        mergeTargetID = nil
         persistLayout()
+    }
+
+    /// While AppKit floating ghost moves: park the app on the grid under the
+    /// pointer (live gap / 让位) and update folder-create merge sensing so
+    /// drag-out matches main-grid feedback after the folder closes.
+    func updateFloatingDrag(at point: CGPoint) {
+        guard let app = floatingDragApp else { return }
+        floatingDragPoint = point
+        editDragID = app.id
+
+        let page = currentPage
+        beginLiveReorder(draggedID: app.id, page: page)
+
+        let index = insertIndexByPoint(point: point, page: page, excluding: app.id)
+        if isAppOnGrid(app.id) {
+            if layoutIndex(of: app.id, on: page) != index {
+                liveReorder(draggedID: app.id, toIndex: index, page: page)
+            }
+        } else {
+            layoutStore.insertApp(appID: app.id, toPage: page, atIndex: index)
+        }
+
+        mergeTargetID = mergePreviewID(sourceID: app.id, pointer: point, minRatio: 0.35)
+    }
+
+    private func isAppOnGrid(_ appID: String) -> Bool {
+        layoutStore.layout.pages.contains { page in
+            page.contains { item in
+                if case .app(let id) = item { return id == appID }
+                return false
+            }
+        }
+    }
+
+    /// Best merge target id for folder-create sensing (same geometry as drop).
+    func mergePreviewID(sourceID: String, pointer: CGPoint, minRatio: CGFloat = 0.35) -> String? {
+        let draggedFrame = DragMergeGeometry.draggedFrame(
+            sourceID: sourceID,
+            pointer: pointer,
+            tileFrames: tileFrames
+        )
+        var bestID: String?
+        var bestRatio: CGFloat = 0
+        for info in tileFrames where info.id != sourceID {
+            let ratio = DragMergeGeometry.overlapRatio(dragged: draggedFrame, target: info.frame)
+            if ratio > bestRatio {
+                bestRatio = ratio
+                bestID = info.id
+            }
+        }
+        guard bestRatio > minRatio else { return nil }
+        return bestID
     }
 
     /// Finalize a floating drag-out / grid drag.
@@ -430,27 +488,28 @@ final class LaunchpadViewModel {
     ) {
         let sourceIsFolder = Self.isFolderID(sourceID)
 
-        let draggedFrame: CGRect = {
-            if let myFrame = tileFrames.first(where: { $0.id == sourceID })?.frame {
-                return myFrame.offsetBy(
-                    dx: editDragTranslation.width != 0 ? editDragTranslation.width : translation.width,
-                    dy: editDragTranslation.height != 0 ? editDragTranslation.height : translation.height
-                )
-            }
-            return CGRect(x: point.x - 52, y: point.y - 52, width: 104, height: 104)
-        }()
+        // Pointer-centered frame (not layoutFrame+translation). Live reorder
+        // already relocates the source cell; adding translation double-counts
+        // vertical motion and merges with the row below the visual ghost.
+        let draggedFrame = DragMergeGeometry.draggedFrame(
+            sourceID: sourceID,
+            pointer: point,
+            tileFrames: tileFrames
+        )
 
         // Merge path — apps only, > 50% overlap.
         if !sourceIsFolder,
            let hit = bestOverlap(sourceID: sourceID, draggedFrame: draggedFrame),
            hit.ratio > 0.5 {
             handleDrop(sourceID: sourceID, onto: hit.item)
+            endLiveReorder()
             clearFloatingDrag()
             return
         }
 
-        // Live reorder already positioned the item — skip insert calculation.
+        // Live reorder already positioned the item — persist and finish.
         if preReorderDragID == sourceID {
+            endLiveReorder()
             clearFloatingDrag()
             return
         }
@@ -493,6 +552,7 @@ final class LaunchpadViewModel {
         floatingDragPoint = .zero
         editDragID = nil
         editDragTranslation = .zero
+        mergeTargetID = nil
     }
 
     private func isAppInNoFolder(_ appID: String) -> Bool {

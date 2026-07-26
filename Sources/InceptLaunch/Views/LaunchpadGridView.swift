@@ -32,6 +32,9 @@ struct LaunchpadGridView: View {
     var onResolveDrop: ((String, CGPoint, CGSize, Int, Int) -> Void)? = nil
     var onLiveReorder: ((String, Int, Int) -> Void)? = nil
     var tileFrames: [TileFrameInfo] = []
+    /// Merge target from floating drag-out (folder closed → grid). Combined
+    /// with local grid-drag merge sensing for folder-create frost preview.
+    var externalMergeTargetID: String? = nil
 
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -42,6 +45,13 @@ struct LaunchpadGridView: View {
     /// True while a tile drag is active (so blank-tap doesn't steal the gesture).
     @State private var isDraggingTile = false
     @State private var hoveredFolderID: String? = nil
+    /// App (or folder) under the dragged app when overlap is high enough to
+    /// create / join a folder — drives the frost plate preview on the target.
+    @State private var mergeTargetID: String? = nil
+
+    private var activeMergeTargetID: String? {
+        mergeTargetID ?? externalMergeTargetID
+    }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -165,6 +175,7 @@ struct LaunchpadGridView: View {
                 ? sin(phase * 22.0) * tileJiggleAmplitude
                 : 0.0
 
+            let isMergeTarget = !isBeingDragged && activeMergeTargetID == item.id
             tileView(
                 item: item,
                 localIndex: localIndex,
@@ -173,9 +184,14 @@ struct LaunchpadGridView: View {
                 tileHeight: tileHeight,
                 enlarged: enlarged,
                 pageWidth: pageWidth,
-                pageIndex: pageIndex
+                pageIndex: pageIndex,
+                showFolderCreatePreview: isMergeTarget && !isFolder
             )
-                .scaleEffect(isBeingDragged ? 1.1 : (isFolder && hoveredFolderID == item.id ? 1.08 : 1.0))
+                .scaleEffect(
+                    isBeingDragged
+                        ? 1.1
+                        : (isMergeTarget || (isFolder && hoveredFolderID == item.id) ? 1.08 : 1.0)
+                )
                 .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
                 .rotationEffect(.degrees(angle))
                 .offset(dragTrans)
@@ -238,6 +254,22 @@ struct LaunchpadGridView: View {
             }
         }
 
+        // Folder-create / add-to-folder sensing (apps only as drag source).
+        // Preview threshold is slightly below the drop merge threshold (50%) so
+        // the frost plate appears just before the drop would commit.
+        let sourceIsApp: Bool = {
+            if case .app = item.kind { return true }
+            return false
+        }()
+        let newMerge: String? = sourceIsApp
+            ? mergePreviewTargetID(sourceID: item.id, location: value.location)
+            : nil
+        if newMerge != mergeTargetID {
+            withAnimation(animateDrag ? .spring(response: 0.22, dampingFraction: 0.75) : nil) {
+                mergeTargetID = newMerge
+            }
+        }
+
         NotificationCenter.default.post(
             name: .inceptLaunchEditDragChanged,
             object: EditDragUpdate(id: item.id, translation: translation)
@@ -256,6 +288,7 @@ struct LaunchpadGridView: View {
     ) {
         withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
             hoveredFolderID = nil
+            mergeTargetID = nil
         }
 
         defer {
@@ -300,6 +333,39 @@ struct LaunchpadGridView: View {
         return pageItems.count - 1
     }
 
+    /// Target tile that would receive a create/join-folder merge if the user
+    /// dropped now. Uses the same intersection math as `resolveDrop` (ratio of
+    /// dragged rect area). Preview fires a bit earlier than the 50% commit.
+    ///
+    /// **Must center on the pointer**, not `tileFrame + translation`: live
+    /// reorder already moves the source cell in the layout, so adding the full
+    /// drag translation double-counts Y and hits the row below the ghost.
+    private func mergePreviewTargetID(
+        sourceID: String,
+        location: CGPoint,
+        minRatio: CGFloat = 0.35
+    ) -> String? {
+        let draggedFrame = DragMergeGeometry.draggedFrame(
+            sourceID: sourceID,
+            pointer: location,
+            tileFrames: tileFrames
+        )
+        let draggedArea = max(1, draggedFrame.width * draggedFrame.height)
+        var bestID: String?
+        var bestRatio: CGFloat = 0
+        for info in tileFrames where info.id != sourceID {
+            let overlap = draggedFrame.intersection(info.frame)
+            guard !overlap.isNull, overlap.width > 0, overlap.height > 0 else { continue }
+            let ratio = (overlap.width * overlap.height) / draggedArea
+            if ratio > bestRatio {
+                bestRatio = ratio
+                bestID = info.id
+            }
+        }
+        guard bestRatio > minRatio else { return nil }
+        return bestID
+    }
+
     private func maybeFlipPageAtEdge(fingerX: CGFloat, pageWidth: CGFloat) {
         let width = pageWidth > 0 ? pageWidth : pageWidthCache
         guard width > 0 else { return }
@@ -330,7 +396,8 @@ struct LaunchpadGridView: View {
         tileHeight: CGFloat,
         enlarged: Bool,
         pageWidth: CGFloat,
-        pageIndex: Int
+        pageIndex: Int,
+        showFolderCreatePreview: Bool = false
     ) -> some View {
         if enlarged, case .folder = item.kind {
             // Whole 2×2 chrome is the folder target (opens popup).
@@ -366,6 +433,7 @@ struct LaunchpadGridView: View {
                 tileHeight: tileHeight,
                 iconScale: iconSizeLevel.multiplier,
                 showName: showAppNames,
+                showFolderCreatePreview: showFolderCreatePreview,
                 onActivate: {
                     if editMode {
                         onCancelEditMode?()

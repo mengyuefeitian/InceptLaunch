@@ -9,6 +9,9 @@ struct AppIconView: View {
     var showHiddenBadge: Bool = false
     var iconScale: CGFloat = 1.0
     var showName: Bool = true
+    /// Frost plate behind the icon while another app is dragged over this one
+    /// (create-folder sensing). Same surface as small folder tiles.
+    var showFolderCreatePreview: Bool = false
     /// Only icon + title activate. Blank padding inside the tile dismisses.
     var onActivate: (() -> Void)? = nil
     var onLongPress: (() -> Void)? = nil
@@ -20,6 +23,8 @@ struct AppIconView: View {
     private var handlesGridDrag: Bool {
         onDragChanged != nil || onDragEnded != nil
     }
+
+    private var drawnIconSize: CGFloat { iconSize * iconScale }
 
     var body: some View {
         VStack(spacing: showName ? 10 : 0) {
@@ -35,7 +40,7 @@ struct AppIconView: View {
 
     private var interactiveIcon: some View {
         iconView
-            .frame(width: iconSize * iconScale, height: iconSize * iconScale)
+            .frame(width: drawnIconSize, height: drawnIconSize)
             .overlay(alignment: .bottomTrailing) {
                 if showHiddenBadge {
                     Image(systemName: "eye.fill")
@@ -47,6 +52,18 @@ struct AppIconView: View {
                 }
             }
             .frame(width: iconSize, height: iconSize)
+            // Folder-create sensing: frost plate under the target icon only.
+            .background {
+                if showFolderCreatePreview {
+                    RoundedRectangle(cornerRadius: drawnIconSize * 0.22, style: .continuous)
+                        .fill(Color.white.opacity(0.14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: drawnIconSize * 0.22, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                        )
+                        .frame(width: drawnIconSize * 1.22, height: drawnIconSize * 1.22)
+                }
+            }
             .contentShape(Rectangle())
             .modifier(OptionalIconGestures(
                 onActivate: onActivate,
