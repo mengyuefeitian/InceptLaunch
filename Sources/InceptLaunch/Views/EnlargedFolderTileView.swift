@@ -7,8 +7,8 @@ import SwiftUI
 /// panel aligns with app icons/titles — not the empty cell padding — and never
 /// looks like it "overflows" the icon grid.
 ///
-/// Frost uses wallpaper blur (same as folder popup), not `glassEffect` (which
-/// paints solid black in this overlay).
+/// Frost matches **small folder tiles** on the grid (neutral white glass).
+/// The colorful wallpaper blur is only for the opened folder popup — leave that alone.
 struct EnlargedFolderTileView: View {
     let item: LaunchpadDisplayItem
     var tileWidth: CGFloat = GridMetrics.tileWidth
@@ -104,7 +104,15 @@ struct EnlargedFolderTileView: View {
             }
             .padding(contentPad)
             .frame(width: chromeWidth, height: chromeHeight)
-            .wallpaperFrost(cornerRadius: min(28, chromeWidth * 0.1), washOpacity: 0.14)
+            // Same surface as FolderTileView on the main grid.
+            .background(
+                RoundedRectangle(cornerRadius: min(28, chromeWidth * 0.1), style: .continuous)
+                    .fill(Color.white.opacity(0.14))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: min(28, chromeWidth * 0.1), style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+            )
             .contentShape(Rectangle())
         }
         .frame(width: layoutWidth, height: layoutHeight)

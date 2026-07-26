@@ -49,15 +49,20 @@ private final class VerticallyCenteredCell: NSTextFieldCell {
     }
 }
 
-/// Painted frosted capsule — wallpaper blur + light wash. No glassEffect.
+/// Same frosted plate as small folder tiles on the grid (neutral white glass,
+/// not wallpaper-tinted). Folder popup keeps its own colorful blur separately.
 private struct SearchChromeFrostBackground: View {
     var body: some View {
-        Color.clear
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(0.14))
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+            )
             .frame(
                 width: OverlaySearchChrome.fieldWidth,
                 height: OverlaySearchChrome.fieldHeight
             )
-            .wallpaperFrostCapsule(blurRadius: 28, washOpacity: 0.16)
     }
 }
 
