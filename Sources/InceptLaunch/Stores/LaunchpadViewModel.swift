@@ -390,6 +390,10 @@ final class LaunchpadViewModel {
     func endLiveReorder() {
         preReorderDragID = nil
         preReorderPage = []
+        // Live reorder may temporarily overflow a page (extra row during drag
+        // preview / cross-page insert). On finalize, push overflow forward so
+        // no page keeps a permanent 5th row or unfilled capacity violation.
+        layoutStore.enforcePageCapacity()
         persistLayout()
     }
 

@@ -58,8 +58,6 @@ struct LaunchpadGridLayout: Layout {
 
     private func computeLayout(subviews: Subviews) -> Cache {
         var occupied = Set<CellKey>()
-        var col = 0
-        var row = 0
         var positions: [CGPoint] = []
         var sizes: [CGSize] = []
 
@@ -72,71 +70,29 @@ struct LaunchpadGridLayout: Layout {
             rowSpacing: rowSpacing
         )
 
+        // Place each item in the first free cell that fits (scan from top-left).
+        // Cursor-only packing left holes when a 2×2 skipped the end of a row
+        // and later 1×1 tiles never back-filled (visible gap mid-grid).
         for subview in subviews {
             let isEnlarged = subview[EnlargedKey.self]
 
-            // Advance to next free cell
-            while occupied.contains(CellKey(col: col, row: row)) {
-                col += 1
-                if col >= columns { col = 0; row += 1 }
-            }
-
-            if isEnlarged && canPlaceEnlarged(col: col, row: row, occupied: occupied) {
-                // Place 2×2 tile
-                let x = CGFloat(col) * (tileWidth + columnSpacing)
-                let y = CGFloat(row) * (tileHeight + rowSpacing)
+            if isEnlarged, let place = firstFreeEnlargedCell(occupied: occupied) {
+                let x = CGFloat(place.col) * (tileWidth + columnSpacing)
+                let y = CGFloat(place.row) * (tileHeight + rowSpacing)
                 positions.append(CGPoint(x: x, y: y))
                 sizes.append(enlarged)
-                occupied.insert(CellKey(col: col, row: row))
-                occupied.insert(CellKey(col: col + 1, row: row))
-                occupied.insert(CellKey(col: col, row: row + 1))
-                occupied.insert(CellKey(col: col + 1, row: row + 1))
-                col += 2
-            } else if isEnlarged {
-                // Find next position where 2×2 fits
-                var found = false
-                var scanCol = col
-                var scanRow = row
-                for _ in 0..<(columns * 20) {
-                    scanCol += 1
-                    if scanCol >= columns { scanCol = 0; scanRow += 1 }
-                    if canPlaceEnlarged(col: scanCol, row: scanRow, occupied: occupied) {
-                        col = scanCol
-                        row = scanRow
-                        found = true
-                        break
-                    }
-                }
-                if found {
-                    let x = CGFloat(col) * (tileWidth + columnSpacing)
-                    let y = CGFloat(row) * (tileHeight + rowSpacing)
-                    positions.append(CGPoint(x: x, y: y))
-                    sizes.append(enlarged)
-                    occupied.insert(CellKey(col: col, row: row))
-                    occupied.insert(CellKey(col: col + 1, row: row))
-                    occupied.insert(CellKey(col: col, row: row + 1))
-                    occupied.insert(CellKey(col: col + 1, row: row + 1))
-                    col += 2
-                } else {
-                    // Fallback: place as 1×1
-                    let x = CGFloat(col) * (tileWidth + columnSpacing)
-                    let y = CGFloat(row) * (tileHeight + rowSpacing)
-                    positions.append(CGPoint(x: x, y: y))
-                    sizes.append(CGSize(width: tileWidth, height: tileHeight))
-                    occupied.insert(CellKey(col: col, row: row))
-                    col += 1
-                }
-            } else {
-                // Place 1×1 tile
-                let x = CGFloat(col) * (tileWidth + columnSpacing)
-                let y = CGFloat(row) * (tileHeight + rowSpacing)
+                occupied.insert(CellKey(col: place.col, row: place.row))
+                occupied.insert(CellKey(col: place.col + 1, row: place.row))
+                occupied.insert(CellKey(col: place.col, row: place.row + 1))
+                occupied.insert(CellKey(col: place.col + 1, row: place.row + 1))
+            } else if let place = firstFreeCell(occupied: occupied) {
+                // 1×1, or enlarged fallback when no 2×2 slot remains.
+                let x = CGFloat(place.col) * (tileWidth + columnSpacing)
+                let y = CGFloat(place.row) * (tileHeight + rowSpacing)
                 positions.append(CGPoint(x: x, y: y))
                 sizes.append(CGSize(width: tileWidth, height: tileHeight))
-                occupied.insert(CellKey(col: col, row: row))
-                col += 1
+                occupied.insert(CellKey(col: place.col, row: place.row))
             }
-
-            if col >= columns { col = 0; row += 1 }
         }
 
         // Compute total height from max row used
@@ -144,6 +100,33 @@ struct LaunchpadGridLayout: Layout {
         let totalHeight = CGFloat(maxRow + 1) * tileHeight + CGFloat(maxRow) * rowSpacing
 
         return Cache(positions: positions, sizes: sizes, totalHeight: totalHeight)
+    }
+
+    /// First free 1×1 cell in reading order (fills holes left by 2×2 skips).
+    private func firstFreeCell(occupied: Set<CellKey>, maxRows: Int = 200) -> (col: Int, row: Int)? {
+        let cols = max(1, columns)
+        for row in 0..<maxRows {
+            for col in 0..<cols {
+                if !occupied.contains(CellKey(col: col, row: row)) {
+                    return (col, row)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// First free 2×2 top-left in reading order.
+    private func firstFreeEnlargedCell(occupied: Set<CellKey>, maxRows: Int = 200) -> (col: Int, row: Int)? {
+        let cols = max(1, columns)
+        guard cols >= 2 else { return nil }
+        for row in 0..<maxRows {
+            for col in 0..<(cols - 1) {
+                if canPlaceEnlarged(col: col, row: row, occupied: occupied) {
+                    return (col, row)
+                }
+            }
+        }
+        return nil
     }
 
     private func canPlaceEnlarged(col: Int, row: Int, occupied: Set<CellKey>) -> Bool {

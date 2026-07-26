@@ -295,8 +295,14 @@ final class OverlayWindowController {
             return event
         }
 
-        // FIRST click while jiggling: cancel and consume.
+        // Blank click while jiggling: cancel edit mode and consume.
+        // Clicks **on a tile** must pass through so the first drag after
+        // long-press jiggle can start (consuming every mouseDown forced a
+        // second attempt before drag worked).
         if viewModel.editMode {
+            if hitTile(event) {
+                return event
+            }
             viewModel.editMode = false
             NotificationCenter.default.post(name: .inceptLaunchEditModeCancelled, object: nil)
             return nil
@@ -327,6 +333,17 @@ final class OverlayWindowController {
         guard let content = window?.contentView else { return false }
         let p = content.convert(event.locationInWindow, from: nil)
         return searchChrome.view.frame.contains(p)
+    }
+
+    /// Whether the click lands on a grid tile (or folder member) frame so
+    /// edit-mode drag / activate can receive the event.
+    private func hitTile(_ event: NSEvent) -> Bool {
+        guard let window else { return false }
+        let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
+        // Slight inset slop so near-edge icon clicks still count as tile hits.
+        return viewModel.tileFrames.contains { info in
+            info.frame.insetBy(dx: -6, dy: -6).contains(point)
+        }
     }
 
     private func removeClickMonitor() {

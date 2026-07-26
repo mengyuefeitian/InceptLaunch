@@ -499,57 +499,56 @@ struct LayoutStore {
     }
 
     /// Rows needed by left-to-right / top-to-bottom packing with enlarged 2×2.
+    ///
+    /// Each item is placed in the **first free cell that fits** (scan from
+    /// top-left). Cursor-only packing left permanent holes when a 2×2 skipped
+    /// past the end of a row and later 1×1s never back-filled.
     func rowsUsedByOccupancy(_ items: [LaunchpadItem], columns: Int) -> Int {
         let columns = max(1, columns)
         var occupied = Set<CellKey>()
-        var col = 0
-        var row = 0
 
         for item in items {
-            while occupied.contains(CellKey(col: col, row: row)) {
-                col += 1
-                if col >= columns { col = 0; row += 1 }
-            }
-
             if isEnlargedItem(item) {
-                var placeCol = col
-                var placeRow = row
-                var found = canPlaceEnlarged(col: placeCol, row: placeRow, columns: columns, occupied: occupied)
-                if !found {
-                    var scanCol = placeCol
-                    var scanRow = placeRow
-                    for _ in 0..<(columns * 40) {
-                        scanCol += 1
-                        if scanCol >= columns { scanCol = 0; scanRow += 1 }
-                        if canPlaceEnlarged(col: scanCol, row: scanRow, columns: columns, occupied: occupied) {
-                            placeCol = scanCol
-                            placeRow = scanRow
-                            found = true
-                            break
-                        }
-                    }
-                }
-                if found {
-                    occupied.insert(CellKey(col: placeCol, row: placeRow))
-                    occupied.insert(CellKey(col: placeCol + 1, row: placeRow))
-                    occupied.insert(CellKey(col: placeCol, row: placeRow + 1))
-                    occupied.insert(CellKey(col: placeCol + 1, row: placeRow + 1))
-                    col = placeCol + 2
-                    row = placeRow
-                } else {
+                if let place = firstFreeEnlargedCell(columns: columns, occupied: occupied) {
+                    occupied.insert(CellKey(col: place.col, row: place.row))
+                    occupied.insert(CellKey(col: place.col + 1, row: place.row))
+                    occupied.insert(CellKey(col: place.col, row: place.row + 1))
+                    occupied.insert(CellKey(col: place.col + 1, row: place.row + 1))
+                } else if let place = firstFreeCell(columns: columns, occupied: occupied) {
                     // Fallback 1×1 (same as layout)
-                    occupied.insert(CellKey(col: col, row: row))
-                    col += 1
+                    occupied.insert(CellKey(col: place.col, row: place.row))
                 }
-            } else {
-                occupied.insert(CellKey(col: col, row: row))
-                col += 1
+            } else if let place = firstFreeCell(columns: columns, occupied: occupied) {
+                occupied.insert(CellKey(col: place.col, row: place.row))
             }
-
-            if col >= columns { col = 0; row += 1 }
         }
 
         return (occupied.map(\.row).max() ?? -1) + 1
+    }
+
+    /// First free 1×1 cell in reading order.
+    private func firstFreeCell(columns: Int, occupied: Set<CellKey>, maxRows: Int = 200) -> (col: Int, row: Int)? {
+        for row in 0..<maxRows {
+            for col in 0..<columns {
+                if !occupied.contains(CellKey(col: col, row: row)) {
+                    return (col, row)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// First free 2×2 top-left in reading order.
+    private func firstFreeEnlargedCell(columns: Int, occupied: Set<CellKey>, maxRows: Int = 200) -> (col: Int, row: Int)? {
+        guard columns >= 2 else { return nil }
+        for row in 0..<maxRows {
+            for col in 0..<(columns - 1) {
+                if canPlaceEnlarged(col: col, row: row, columns: columns, occupied: occupied) {
+                    return (col, row)
+                }
+            }
+        }
+        return nil
     }
 
     /// Pack items into pages that each respect cell capacity and ≤ `maxRows`.

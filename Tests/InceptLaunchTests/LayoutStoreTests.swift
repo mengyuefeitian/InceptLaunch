@@ -212,6 +212,63 @@ import Testing
 
 /// Several enlarged folders can sum to ≤28 cells yet still need a 5th row when
 /// packed on a 7×4 grid. Occupancy packing must spill to the next page.
+/// When a 2×2 enlarged folder skips past the end of a row, later 1×1 apps must
+/// back-fill the hole instead of leaving a permanent empty cell mid-grid.
+@Test func occupancyPackingFillsHolesLeftByEnlargedSkip() {
+    // 7 columns: six 1×1 apps then an enlarged folder that cannot fit at col 6,
+    // so it jumps to the next row — col 6 of row 0 must still be filled by a
+    // subsequent app (not left empty while row 1 grows).
+    let folder = LaunchpadFolder(
+        id: "folder:big",
+        name: "Big",
+        items: ["m0", "m1"],
+        createdAt: Date(timeIntervalSince1970: 1),
+        updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    // 6 apps + enlarged + 2 more apps
+    let items: [LaunchpadItem] = (0..<6).map { .app("a\($0)") }
+        + [.folder(folder.id)]
+        + [.app("tail0"), .app("tail1")]
+    var store = LayoutStore(layout: .init(
+        pages: [items],
+        folders: [folder],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 4, iconSize: 72),
+        pageCapacity: 28,
+        enlargedFolderIDs: [folder.id]
+    ))
+
+    // With hole-filling: row0 has 6 apps + 1 filled by tail → 7 cells used on
+    // row0; enlarged sits on row1 (2 rows). Without hole-fill, row0 ends with
+    // an empty col6 while tails sit after the enlarged block → taller layout.
+    let rows = store.rowsUsedByOccupancy(items, columns: 7)
+    #expect(rows <= 3)
+
+    store.enforcePageCapacity()
+    #expect(store.pageFits(store.layout.pages[0], columns: 7, maxRows: 4, capacity: 28))
+}
+
+/// moveItem during drag may exceed capacity; enforcePageCapacity must push
+/// trailing items to the next page (final drop path).
+@Test func enforcePageCapacityPushesOverflowAfterMoveItem() {
+    let page0 = (0..<28).map { LaunchpadItem.app("app\($0)") }
+    var store = LayoutStore(layout: .init(
+        pages: [page0, [.app("extra")]],
+        folders: [],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 4, iconSize: 72),
+        pageCapacity: 28
+    ))
+
+    store.moveItem(id: "extra", toPage: 0, index: 28)
+    #expect(store.layout.pages[0].count == 29)
+
+    store.enforcePageCapacity()
+    #expect(store.layout.pages[0].count == 28)
+    #expect(store.layout.pages.flatMap { $0 }.contains(.app("extra")))
+    #expect(store.pageFits(store.layout.pages[0], columns: 7, maxRows: 4, capacity: 28))
+}
+
 @Test func multipleEnlargedFoldersDoNotExceedConfiguredRows() {
     // 3 enlarged folders (2×2 each) + 20 apps — cell sum = 3*4+20 = 32, but
     // even a cell-valid 28-item mix can pack tall; use many enlarged + fillers.

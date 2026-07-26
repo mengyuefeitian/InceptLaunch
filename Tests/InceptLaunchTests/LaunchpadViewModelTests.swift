@@ -596,6 +596,44 @@ import Testing
     #expect(viewModel.editDragID == appC.id)
 }
 
+/// Live reorder during drag may temporarily overflow a page (extra visual row).
+/// Finalizing the drag must push overflow forward so the page fits capacity.
+@MainActor @Test func endLiveReorderEnforcesPageCapacityAfterCrossPageMove() {
+    // 4×7 = 28 capacity. Fill page 0; live-reorder an extra app onto it.
+    let records = (0..<29).map { makeRecord("App\($0)") }
+    let page0 = Array(records.prefix(28).map { LaunchpadItem.app($0.id) })
+    let page1 = [LaunchpadItem.app(records[28].id)]
+    let viewModel = LaunchpadViewModel(
+        appIndex: AppIndexStore(records: Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })),
+        layoutStore: LayoutStore(layout: .init(
+            pages: [page0, page1],
+            folders: [],
+            hiddenAppIDs: [],
+            grid: .init(columns: 7, rows: 4, iconSize: 72),
+            pageCapacity: 28
+        )),
+        matcher: SearchMatcher(),
+        launcher: AppLauncher(workspace: MockWorkspace())
+    )
+
+    let dragged = records[28].id
+    viewModel.beginLiveReorder(draggedID: dragged, page: 1)
+    // Mid-drag: park on page 0 (allowed temporary overflow for preview).
+    viewModel.liveReorder(draggedID: dragged, toIndex: 28, page: 0)
+    #expect(viewModel.visiblePages[0].count == 29)
+
+    viewModel.endLiveReorder()
+
+    #expect(viewModel.visiblePages[0].count <= 28)
+    let allIDs = viewModel.visiblePages.flatMap { $0.map(\.id) }
+    #expect(allIDs.contains(dragged))
+    #expect(allIDs.count == 29)
+    // Every page must fit 4×7 cell capacity after finalize.
+    for page in viewModel.visiblePages {
+        #expect(page.count <= 28)
+    }
+}
+
 private final class RecordingTrasher: AppTrashing, @unchecked Sendable {
     var trashedPaths: [String] = []
     var result = true
