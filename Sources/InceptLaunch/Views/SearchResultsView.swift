@@ -29,8 +29,10 @@ struct SearchResultsView: View {
                     AppIconView(
                         item: item,
                         iconSize: GridMetrics.iconSize,
+                        tileWidth: GridMetrics.tileWidth,
                         tileHeight: GridMetrics.tileHeight,
-                        showHiddenBadge: item.isHiddenApp
+                        showHiddenBadge: item.isHiddenApp,
+                        onActivate: { onLaunch(item) }
                     )
                     .frame(width: GridMetrics.tileWidth, height: GridMetrics.tileHeight)
                     .modifier(TileTrashMenu(
@@ -38,7 +40,6 @@ struct SearchResultsView: View {
                         onTrash: onTrash,
                         onHide: onHide
                     ))
-                    .onTapGesture { onLaunch(item) }
                 }
             }
             .frame(width: gridWidth)

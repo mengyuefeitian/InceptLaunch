@@ -108,7 +108,7 @@ struct UserPreferences: Codable, Equatable {
     var animateSearch: Bool = true       // Search results transition
     var showHiddenInSearch: Bool = true
 
-    var gridRows: Int = 0          // 0 = auto (screen-adaptive), 4/5/6 = fixed
+    var gridRows: Int = 4          // 4/5/6 = fixed
     var gridColumns: Int = 7       // 6, 7, 8, 9, 10
     var iconSizeLevel: IconSizeLevel = .medium
     var showAppNames: Bool = true
@@ -141,7 +141,7 @@ struct UserPreferences: Codable, Equatable {
         case gridRows, gridColumns, iconSizeLevel, showAppNames
     }
 
-    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true, gridRows: Int = 0, gridColumns: Int = 7, iconSizeLevel: IconSizeLevel = .medium, showAppNames: Bool = true) {
+    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true, gridRows: Int = 4, gridColumns: Int = 7, iconSizeLevel: IconSizeLevel = .medium, showAppNames: Bool = true) {
         self.hotKey = hotKey
         self.launchAtLogin = launchAtLogin
         self.showMenuBarIcon = showMenuBarIcon
@@ -190,7 +190,7 @@ struct UserPreferences: Codable, Equatable {
         animateDrag = (try? c.decodeIfPresent(Bool.self, forKey: .animateDrag)) ?? true
         animateSearch = (try? c.decodeIfPresent(Bool.self, forKey: .animateSearch)) ?? true
         showHiddenInSearch = (try? c.decodeIfPresent(Bool.self, forKey: .showHiddenInSearch)) ?? true
-        gridRows = (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 0
+        gridRows = (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 4
         gridColumns = (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 7
         iconSizeLevel = (try? c.decodeIfPresent(IconSizeLevel.self, forKey: .iconSizeLevel)) ?? .medium
         showAppNames = (try? c.decodeIfPresent(Bool.self, forKey: .showAppNames)) ?? true

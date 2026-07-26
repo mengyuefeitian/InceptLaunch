@@ -14,6 +14,8 @@ struct FolderPopupView: View {
     var wallpaperImage: NSImage? = nil
     var backgroundBlur: Double = 0.72
 
+    var iconSizeLevel: UserPreferences.IconSizeLevel = .large
+
     // Edit mode support
     var editMode: Bool = false
     var editDragID: String? = nil
@@ -39,35 +41,26 @@ struct FolderPopupView: View {
     @State private var panelFrame: CGRect = .zero
     @FocusState private var nameFieldFocused: Bool
 
-    private let columns = Array(repeating: GridItem(.fixed(GridMetrics.tileWidth), spacing: 16), count: 5)
+    private var folderTileWidth: CGFloat { GridMetrics.tileWidth * iconSizeLevel.multiplier }
+    private var folderIconSize: CGFloat { 88 * iconSizeLevel.multiplier }
+    private var folderTileHeight: CGFloat { 128 * iconSizeLevel.multiplier }
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.fixed(folderTileWidth), spacing: 16), count: 5)
+    }
 
     var body: some View {
         ZStack {
-            // Blurred wallpaper backdrop matching the main grid aesthetic
-            Group {
-                if let wallpaperImage {
-                    Image(nsImage: wallpaperImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .blur(radius: 40)
-                } else {
-                    Color.black
+            Color.black.opacity(0.45)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    DiagLog.write("FolderPopup backdrop tap fired")
+                    if editMode {
+                        onCancelEditMode?()
+                    } else {
+                        onClose()
+                    }
                 }
-            }
-            .ignoresSafeArea()
-            .overlay(
-                Color.black.opacity(backgroundBlur * 0.5)
-                    .ignoresSafeArea()
-            )
-            .contentShape(Rectangle())
-            .onTapGesture {
-                DiagLog.write("FolderPopup backdrop tap fired")
-                if editMode {
-                    onCancelEditMode?()
-                } else {
-                    onClose()
-                }
-            }
 
             VStack(spacing: 20) {
                 titleView
@@ -89,8 +82,26 @@ struct FolderPopupView: View {
                 }
                 .frame(maxHeight: 560)
             }
-            .frame(width: 780)
-            .liquidGlass(cornerRadius: 32, fallbackOpacity: 0.22)
+            .frame(width: 5 * folderTileWidth + 4 * 16 + 52)
+            .background(
+                Group {
+                    if let wallpaperImage {
+                        Image(nsImage: wallpaperImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .blur(radius: 50)
+                            .overlay(Color.white.opacity(0.08))
+                    } else {
+                        Rectangle().fill(.white.opacity(0.12))
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
             .background(
                 GeometryReader { geo in
                     Color.clear
@@ -107,17 +118,14 @@ struct FolderPopupView: View {
             if let dragID = reorderDragID,
                let dragMember = item.members.first(where: { $0.id == dragID }),
                animate {
-                AppIconView(
-                    item: LaunchpadDisplayItem(id: dragMember.id, title: dragMember.name, kind: .app(dragMember)),
-                    iconSize: 88,
-                    tileHeight: 128
-                )
-                .scaleEffect(1.15)
-                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
-                .opacity(0.9)
-                .position(folderDragLocation)
-                .allowsHitTesting(false)
-                .zIndex(10)
+                RealAppIcon(record: dragMember)
+                    .frame(width: folderIconSize, height: folderIconSize)
+                    .scaleEffect(1.15)
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                    .opacity(0.9)
+                    .position(folderDragLocation)
+                    .allowsHitTesting(false)
+                    .zIndex(10)
             }
         }
     }
@@ -139,7 +147,7 @@ struct FolderPopupView: View {
         TimelineView(.animation(minimumInterval: 0.05, paused: !editMode || isBeingDragged)) { context in
             let phase = context.date.timeIntervalSinceReferenceDate
             let angle = (editMode && !isBeingDragged) ? sin(phase * 22.0) * jiggleAmp : 0.0
-            AppIconView(item: displayItem, iconSize: 88, tileHeight: 128)
+            AppIconView(item: displayItem, iconSize: folderIconSize, tileHeight: folderTileHeight)
                 .scaleEffect(isBeingDragged ? 1.1 : 1.0)
                 .shadow(color: isBeingDragged ? .black.opacity(0.4) : .clear, radius: 14, y: 6)
                 .rotationEffect(.degrees(angle))

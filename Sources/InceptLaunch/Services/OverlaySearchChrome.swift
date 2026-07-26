@@ -1,35 +1,91 @@
 import AppKit
+import SwiftUI
 
+/// Vertically centers text / field-editor inside a tall search capsule.
 private final class VerticallyCenteredCell: NSTextFieldCell {
     override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        let contentHeight = cellSize(forBounds: rect).height
-        let y = (rect.height - contentHeight) / 2
-        return NSRect(x: rect.origin.x, y: y, width: rect.width, height: contentHeight)
+        var newRect = super.drawingRect(forBounds: rect)
+        let textHeight = cellSize(forBounds: rect).height
+        let delta = newRect.height - textHeight
+        if delta > 0 {
+            newRect.origin.y += delta / 2
+            newRect.size.height = textHeight
+        }
+        return newRect
+    }
+
+    override func edit(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        event: NSEvent?
+    ) {
+        super.edit(
+            withFrame: drawingRect(forBounds: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            event: event
+        )
+    }
+
+    override func select(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        start selStart: Int,
+        length selLength: Int
+    ) {
+        super.select(
+            withFrame: drawingRect(forBounds: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: selStart,
+            length: selLength
+        )
     }
 }
 
-/// AppKit search field hosted directly on the overlay window.
-/// SwiftUI `TextField` inside a borderless full-screen `NSHostingView` has
-/// repeatedly failed to paint for users; a real `NSTextField` always shows.
+/// Painted frosted capsule — wallpaper blur + light wash. No glassEffect.
+private struct SearchChromeFrostBackground: View {
+    var body: some View {
+        Color.clear
+            .frame(
+                width: OverlaySearchChrome.fieldWidth,
+                height: OverlaySearchChrome.fieldHeight
+            )
+            .wallpaperFrostCapsule(blurRadius: 28, washOpacity: 0.16)
+    }
+}
+
+/// AppKit search field on the overlay. Background is painted frost; the field
+/// is a real `NSTextField` so typing / IME stay reliable.
 @MainActor
 final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
-    /// Height reserved at the top of the overlay for the search chrome
-    /// (padding + field). ContentView should leave the same spacer.
-    /// Tall enough that the capsule sits mid-way between the menu bar and
-    /// the first icon row (not glued under the menu bar).
     static let chromeHeight: CGFloat = 128
     static let fieldWidth: CGFloat = 420
     static let fieldHeight: CGFloat = 36
-    /// Distance from the top of the screen down to the search capsule.
     static let topPadding: CGFloat = 78
 
     private let container = NSView()
-    private let background = NSView()
+    private let frostHost = NSHostingView(rootView: SearchChromeFrostBackground())
+    private let content = NSView()
     private let icon = NSImageView()
     private let field = NSTextField(string: "")
     private var onTextChange: ((String) -> Void)?
 
     var view: NSView { container }
+
+    var allowsTextInput: Bool {
+        field.isEditable && field.isSelectable && field.isEnabled
+    }
+
+    var usesGlassBackground: Bool {
+        frostHost.superview != nil
+    }
 
     func install(
         on parent: NSView,
@@ -37,23 +93,14 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
     ) {
         self.onTextChange = onTextChange
 
-        container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor.clear.cgColor
-
-        background.wantsLayer = true
-        background.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.62).cgColor
-        background.layer?.cornerRadius = Self.fieldHeight / 2
-        background.layer?.borderWidth = 1
-        background.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
-        background.layer?.masksToBounds = true
-
-        let loupe = NSImage(
-            systemSymbolName: "magnifyingglass",
-            accessibilityDescription: "Search"
+        // Hosting view must be transparent so frost paints, not a black plate.
+        frostHost.frame = NSRect(
+            origin: .zero,
+            size: CGSize(width: Self.fieldWidth, height: Self.fieldHeight)
         )
-        icon.image = loupe
-        icon.contentTintColor = NSColor.white.withAlphaComponent(0.85)
-        icon.imageScaling = .scaleProportionallyDown
+        frostHost.wantsLayer = true
+        frostHost.layer?.backgroundColor = NSColor.clear.cgColor
+        frostHost.layer?.isOpaque = false
 
         field.placeholderString = Localizer.t("search.placeholder")
         field.isBordered = false
@@ -63,22 +110,36 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         field.font = NSFont.systemFont(ofSize: 15, weight: .medium)
         field.textColor = .white
         field.delegate = self
-        field.placeholderAttributedString = NSAttributedString(
-            string: Localizer.t("search.placeholder"),
-            attributes: [
-                .foregroundColor: NSColor.white.withAlphaComponent(0.45),
-                .font: NSFont.systemFont(ofSize: 15, weight: .medium)
-            ]
+        field.placeholderAttributedString = Self.placeholderAttributes(
+            Localizer.t("search.placeholder")
         )
+
         let centeredCell = VerticallyCenteredCell()
         centeredCell.font = field.font
         centeredCell.textColor = .white
         centeredCell.placeholderAttributedString = field.placeholderAttributedString
+        centeredCell.isEditable = true
+        centeredCell.isSelectable = true
+        centeredCell.isEnabled = true
+        centeredCell.isBordered = false
+        centeredCell.isBezeled = false
+        centeredCell.drawsBackground = false
+        centeredCell.focusRingType = .none
         field.cell = centeredCell
 
-        container.addSubview(background)
-        background.addSubview(icon)
-        background.addSubview(field)
+        let loupe = NSImage(
+            systemSymbolName: "magnifyingglass",
+            accessibilityDescription: "Search"
+        )
+        icon.image = loupe
+        icon.contentTintColor = NSColor.white.withAlphaComponent(0.92)
+        icon.imageScaling = .scaleProportionallyDown
+
+        content.addSubview(icon)
+        content.addSubview(field)
+
+        container.addSubview(frostHost)
+        container.addSubview(content)
         parent.addSubview(container)
 
         layout(in: parent.bounds)
@@ -86,7 +147,6 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
     }
 
     func layout(in parentBounds: NSRect) {
-        // AppKit origin is bottom-left. Chrome strip sits at the top of the window.
         container.frame = NSRect(
             x: 0,
             y: parentBounds.height - Self.chromeHeight,
@@ -94,17 +154,17 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
             height: Self.chromeHeight
         )
 
-        // Capsule sits `topPadding` down from the window top (container is the
-        // top chromeHeight band, so from top of container = topPadding).
-        // AppKit origin is bottom-left of the container:
         let fieldOriginY = max(8, Self.chromeHeight - Self.topPadding - Self.fieldHeight)
         let fieldX = (parentBounds.width - Self.fieldWidth) / 2
-        background.frame = NSRect(
+        let capsule = NSRect(
             x: fieldX,
             y: fieldOriginY,
             width: Self.fieldWidth,
             height: Self.fieldHeight
         )
+
+        frostHost.frame = capsule
+        content.frame = capsule
 
         icon.frame = NSRect(x: 14, y: (Self.fieldHeight - 16) / 2, width: 16, height: 16)
         field.frame = NSRect(x: 38, y: 0, width: Self.fieldWidth - 52, height: Self.fieldHeight)
@@ -116,11 +176,9 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         }
     }
 
-    /// Feed a key event into the field after focusing it (preserves IME).
     func interpretKeyEvent(_ event: NSEvent) {
         focus()
         field.interpretKeyEvents([event])
-        // Some plain inserts update via interpret; sync binding either way.
         onTextChange?(field.stringValue)
     }
 
@@ -137,13 +195,11 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
     func refreshPlaceholder() {
         let text = Localizer.t("search.placeholder")
         field.placeholderString = text
-        field.placeholderAttributedString = NSAttributedString(
-            string: text,
-            attributes: [
-                .foregroundColor: NSColor.white.withAlphaComponent(0.45),
-                .font: NSFont.systemFont(ofSize: 15, weight: .medium)
-            ]
-        )
+        let attributed = Self.placeholderAttributes(text)
+        field.placeholderAttributedString = attributed
+        if let cell = field.cell as? NSTextFieldCell {
+            cell.placeholderAttributedString = attributed
+        }
     }
 
     func remove() {
@@ -151,7 +207,15 @@ final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
         onTextChange = nil
     }
 
-    // MARK: - NSTextFieldDelegate
+    private static func placeholderAttributes(_ text: String) -> NSAttributedString {
+        NSAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: NSColor.white.withAlphaComponent(0.55),
+                .font: NSFont.systemFont(ofSize: 15, weight: .medium)
+            ]
+        )
+    }
 
     func controlTextDidChange(_ obj: Notification) {
         onTextChange?(field.stringValue)

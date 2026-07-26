@@ -158,7 +158,6 @@ struct AppearanceSettingsView: View {
 
             Section(Localizer.t("settings.layout")) {
                 Picker(Localizer.t("settings.gridRows"), selection: $preferences.gridRows) {
-                    Text(Localizer.t("settings.gridRowsAuto")).tag(0)
                     Text("4").tag(4)
                     Text("5").tag(5)
                     Text("6").tag(6)
@@ -213,8 +212,14 @@ struct AppearanceSettingsView: View {
         .onChange(of: preferences.backgroundBlur) { _, _ in onSave() }
         .onChange(of: preferences.backgroundMode) { _, _ in onSave() }
         .onChange(of: preferences.autoCarousel) { _, _ in onSave() }
-        .onChange(of: preferences.gridRows) { _, _ in onSave() }
-        .onChange(of: preferences.gridColumns) { _, _ in onSave() }
+        .onChange(of: preferences.gridRows) { _, _ in
+            onSave()
+            NotificationCenter.default.post(name: .inceptLaunchGridSettingsChanged, object: nil)
+        }
+        .onChange(of: preferences.gridColumns) { _, _ in
+            onSave()
+            NotificationCenter.default.post(name: .inceptLaunchGridSettingsChanged, object: nil)
+        }
         .onChange(of: preferences.iconSizeLevel) { _, _ in onSave() }
         .onChange(of: preferences.showAppNames) { _, _ in onSave() }
     }

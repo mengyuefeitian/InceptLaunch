@@ -65,6 +65,7 @@ struct ContentView: View {
                         animate: animEnabled && preferences.animateFolder,
                         wallpaperImage: DesktopWallpaperCapture.currentImage,
                         backgroundBlur: preferences.backgroundBlur,
+                        iconSizeLevel: preferences.iconSizeLevel,
                         editMode: viewModel.editMode,
                         editDragID: viewModel.editDragID,
                         editDragTranslation: viewModel.editDragTranslation,

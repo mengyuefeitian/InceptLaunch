@@ -7,6 +7,8 @@ extension Notification.Name {
     static let inceptLaunchFocusSearch = Notification.Name("inceptLaunchFocusSearch")
     /// Posted when edit mode is cancelled from AppKit (click monitor).
     static let inceptLaunchEditModeCancelled = Notification.Name("inceptLaunchEditModeCancelled")
+    /// Posted when grid rows/columns settings change so the overlay can re-layout.
+    static let inceptLaunchGridSettingsChanged = Notification.Name("inceptLaunchGridSettingsChanged")
 }
 
 struct OverlayState {
@@ -90,6 +92,15 @@ final class OverlayWindowController {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.searchChrome.refreshPlaceholder()
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .inceptLaunchGridSettingsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.viewModel.applyGridSettingsChange()
             }
         }
     }

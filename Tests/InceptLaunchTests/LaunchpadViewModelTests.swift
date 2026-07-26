@@ -133,11 +133,19 @@ import Testing
     try? FileManager.default.removeItem(at: tempURL)
 }
 
-@MainActor @Test func gridRowsFollowScreenHeight() {
-    let small = LaunchpadViewModel(screenHeight: 1080)
-    let tall = LaunchpadViewModel(screenHeight: 1440)
+@MainActor @Test func gridRowsFollowScreenHeight() throws {
+    // Rows are now fixed by user preference (default 4), not screen-adaptive.
+    let prefsURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let store = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: prefsURL))
+    try store.save(.default)
+
+    let small = LaunchpadViewModel(preferencesStore: store, screenHeight: 1080)
+    let tall = LaunchpadViewModel(preferencesStore: store, screenHeight: 1440)
     #expect(small.gridRows == 4)
-    #expect(tall.gridRows == 6)
+    #expect(tall.gridRows == 4)
+
+    try? FileManager.default.removeItem(at: prefsURL)
 }
 
 @MainActor @Test func bootstrapRepaginatesLegacyLayoutForScreen() throws {

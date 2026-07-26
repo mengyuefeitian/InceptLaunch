@@ -35,6 +35,15 @@ struct LayoutStore {
         layout.pageCapacity = capacity
     }
 
+    /// Updates the page capacity without global compaction. Only pushes
+    /// overflow forward when capacity shrinks; never pulls items backward
+    /// from later pages when capacity grows.
+    mutating func updateCapacity(_ capacity: Int) {
+        guard capacity > 0 else { return }
+        layout.pageCapacity = capacity
+        enforcePageCapacity()
+    }
+
     mutating func appendNewApps(_ appIDs: [String]) {
         var existing = Set(layout.pages.flatMap { page in
             page.compactMap { item -> String? in

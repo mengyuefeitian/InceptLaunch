@@ -11,7 +11,7 @@ enum GridMetrics {
     static let tileWidth: CGFloat = 132
     static let tileHeight: CGFloat = 150
     static let iconSize: CGFloat = 104
-    static let columnSpacing: CGFloat = 36
+    static let columnSpacing: CGFloat = 24
     static let rowSpacing: CGFloat = 34
 
     /// Vertical space taken by everything outside the grid: search field top
@@ -35,12 +35,12 @@ enum GridMetrics {
         columns * rows
     }
 
-    /// Returns the user-configured row count, or auto-calculates from screen height.
+    /// Returns the user-configured row count (clamped to valid range 4–6).
     static func effectiveRows(preference: Int, screenHeight: CGFloat) -> Int {
         if preference >= 4 && preference <= 6 {
             return preference
         }
-        return rows(forScreenHeight: screenHeight)
+        return 4
     }
 
     /// Returns the user-configured column count (clamped to valid range).
@@ -49,9 +49,24 @@ enum GridMetrics {
     }
 
     /// Computes cell dimensions for a fixed rows×cols grid within the given area.
+    /// `availableWidth` should already exclude side margins (e.g. screen − 150×2).
+    /// Resulting `width` fills that band evenly — do not cap it or apps clump.
     static func cellSize(rows: Int, columns: Int, availableWidth: CGFloat, availableHeight: CGFloat) -> (width: CGFloat, height: CGFloat) {
         let cellWidth = (availableWidth - CGFloat(columns - 1) * columnSpacing) / CGFloat(columns)
         let cellHeight = (availableHeight - CGFloat(rows - 1) * rowSpacing) / CGFloat(rows)
         return (max(cellWidth, 60), max(cellHeight, 60))
+    }
+
+    /// Exact 2×2 span of two adjacent app cells (uses the *live* tile metrics).
+    static func enlargedSpan(
+        tileWidth: CGFloat,
+        tileHeight: CGFloat,
+        columnSpacing: CGFloat = columnSpacing,
+        rowSpacing: CGFloat = rowSpacing
+    ) -> CGSize {
+        CGSize(
+            width: tileWidth * 2 + columnSpacing,
+            height: tileHeight * 2 + rowSpacing
+        )
     }
 }

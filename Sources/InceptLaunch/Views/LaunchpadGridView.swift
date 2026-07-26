@@ -47,9 +47,17 @@ struct LaunchpadGridView: View {
         VStack(spacing: 18) {
             GeometryReader { geo in
                 let width = geo.size.width
-                let gridAreaWidth = geo.size.width - 48  // 24pt horizontal padding each side
+                // Side margins 150pt each; the middle band is divided evenly among columns.
+                let sidePadding: CGFloat = 150
+                let gridAreaWidth = geo.size.width - sidePadding * 2
                 let gridAreaHeight = geo.size.height
-                let cell = GridMetrics.cellSize(rows: rows, columns: columns, availableWidth: gridAreaWidth, availableHeight: gridAreaHeight)
+                let cell = GridMetrics.cellSize(
+                    rows: rows,
+                    columns: columns,
+                    availableWidth: gridAreaWidth,
+                    availableHeight: gridAreaHeight
+                )
+                // Fill the middle band — do NOT cap width (that collapsed spacing).
                 let tileWidth = cell.width
                 let tileHeight = min(cell.height, GridMetrics.tileHeight)
                 let iconSize = GridMetrics.iconSize * (tileHeight / GridMetrics.tileHeight)
@@ -120,11 +128,11 @@ struct LaunchpadGridView: View {
         ) {
             ForEach(page) { item in
                 let idx = page.firstIndex(where: { $0.id == item.id }) ?? 0
-                tileCell(item: item, localIndex: idx, iconSize: iconSize, tileHeight: tileHeight, pageWidth: pageWidth, pageIndex: pageIndex)
+                tileCell(item: item, localIndex: idx, iconSize: iconSize, tileWidth: tileWidth, tileHeight: tileHeight, pageWidth: pageWidth, pageIndex: pageIndex)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 150) // matches sidePadding used for cell sizing
         .animation(
             animateDrag ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
             value: page.map(\.id)
@@ -132,7 +140,7 @@ struct LaunchpadGridView: View {
     }
 
     @ViewBuilder
-    private func tileCell(item: LaunchpadDisplayItem, localIndex: Int, iconSize: CGFloat, tileHeight: CGFloat, pageWidth: CGFloat, pageIndex: Int) -> some View {
+    private func tileCell(item: LaunchpadDisplayItem, localIndex: Int, iconSize: CGFloat, tileWidth: CGFloat, tileHeight: CGFloat, pageWidth: CGFloat, pageIndex: Int) -> some View {
         let enlarged = enlargedFolderIDs.contains(item.id)
         let isBeingDragged = editDragID == item.id
         let dragTrans = isBeingDragged ? editDragTranslation : .zero
@@ -157,7 +165,16 @@ struct LaunchpadGridView: View {
                 ? sin(phase * 22.0) * tileJiggleAmplitude
                 : 0.0
 
-            tileView(item: item, iconSize: iconSize, tileHeight: tileHeight, enlarged: enlarged)
+            tileView(
+                item: item,
+                localIndex: localIndex,
+                iconSize: iconSize,
+                tileWidth: tileWidth,
+                tileHeight: tileHeight,
+                enlarged: enlarged,
+                pageWidth: pageWidth,
+                pageIndex: pageIndex
+            )
                 .scaleEffect(isBeingDragged ? 1.1 : (isFolder && hoveredFolderID == item.id ? 1.08 : 1.0))
                 .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
                 .rotationEffect(.degrees(angle))
@@ -177,104 +194,90 @@ struct LaunchpadGridView: View {
             onHide: onHide,
             editMode: editMode
         ))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if editMode {
-                onCancelEditMode?()
-            } else {
-                onLaunch(item)
-            }
-        }
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
-                .onEnded { _ in
-                    onEnterEditMode?()
-                }
-        )
-        .gesture(directDragGesture(item: item, localIndex: localIndex, pageWidth: pageWidth, pageIndex: pageIndex))
+        // No full-tile contentShape / launch gesture: blank cell padding must
+        // fall through to page-level dismiss. Activate + drag live on icon/title
+        // (or the full enlarged-folder chrome) only.
         .modifier(TileFramePreferenceModifier(id: item.id, isFolder: isFolder))
     }
 
-    /// Click-drag to reorder (apps + folders) or form folders (apps only, >50%).
-    private func directDragGesture(
+    /// Shared drag handling for app tiles and enlarged folders.
+    private func handleDragChanged(
         item: LaunchpadDisplayItem,
         localIndex: Int,
         pageWidth: CGFloat,
-        pageIndex: Int
-    ) -> some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
-            .onChanged { value in
-                isDraggingTile = true
-                let translation = CGSize(
-                    width: value.translation.width + dragPageOffset,
-                    height: value.translation.height
-                )
-                maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
+        value: DragGesture.Value
+    ) {
+        isDraggingTile = true
+        let translation = CGSize(
+            width: value.translation.width + dragPageOffset,
+            height: value.translation.height
+        )
+        maybeFlipPageAtEdge(fingerX: value.location.x, pageWidth: pageWidth)
 
-                // Live reorder: compute target index from pointer position.
-                if animateDrag, let onLiveReorder {
-                    let targetIndex = computeGridTargetIndex(
-                        dragID: item.id,
-                        location: value.location,
-                        page: currentPage
-                    )
-                    let currentIndex = pages[currentPage].firstIndex(where: { $0.id == item.id }) ?? localIndex
-                    if targetIndex != currentIndex {
-                        onLiveReorder(item.id, targetIndex, currentPage)
-                    }
-                }
-
-                // Folder scale-up feedback: check if pointer is over a folder tile
-                let folderTarget = tileFrames.first { info in
-                    info.isFolder
-                    && info.id != item.id
-                    && info.frame.insetBy(dx: -10, dy: -10).contains(value.location)
-                }
-                let newHover = folderTarget?.id
-                if newHover != hoveredFolderID {
-                    withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
-                        hoveredFolderID = newHover
-                    }
-                }
-
-                NotificationCenter.default.post(
-                    name: .inceptLaunchEditDragChanged,
-                    object: EditDragUpdate(id: item.id, translation: translation)
-                )
-                NotificationCenter.default.post(
-                    name: .inceptLaunchGridDragMoved,
-                    object: GridDragLocationUpdate(id: item.id, location: value.location)
-                )
+        if animateDrag, let onLiveReorder {
+            let targetIndex = computeGridTargetIndex(
+                dragID: item.id,
+                location: value.location,
+                page: currentPage
+            )
+            let currentIndex = pages[currentPage].firstIndex(where: { $0.id == item.id }) ?? localIndex
+            if targetIndex != currentIndex {
+                onLiveReorder(item.id, targetIndex, currentPage)
             }
-            .onEnded { value in
-                withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
-                    hoveredFolderID = nil
-                }
+        }
 
-                defer {
-                    isDraggingTile = false
-                    dragPageOffset = 0
-                    NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
-                    NotificationCenter.default.post(name: .inceptLaunchGridDragEnded, object: nil)
-                }
-
-                let translation = CGSize(
-                    width: value.translation.width + dragPageOffset,
-                    height: value.translation.height
-                )
-
-                // Unified resolver: >50% app merge, otherwise cell-based insert.
-                // Pass source localIndex + translation so insert lands between
-                // the intended neighbors (not a wrong row).
-                if let onResolveDrop {
-                    onResolveDrop(item.id, value.location, translation, currentPage, localIndex)
-                    return
-                }
-
-                if currentPage != pageIndex || translation != .zero {
-                    onMoveApp?(item.id, currentPage, localIndex)
-                }
+        let folderTarget = tileFrames.first { info in
+            info.isFolder
+            && info.id != item.id
+            && info.frame.insetBy(dx: -10, dy: -10).contains(value.location)
+        }
+        let newHover = folderTarget?.id
+        if newHover != hoveredFolderID {
+            withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
+                hoveredFolderID = newHover
             }
+        }
+
+        NotificationCenter.default.post(
+            name: .inceptLaunchEditDragChanged,
+            object: EditDragUpdate(id: item.id, translation: translation)
+        )
+        NotificationCenter.default.post(
+            name: .inceptLaunchGridDragMoved,
+            object: GridDragLocationUpdate(id: item.id, location: value.location)
+        )
+    }
+
+    private func handleDragEnded(
+        item: LaunchpadDisplayItem,
+        localIndex: Int,
+        pageIndex: Int,
+        value: DragGesture.Value
+    ) {
+        withAnimation(animateDrag ? .spring(response: 0.25, dampingFraction: 0.7) : nil) {
+            hoveredFolderID = nil
+        }
+
+        defer {
+            isDraggingTile = false
+            dragPageOffset = 0
+            NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
+            NotificationCenter.default.post(name: .inceptLaunchGridDragEnded, object: nil)
+        }
+
+        let translation = CGSize(
+            width: value.translation.width + dragPageOffset,
+            height: value.translation.height
+        )
+
+        if let onResolveDrop {
+            onResolveDrop(item.id, value.location, translation, currentPage, localIndex)
+            return
+        }
+
+        if currentPage != pageIndex || translation != .zero {
+            onMoveApp?(item.id, currentPage, localIndex)
+        }
     }
 
     private func computeGridTargetIndex(dragID: String, location: CGPoint, page: Int) -> Int {
@@ -319,16 +322,60 @@ struct LaunchpadGridView: View {
     }
 
     @ViewBuilder
-    private func tileView(item: LaunchpadDisplayItem, iconSize: CGFloat, tileHeight: CGFloat, enlarged: Bool) -> some View {
+    private func tileView(
+        item: LaunchpadDisplayItem,
+        localIndex: Int,
+        iconSize: CGFloat,
+        tileWidth: CGFloat,
+        tileHeight: CGFloat,
+        enlarged: Bool,
+        pageWidth: CGFloat,
+        pageIndex: Int
+    ) -> some View {
         if enlarged, case .folder = item.kind {
-            EnlargedFolderTileView(item: item, tileHeight: tileHeight)
+            // Whole 2×2 chrome is the folder target (opens popup).
+            EnlargedFolderTileView(
+                item: item,
+                tileWidth: tileWidth,
+                tileHeight: tileHeight,
+                iconSize: iconSize,
+                showName: showAppNames
+            )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if editMode {
+                        onCancelEditMode?()
+                    } else {
+                        onLaunch(item)
+                    }
+                }
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
+                        .onEnded { _ in onEnterEditMode?() }
+                )
+                .gesture(
+                    DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
+                        .onChanged { handleDragChanged(item: item, localIndex: localIndex, pageWidth: pageWidth, value: $0) }
+                        .onEnded { handleDragEnded(item: item, localIndex: localIndex, pageIndex: pageIndex, value: $0) }
+                )
         } else {
             AppIconView(
                 item: item,
                 iconSize: iconSize,
+                tileWidth: tileWidth,
                 tileHeight: tileHeight,
                 iconScale: iconSizeLevel.multiplier,
-                showName: showAppNames
+                showName: showAppNames,
+                onActivate: {
+                    if editMode {
+                        onCancelEditMode?()
+                    } else {
+                        onLaunch(item)
+                    }
+                },
+                onLongPress: { onEnterEditMode?() },
+                onDragChanged: { handleDragChanged(item: item, localIndex: localIndex, pageWidth: pageWidth, value: $0) },
+                onDragEnded: { handleDragEnded(item: item, localIndex: localIndex, pageIndex: pageIndex, value: $0) }
             )
         }
     }

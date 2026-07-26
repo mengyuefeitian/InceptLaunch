@@ -1,61 +1,118 @@
 import SwiftUI
 
 /// A folder tile enlarged to 2×2 grid cells, showing a 3×3 icon grid inside.
-/// If the folder has more than 9 apps, a horizontal carousel lets the user
-/// page through them via drag, arrow buttons, or auto-advance (2 s interval).
+///
+/// **Layout slot** (occupancy map): full 2×2 cells so neighboring apps flow correctly.
+/// **Visible chrome**: inset to the icon visual bounds of those two cells so the
+/// panel aligns with app icons/titles — not the empty cell padding — and never
+/// looks like it "overflows" the icon grid.
+///
+/// Frost uses wallpaper blur (same as folder popup), not `glassEffect` (which
+/// paints solid black in this overlay).
 struct EnlargedFolderTileView: View {
     let item: LaunchpadDisplayItem
     var tileWidth: CGFloat = GridMetrics.tileWidth
     var tileHeight: CGFloat = GridMetrics.tileHeight
     var columnSpacing: CGFloat = GridMetrics.columnSpacing
     var rowSpacing: CGFloat = GridMetrics.rowSpacing
+    /// Live icon size from the grid (scales with tile height).
+    var iconSize: CGFloat = GridMetrics.iconSize
+    var showName: Bool = true
 
     @State private var carouselPage = 0
     @State private var autoAdvanceTimer: Timer?
 
-    private var enlargedWidth: CGFloat { tileWidth * 2 + columnSpacing }
-    private var enlargedHeight: CGFloat { tileHeight * 2 + rowSpacing }
+    // MARK: - Layout slot (2×2 cells — do not change occupancy)
+
+    private var layoutWidth: CGFloat { tileWidth * 2 + columnSpacing }
+    private var layoutHeight: CGFloat { tileHeight * 2 + rowSpacing }
+
+    // MARK: - Visible chrome (icon-aligned)
+
+    /// Horizontal inset from cell edge to centered icon edge.
+    private var iconInsetX: CGFloat { max(0, (tileWidth - iconSize) / 2) }
+
+    /// A-icon-left → B-icon-right  (= tileWidth + columnSpacing + iconSize).
+    private var chromeWidth: CGFloat {
+        max(iconSize * 2, layoutWidth - iconInsetX * 2)
+    }
+
+    /// Label band under an app icon (matches AppIconView spacing + callout).
+    private var labelBand: CGFloat { showName ? 28 : 0 }
+
+    /// C-icon-top → D-label-bottom.
+    /// Top-aligned content: icon at top of each tile, label under icon.
+    private var chromeHeight: CGFloat {
+        // From top of row0 icon to top of row1 tile: tileHeight + rowSpacing
+        // Then through row1 icon + label band.
+        let h = tileHeight + rowSpacing + iconSize + (showName ? 10 + 18 : 0)
+        // Never exceed the layout slot.
+        return min(layoutHeight, max(iconSize * 2, h))
+    }
 
     private var members: [AppRecord] { item.members }
     private var pageCount: Int { max(1, (members.count + 8) / 9) }
 
-    /// Icon size for the 3×3 internal grid.
-    private var iconSize: CGFloat {
-        let available = enlargedWidth - 32 /* horizontal padding */ - 24 /* grid spacing */
-        return min(68, max(48, available / 3))
+    private var titleHeight: CGFloat { showName ? 18 : 0 }
+    private var carouselChromeHeight: CGFloat { pageCount > 1 ? 20 : 0 }
+    private var contentPad: CGFloat { 10 }
+
+    private var iconAreaHeight: CGFloat {
+        max(
+            36,
+            chromeHeight
+                - titleHeight
+                - carouselChromeHeight
+                - contentPad * 2
+                - (showName ? 6 : 0)
+                - (pageCount > 1 ? 4 : 0)
+        )
     }
 
-    /// Height reserved for the icon grid area (leaves room for dots + label).
-    private var iconAreaHeight: CGFloat {
-        3 * iconSize + 2 * 12 + 16
+    private var iconAreaWidth: CGFloat {
+        max(36, chromeWidth - contentPad * 2)
+    }
+
+    private var miniIconSize: CGFloat {
+        let byW = (iconAreaWidth - 16) / 3
+        let byH = (iconAreaHeight - 16) / 3
+        return max(22, min(byW, byH, 64))
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                if pageCount > 1 {
-                    carouselContent
-                } else {
-                    iconGrid(members: Array(members.prefix(9)))
+        // Outer frame = full 2×2 layout slot (occupancy). Chrome centered inside.
+        ZStack {
+            VStack(spacing: 6) {
+                ZStack {
+                    if pageCount > 1 {
+                        carouselContent
+                    } else {
+                        iconGrid(members: Array(members.prefix(9)))
+                    }
+                }
+                .frame(width: iconAreaWidth, height: iconAreaHeight)
+                .clipped()
+
+                if showName {
+                    Text(item.title)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                        .frame(height: titleHeight)
+                        .padding(.horizontal, 8)
                 }
             }
-            .frame(width: enlargedWidth - 8, height: iconAreaHeight)
-            .clipped()
-
-            Text(item.title)
-                .font(.callout)
-                .lineLimit(1)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
+            .padding(contentPad)
+            .frame(width: chromeWidth, height: chromeHeight)
+            .wallpaperFrost(cornerRadius: min(28, chromeWidth * 0.1), washOpacity: 0.14)
+            .contentShape(Rectangle())
         }
-        .frame(width: enlargedWidth, height: enlargedHeight)
-        .liquidGlass(cornerRadius: 28, fallbackOpacity: 0.14)
-        .contentShape(Rectangle())
+        .frame(width: layoutWidth, height: layoutHeight)
         .onAppear { startAutoAdvance() }
         .onDisappear { stopAutoAdvance() }
     }
 
-    // MARK: - Auto-advance timer
+    // MARK: - Auto-advance
 
     private func startAutoAdvance() {
         guard pageCount > 1 else { return }
@@ -79,10 +136,10 @@ struct EnlargedFolderTileView: View {
         startAutoAdvance()
     }
 
-    // MARK: - Carousel (> 9 members)
+    // MARK: - Carousel
 
     private var carouselContent: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             ZStack {
                 ForEach(0..<pageCount, id: \.self) { page in
                     let start = page * 9
@@ -91,6 +148,7 @@ struct EnlargedFolderTileView: View {
                         .opacity(page == carouselPage ? 1 : 0)
                 }
             }
+            .frame(maxHeight: .infinity)
             .gesture(
                 DragGesture(minimumDistance: 15)
                     .onEnded { value in
@@ -117,8 +175,8 @@ struct EnlargedFolderTileView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.caption.bold())
-                        .foregroundStyle(carouselPage > 0 ? Color.white.opacity(0.9) : Color.white.opacity(0.2))
-                        .frame(width: 20, height: 20)
+                        .foregroundStyle(carouselPage > 0 ? Color.white.opacity(0.9) : Color.white.opacity(0.25))
+                        .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)
                 .disabled(carouselPage == 0)
@@ -126,7 +184,7 @@ struct EnlargedFolderTileView: View {
                 HStack(spacing: 5) {
                     ForEach(0..<pageCount, id: \.self) { i in
                         Circle()
-                            .fill(i == carouselPage ? Color.white.opacity(0.9) : Color.white.opacity(0.3))
+                            .fill(i == carouselPage ? Color.white.opacity(0.9) : Color.white.opacity(0.35))
                             .frame(width: 5, height: 5)
                     }
                 }
@@ -139,29 +197,32 @@ struct EnlargedFolderTileView: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.caption.bold())
-                        .foregroundStyle(carouselPage < pageCount - 1 ? Color.white.opacity(0.9) : Color.white.opacity(0.2))
-                        .frame(width: 20, height: 20)
+                        .foregroundStyle(
+                            carouselPage < pageCount - 1 ? Color.white.opacity(0.9) : Color.white.opacity(0.25)
+                        )
+                        .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)
                 .disabled(carouselPage == pageCount - 1)
             }
+            .frame(height: carouselChromeHeight)
         }
-        .padding(.horizontal, 4)
     }
 
-    // MARK: - 3×3 icon grid
+    // MARK: - 3×3
 
     private func iconGrid(members: [AppRecord]) -> some View {
-        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+        let spacing: CGFloat = 8
+        return Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
             ForEach(0..<3, id: \.self) { row in
                 GridRow {
                     ForEach(0..<3, id: \.self) { col in
                         let index = row * 3 + col
                         if index < members.count {
                             RealAppIcon(record: members[index])
-                                .frame(width: iconSize, height: iconSize)
+                                .frame(width: miniIconSize, height: miniIconSize)
                         } else {
-                            Color.clear.frame(width: iconSize, height: iconSize)
+                            Color.clear.frame(width: miniIconSize, height: miniIconSize)
                         }
                     }
                 }

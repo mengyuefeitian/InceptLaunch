@@ -4,10 +4,16 @@ import SwiftUI
 struct AppIconView: View {
     let item: LaunchpadDisplayItem
     var iconSize: CGFloat = 104
+    var tileWidth: CGFloat = 132
     var tileHeight: CGFloat = 150
     var showHiddenBadge: Bool = false
     var iconScale: CGFloat = 1.0
     var showName: Bool = true
+    /// Only icon + title activate. Blank padding inside the tile dismisses.
+    var onActivate: (() -> Void)? = nil
+    var onLongPress: (() -> Void)? = nil
+    var onDragChanged: ((DragGesture.Value) -> Void)? = nil
+    var onDragEnded: ((DragGesture.Value) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: showName ? 10 : 0) {
@@ -23,17 +29,38 @@ struct AppIconView: View {
                             .offset(x: 2, y: 2)
                     }
                 }
-                .frame(width: iconSize, height: iconSize)  // occupy full slot regardless of scale
+                .frame(width: iconSize, height: iconSize)
+                .contentShape(Rectangle())
+                .onTapGesture { onActivate?() }
+                .simultaneousGesture(longPress)
+                .gesture(tileDrag)
+
             if showName {
                 Text(item.title)
                     .font(.callout)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onActivate?() }
+                    .simultaneousGesture(longPress)
+                    .gesture(tileDrag)
             }
         }
-        .frame(width: 132, height: tileHeight)
-        .contentShape(Rectangle())
+        // Layout reserves the full cell; no full-tile contentShape so blank
+        // padding falls through to page-level dismiss.
+        .frame(width: tileWidth, height: tileHeight)
+    }
+
+    private var longPress: some Gesture {
+        LongPressGesture(minimumDuration: 0.4, maximumDistance: 6)
+            .onEnded { _ in onLongPress?() }
+    }
+
+    private var tileDrag: some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named("overlay"))
+            .onChanged { value in onDragChanged?(value) }
+            .onEnded { value in onDragEnded?(value) }
     }
 
     @ViewBuilder
@@ -42,7 +69,7 @@ struct AppIconView: View {
         case .app(let record):
             RealAppIcon(record: record)
         case .folder:
-            FolderTileView(members: item.members)
+            FolderTileView(members: item.members, size: iconSize * iconScale)
         }
     }
 }
@@ -51,15 +78,21 @@ struct AppIconView: View {
 /// preview of the contained apps' icons.
 struct FolderTileView: View {
     let members: [AppRecord]
+    var size: CGFloat = 104
 
     private var preview: [AppRecord] { Array(members.prefix(4)) }
+    private var cellSize: CGFloat { size * 0.36 }
+    private var gridSpacing: CGFloat { size * 0.06 }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.clear)
-            .liquidGlass(cornerRadius: 24, fallbackOpacity: 0.16)
+        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+            .fill(.white.opacity(0.14))
             .overlay(
-                Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            )
+            .overlay(
+                Grid(horizontalSpacing: gridSpacing, verticalSpacing: gridSpacing) {
                     GridRow {
                         cell(0)
                         cell(1)
@@ -76,9 +109,9 @@ struct FolderTileView: View {
     private func cell(_ index: Int) -> some View {
         if index < preview.count {
             RealAppIcon(record: preview[index])
-                .frame(width: 40, height: 40)
+                .frame(width: cellSize, height: cellSize)
         } else {
-            Color.clear.frame(width: 40, height: 40)
+            Color.clear.frame(width: cellSize, height: cellSize)
         }
     }
 }

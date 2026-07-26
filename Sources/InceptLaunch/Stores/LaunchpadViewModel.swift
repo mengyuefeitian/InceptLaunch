@@ -190,6 +190,7 @@ final class LaunchpadViewModel {
 
     func bootstrapScan() {
         let preferences = (try? preferencesStore.load()) ?? .default
+        self.preferences = preferences
         showSystemApplications = preferences.showSystemApplications
         showHiddenInSearch = preferences.showHiddenInSearch
         let urls = preferences.scanDirectories.map { path in
@@ -197,19 +198,32 @@ final class LaunchpadViewModel {
         }
         // Start from the saved layout so user folders and positions persist.
         layoutStore = LayoutStore(layout: layoutPersistence.load())
-        // The rows-per-page follows the screen height; re-chunk layouts saved
-        // with a different capacity (e.g. legacy 35-item pages, or pages from
-        // another display) before merging in newly installed apps.
         // Force re-pagination when enlarged folders exist because the
         // cell-counting logic changed (enlarged = 4 cells) without changing
         // the stored capacity value.
         let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
-        layoutStore.repaginate(
-            capacity: gridColumns * gridRows,
-            force: hasEnlarged
-        )
+        if hasEnlarged {
+            layoutStore.repaginate(
+                capacity: gridColumns * gridRows,
+                force: true
+            )
+        } else {
+            layoutStore.updateCapacity(gridColumns * gridRows)
+        }
         let result = scanner.scanAll(directories: urls)
         applyScanResult(result)
+        persistLayout()
+    }
+
+    /// Re-reads preferences and applies a grid capacity change using per-page
+    /// enforcement (overflow pushes forward; gaps are never filled by pulling
+    /// items from later pages). Called when rows/columns change in Settings.
+    func applyGridSettingsChange() {
+        let newPrefs = (try? preferencesStore.load()) ?? .default
+        preferences = newPrefs
+        let newCapacity = gridColumns * gridRows
+        guard layoutStore.layout.effectivePageCapacity != newCapacity else { return }
+        layoutStore.updateCapacity(newCapacity)
         persistLayout()
     }
 

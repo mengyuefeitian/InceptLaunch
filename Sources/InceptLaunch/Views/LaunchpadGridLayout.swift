@@ -37,25 +37,19 @@ struct LaunchpadGridLayout: Layout {
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-        let width = proposal.width ?? (CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing)
-        // Use minRows for minimum height to ensure consistent centering
+        let contentWidth = CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing
         let minHeight = CGFloat(minRows) * tileHeight + CGFloat(minRows - 1) * rowSpacing
         let height = max(cache.totalHeight, minHeight)
-        return CGSize(width: width, height: height)
+        return CGSize(width: contentWidth, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
-        // Center the grid content horizontally only (no vertical centering offset)
-        let contentWidth = CGFloat(columns) * tileWidth + CGFloat(columns - 1) * columnSpacing
-        let offsetX = max(0, (bounds.width - contentWidth) / 2)
-        // No offsetY - apps are placed at fixed grid positions from top
-
         for (index, subview) in subviews.enumerated() {
             guard index < cache.positions.count else { break }
             let pos = cache.positions[index]
             let size = cache.sizes[index]
             subview.place(
-                at: CGPoint(x: bounds.minX + offsetX + pos.x, y: bounds.minY + pos.y),
+                at: CGPoint(x: bounds.minX + pos.x, y: bounds.minY + pos.y),
                 anchor: .topLeading,
                 proposal: ProposedViewSize(size)
             )
@@ -69,8 +63,14 @@ struct LaunchpadGridLayout: Layout {
         var positions: [CGPoint] = []
         var sizes: [CGSize] = []
 
-        let enlargedW = tileWidth * 2 + columnSpacing
-        let enlargedH = tileHeight * 2 + rowSpacing
+        // Must match EnlargedFolderTileView / GridMetrics.enlargedSpan exactly
+        // so the chrome sits on A-left→B-right and C-top→D-label-bottom.
+        let enlarged = GridMetrics.enlargedSpan(
+            tileWidth: tileWidth,
+            tileHeight: tileHeight,
+            columnSpacing: columnSpacing,
+            rowSpacing: rowSpacing
+        )
 
         for subview in subviews {
             let isEnlarged = subview[EnlargedKey.self]
@@ -81,19 +81,53 @@ struct LaunchpadGridLayout: Layout {
                 if col >= columns { col = 0; row += 1 }
             }
 
-            if isEnlarged && col + 1 < columns {
+            if isEnlarged && canPlaceEnlarged(col: col, row: row, occupied: occupied) {
                 // Place 2×2 tile
                 let x = CGFloat(col) * (tileWidth + columnSpacing)
                 let y = CGFloat(row) * (tileHeight + rowSpacing)
                 positions.append(CGPoint(x: x, y: y))
-                sizes.append(CGSize(width: enlargedW, height: enlargedH))
+                sizes.append(enlarged)
                 occupied.insert(CellKey(col: col, row: row))
                 occupied.insert(CellKey(col: col + 1, row: row))
                 occupied.insert(CellKey(col: col, row: row + 1))
                 occupied.insert(CellKey(col: col + 1, row: row + 1))
                 col += 2
+            } else if isEnlarged {
+                // Find next position where 2×2 fits
+                var found = false
+                var scanCol = col
+                var scanRow = row
+                for _ in 0..<(columns * 20) {
+                    scanCol += 1
+                    if scanCol >= columns { scanCol = 0; scanRow += 1 }
+                    if canPlaceEnlarged(col: scanCol, row: scanRow, occupied: occupied) {
+                        col = scanCol
+                        row = scanRow
+                        found = true
+                        break
+                    }
+                }
+                if found {
+                    let x = CGFloat(col) * (tileWidth + columnSpacing)
+                    let y = CGFloat(row) * (tileHeight + rowSpacing)
+                    positions.append(CGPoint(x: x, y: y))
+                    sizes.append(enlarged)
+                    occupied.insert(CellKey(col: col, row: row))
+                    occupied.insert(CellKey(col: col + 1, row: row))
+                    occupied.insert(CellKey(col: col, row: row + 1))
+                    occupied.insert(CellKey(col: col + 1, row: row + 1))
+                    col += 2
+                } else {
+                    // Fallback: place as 1×1
+                    let x = CGFloat(col) * (tileWidth + columnSpacing)
+                    let y = CGFloat(row) * (tileHeight + rowSpacing)
+                    positions.append(CGPoint(x: x, y: y))
+                    sizes.append(CGSize(width: tileWidth, height: tileHeight))
+                    occupied.insert(CellKey(col: col, row: row))
+                    col += 1
+                }
             } else {
-                // Place 1×1 tile (also fallback if enlarged but at last column)
+                // Place 1×1 tile
                 let x = CGFloat(col) * (tileWidth + columnSpacing)
                 let y = CGFloat(row) * (tileHeight + rowSpacing)
                 positions.append(CGPoint(x: x, y: y))
@@ -110,6 +144,14 @@ struct LaunchpadGridLayout: Layout {
         let totalHeight = CGFloat(maxRow + 1) * tileHeight + CGFloat(maxRow) * rowSpacing
 
         return Cache(positions: positions, sizes: sizes, totalHeight: totalHeight)
+    }
+
+    private func canPlaceEnlarged(col: Int, row: Int, occupied: Set<CellKey>) -> Bool {
+        guard col + 1 < columns else { return false }
+        return !occupied.contains(CellKey(col: col, row: row))
+            && !occupied.contains(CellKey(col: col + 1, row: row))
+            && !occupied.contains(CellKey(col: col, row: row + 1))
+            && !occupied.contains(CellKey(col: col + 1, row: row + 1))
     }
 }
 

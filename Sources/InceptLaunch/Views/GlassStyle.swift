@@ -14,10 +14,13 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
         } else {
             content
                 .background(
+                    shape.fill(.ultraThinMaterial)
+                )
+                .background(
                     shape.fill(.white.opacity(fallbackOpacity))
                 )
                 .overlay(
-                    shape.strokeBorder(.white.opacity(0.10), lineWidth: 1)
+                    shape.strokeBorder(.white.opacity(0.18), lineWidth: 1)
                 )
         }
     }
