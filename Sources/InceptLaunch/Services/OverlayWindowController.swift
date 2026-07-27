@@ -155,7 +155,7 @@ final class OverlayWindowController {
         Localizer.setLanguage(prefs.language)
         viewModel.showSystemApplications = prefs.showSystemApplications
         viewModel.showHiddenInSearch = prefs.showHiddenInSearch
-        DiagLog.write("show() loaded prefs: showSystemApps=\(prefs.showSystemApplications) showHidden=\(prefs.showHiddenInSearch)")
+        DiagLog.write("show() pid=\(ProcessInfo.processInfo.processIdentifier) bundle=\(Bundle.main.bundlePath) loaded prefs: showSystemApps=\(prefs.showSystemApplications) showHidden=\(prefs.showHiddenInSearch)")
 
         // Root container: hosting view (full) + AppKit search on top.
         let container = NSView(frame: NSRect(origin: .zero, size: frame.size))

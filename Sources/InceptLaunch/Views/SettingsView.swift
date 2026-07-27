@@ -334,16 +334,7 @@ struct AboutView: View {
     @State private var showCopied = false
 
     private var appIcon: NSImage? {
-        let name = preferences.appIconStyle.resourceName
-        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        return NSImage(named: name)
+        IconThumbnailCache.image(named: preferences.appIconStyle.resourceName)
     }
 
     private var versionString: String {
@@ -544,21 +535,41 @@ struct AppIconSmall: View {
 
 // MARK: - Icon Thumbnail View
 
+/// `IconThumbnailView` sits in a `ForEach` inside `AppearanceSettingsView`'s
+/// `Form`, so its `body` (and thus `nsImage`) re-evaluates on every unrelated
+/// preference change in that Form — e.g. dragging the blur slider. Without
+/// caching, that redid a `Bundle.main.url` lookup + disk read per style on
+/// every frame, which is the settings-page click lag reported after other
+/// fixes had already addressed the more severe scrambled/frozen state.
+@MainActor
+private enum IconThumbnailCache {
+    static var images: [String: NSImage] = [:]
+
+    static func image(named name: String) -> NSImage? {
+        if let cached = images[name] { return cached }
+        let loaded: NSImage?
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            loaded = img
+        } else if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
+                  let img = NSImage(contentsOf: url) {
+            loaded = img
+        } else {
+            loaded = NSImage(named: name)
+        }
+        if let loaded {
+            images[name] = loaded
+        }
+        return loaded
+    }
+}
+
 struct IconThumbnailView: View {
     let style: UserPreferences.AppIconStyle
     let isSelected: Bool
 
     private var nsImage: NSImage? {
-        let name = style.thumbnailName
-        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        return NSImage(named: name)
+        IconThumbnailCache.image(named: style.thumbnailName)
     }
 
     var body: some View {
