@@ -41,30 +41,18 @@ struct SettingsView: View {
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
         } detail: {
-            // NavigationSplitView's detail closure re-evaluates the switch on
-            // every selectedCategory change, but without an explicit .id the
-            // four branches are different concrete types built from the SAME
-            // shared $preferences binding — SwiftUI can end up reusing state
-            // across the identity-less swap and render a stale branch's
-            // content under the new sidebar selection (observed: sidebar
-            // highlights 应用管理 while the detail pane still shows 关于's
-            // content). Tagging the container with selectedCategory forces a
-            // clean teardown/rebuild on every switch instead of a diffed update.
-            Group {
-                switch selectedCategory {
-                case .general:
-                    GeneralSettingsView(preferences: $preferences, hotKeyManager: hotKeyManager, onSave: savePreferences)
-                case .interface:
-                    AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
-                case .appManagement:
-                    AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
-                case .about:
-                    AboutView(preferences: $preferences, onSave: savePreferences)
-                case nil:
-                    Text("")
-                }
+            switch selectedCategory {
+            case .general:
+                GeneralSettingsView(preferences: $preferences, hotKeyManager: hotKeyManager, onSave: savePreferences)
+            case .interface:
+                AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
+            case .appManagement:
+                AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
+            case .about:
+                AboutView(preferences: $preferences, onSave: savePreferences)
+            case nil:
+                Text("")
             }
-            .id(selectedCategory)
         }
         .id(languageVersion)
         .frame(width: 700, height: 520)
