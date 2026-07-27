@@ -21,6 +21,14 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+# pkill returns immediately after sending SIGTERM; wait for the process to
+# actually exit before rebuilding/relaunching, so an old instance's in-flight
+# bootstrapScan()/persistLayout() can never race a new instance's on the same
+# layout.json (two separate processes — in-process serialization can't help).
+for _ in $(seq 1 50); do
+  pgrep -x "$APP_NAME" >/dev/null 2>&1 || break
+  sleep 0.1
+done
 
 swift build
 BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
@@ -77,6 +85,21 @@ open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
+# --verify launches straight from the binary (not `open`, which does not
+# forward env vars to the launched app) with INCEPTLAUNCH_DATA_DIR pointed at
+# a throwaway directory. A prior incident had automated verify runs pointed
+# at the user's real ~/Library/Application Support/InceptLaunch and coincided
+# with the user's real layout.json losing custom folders — root cause was
+# never fully confirmed, but there is no reason automated verification needs
+# real data, so this removes the whole risk class. Use `run` (real `open`,
+# real data dir) for actual interactive use.
+open_app_isolated() {
+  local data_dir
+  data_dir="$(mktemp -d "${TMPDIR:-/tmp}/inceptlaunch-verify.XXXXXX")"
+  echo "verify data dir: $data_dir"
+  INCEPTLAUNCH_DATA_DIR="$data_dir" "$APP_BINARY" &
+}
+
 case "$MODE" in
   run)
     open_app
@@ -93,7 +116,7 @@ case "$MODE" in
     /usr/bin/log stream --info --style compact --predicate "subsystem == \"$BUNDLE_ID\""
     ;;
   --verify|verify)
-    open_app
+    open_app_isolated
     sleep 1
     pgrep -x "$APP_NAME" >/dev/null
     ;;
