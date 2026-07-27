@@ -325,6 +325,73 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+/// Regression test: a scan that transiently returns zero apps (e.g. a
+/// filesystem hiccup around an app reinstall — AppScanner silently swallows
+/// `FileManager` errors per directory) used to be treated as fully
+/// authoritative. `applyScanResult` called `pruneApps(notIn: [])`, which
+/// strips every app off every page and out of every folder, and the emptied
+/// layout was persisted immediately — permanently destroying the user's
+/// arrangement from one bad scan. A scan returning nothing must never
+/// overwrite an existing non-empty layout.
+@MainActor @Test func emptyScanDoesNotWipeExistingLayout() async throws {
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: scanDir, name: "AppA", bundleID: "com.example.AppA")
+    try makeBundle(in: scanDir, name: "AppB", bundleID: "com.example.AppB")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    await viewModel.bootstrapScan()
+
+    // User groups both apps into a folder — this is the arrangement that
+    // must survive a subsequent bad scan.
+    let ids = viewModel.visiblePages.flatMap { $0 }.map(\.id)
+    let target = viewModel.visiblePages.flatMap { $0 }.first { $0.id == ids[0] }!
+    viewModel.handleDrop(sourceID: ids[1], onto: target)
+    #expect(viewModel.visiblePages.flatMap { $0 }.count == 1)
+
+    // Simulate the scan directory becoming transiently unreadable (the real
+    // trigger doesn't matter — a moved/locked directory during an install,
+    // an unmounted volume, any FileManager error AppScanner swallows).
+    var brokenPreferences = preferences
+    brokenPreferences.scanDirectories = [
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("does-not-exist-\(UUID().uuidString)").path
+    ]
+    try preferencesStore.save(brokenPreferences)
+
+    await viewModel.bootstrapScan()
+
+    let afterEmptyScan = viewModel.visiblePages.flatMap { $0 }
+    #expect(afterEmptyScan.count == 1, "the user's folder must survive a scan that found zero apps")
+    guard case .folder(let folder) = afterEmptyScan.first?.kind else {
+        Issue.record("expected the folder to still be present after an empty scan")
+        return
+    }
+    #expect(Set(folder.items) == Set(ids))
+
+    let saved = try JSONDecoder.inceptLaunch.decode(LaunchpadLayout.self, from: Data(contentsOf: layoutURL))
+    #expect(saved.folders.count == 1, "the persisted layout must not have been overwritten with an empty one")
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 @MainActor @Test func bootstrapRescanKeepsDraggedOutAppleAppOnGrid() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")

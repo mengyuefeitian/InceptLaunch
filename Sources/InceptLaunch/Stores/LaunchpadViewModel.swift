@@ -160,7 +160,24 @@ final class LaunchpadViewModel {
         }
     }
 
+    /// Whether the current layout has anything a scan could prune — used to
+    /// detect a scan that came back suspiciously empty.
+    private var layoutHasContent: Bool {
+        layoutStore.layout.pages.contains { !$0.isEmpty } || !layoutStore.layout.folders.isEmpty
+    }
+
     func applyScanResult(_ result: ScanResult) {
+        // AppScanner silently swallows FileManager errors per directory (a
+        // moved/locked directory, an unmounted volume, a transient glitch
+        // around a reinstall) and simply contributes zero records for that
+        // directory. Treating that as authoritative would prune every app
+        // off every page and out of every folder via pruneApps(notIn: []) —
+        // destroying the user's entire arrangement from one bad scan. A scan
+        // that found nothing must never overwrite a non-empty layout.
+        guard !result.records.isEmpty || !layoutHasContent else {
+            DiagLog.write("applyScanResult: scan returned 0 apps while the layout has \(layoutStore.layout.folders.count) folder(s) — skipping to avoid wiping user data")
+            return
+        }
         appIndex.merge(scanResults: result.records)
         layoutStore.syncDirectoryFolders(result.directoryFolders)
         layoutStore.pruneApps(notIn: Set(result.records.map(\.id)))
