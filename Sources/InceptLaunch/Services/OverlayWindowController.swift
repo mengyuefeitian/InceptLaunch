@@ -224,6 +224,14 @@ final class OverlayWindowController {
             if !(window.firstResponder is NSTextField || window.firstResponder is NSTextView) {
                 window.makeFirstResponder(window.contentView)
             }
+            // Diagnostic for reports of an overlay that renders but takes no
+            // input (unresponsive to click/Esc/scroll) right after macOS
+            // relaunches the app for a permission change: if isActive/isKey
+            // come back false here, the window is only *visually* frontmost
+            // (high window level) while keyboard/mouse events are still being
+            // routed to whatever app the system considers actually active —
+            // NSApp.activate() can silently no-op in that relaunch context.
+            DiagLog.write("activate: isActive=\(NSApp.isActive) isKey=\(window.isKeyWindow) policy=\(NSApp.activationPolicy().rawValue)")
         }
     }
 
