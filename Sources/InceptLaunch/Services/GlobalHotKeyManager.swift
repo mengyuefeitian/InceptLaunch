@@ -22,7 +22,17 @@ final class GlobalHotKeyManager: @unchecked Sendable {
         installEventHandlerIfNeeded()
         currentKeyCode = keyCode
         currentModifiers = modifiers
-        register(keyCode: keyCode, modifiers: modifiers)
+        if register(keyCode: keyCode, modifiers: modifiers) { return }
+        DiagLog.write("GlobalHotKeyManager.start: failed to register initial hotkey (code=\(keyCode) mods=\(modifiers))")
+        // Fall back to the Option+Space default so the app never launches
+        // with zero working hotkey.
+        let fallbackKeyCode = UInt32(kVK_Space)
+        let fallbackModifiers = UInt32(optionKey)
+        currentKeyCode = fallbackKeyCode
+        currentModifiers = fallbackModifiers
+        if !register(keyCode: fallbackKeyCode, modifiers: fallbackModifiers) {
+            DiagLog.write("GlobalHotKeyManager.start: fallback Option+Space registration also failed — no hotkey is currently active")
+        }
     }
 
     /// Unregisters the current hotkey and registers `keyCode`/`modifiers`.
@@ -41,7 +51,12 @@ final class GlobalHotKeyManager: @unchecked Sendable {
             return true
         }
         // Roll back so the overlay toggle keeps working.
-        _ = register(keyCode: previousKeyCode, modifiers: previousModifiers)
+        if register(keyCode: previousKeyCode, modifiers: previousModifiers) {
+            currentKeyCode = previousKeyCode
+            currentModifiers = previousModifiers
+        } else {
+            DiagLog.write("GlobalHotKeyManager.updateHotKey: rollback registration also failed — no hotkey is currently active")
+        }
         return false
     }
 
