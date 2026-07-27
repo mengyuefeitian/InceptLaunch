@@ -35,10 +35,36 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
-                Label(Localizer.t(category.localizationKey), systemImage: category.icon)
-                    .tag(category)
+            // `List(_:selection:)` + `.tag()` used to drive this sidebar, but
+            // its native row-selection tracking could desync from
+            // `selectedCategory` — clicking a row sometimes left the sidebar
+            // highlighting one category while the detail pane rendered a
+            // different one's content, and stuck that way until a further
+            // click (observed on multiple builds, independent of any recent
+            // Settings changes — reverting those didn't fix it). Selection is
+            // driven directly by Button taps here instead, so there is only
+            // ever one source of truth for which category is selected.
+            List {
+                ForEach(SettingsCategory.allCases) { category in
+                    let isSelected = selectedCategory == category
+                    Button {
+                        selectedCategory = category
+                    } label: {
+                        Label(Localizer.t(category.localizationKey), systemImage: category.icon)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isSelected ? Color.accentColor : Color.clear)
+                    )
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                }
             }
+            .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
         } detail: {
             switch selectedCategory {
