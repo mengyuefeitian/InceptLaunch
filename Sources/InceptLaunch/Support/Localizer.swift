@@ -115,6 +115,10 @@ struct Localizer {
         "about.website": "Website",
         "about.wechatOA": "WeChat OA",
         "about.copied": "Copied",
+        "about.diagnostics": "Diagnostics",
+        "about.diagnosticsToggle": "Enable diagnostic logging",
+        "about.diagnosticsHint": "Helps troubleshoot issues. Saved locally only, never uploaded.",
+        "about.openLogFolder": "Show Log Folder",
 
         // Context menu
         "menu.trash": "Move to Trash",
@@ -216,6 +220,10 @@ struct Localizer {
         "about.website": "官网",
         "about.wechatOA": "公众号",
         "about.copied": "已复制",
+        "about.diagnostics": "诊断",
+        "about.diagnosticsToggle": "记录诊断日志",
+        "about.diagnosticsHint": "用于排查问题，仅保存在本地，不会上传。",
+        "about.openLogFolder": "显示日志文件夹",
 
         // Context menu
         "menu.trash": "移到废纸篓",
@@ -317,6 +325,10 @@ struct Localizer {
         "about.website": "ウェブサイト",
         "about.wechatOA": "WeChat公式アカウント",
         "about.copied": "コピーしました",
+        "about.diagnostics": "診断",
+        "about.diagnosticsToggle": "診断ログを記録",
+        "about.diagnosticsHint": "問題の調査に使用します。ローカルにのみ保存され、アップロードされません。",
+        "about.openLogFolder": "ログフォルダを表示",
 
         // Context menu
         "menu.trash": "ゴミ箱に移動",
@@ -418,6 +430,10 @@ struct Localizer {
         "about.website": "웹사이트",
         "about.wechatOA": "WeChat 공식 계정",
         "about.copied": "복사됨",
+        "about.diagnostics": "진단",
+        "about.diagnosticsToggle": "진단 로그 기록",
+        "about.diagnosticsHint": "문제 해결에 사용됩니다. 로컬에만 저장되며 업로드되지 않습니다.",
+        "about.openLogFolder": "로그 폴더 표시",
 
         // Context menu
         "menu.trash": "휴지통으로 이동",
@@ -519,6 +535,10 @@ struct Localizer {
         "about.website": "Веб-сайт",
         "about.wechatOA": "WeChat OA",
         "about.copied": "Скопировано",
+        "about.diagnostics": "Диагностика",
+        "about.diagnosticsToggle": "Вести диагностический журнал",
+        "about.diagnosticsHint": "Помогает в устранении неполадок. Хранится только локально, не отправляется.",
+        "about.openLogFolder": "Показать папку журнала",
 
         // Context menu
         "menu.trash": "Переместить в корзину",

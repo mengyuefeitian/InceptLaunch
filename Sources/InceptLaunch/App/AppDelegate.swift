@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         // Apply the user's chosen app icon to the Dock.
         let prefs = (try? PreferencesStore().load()) ?? .default
+        DiagLog.configure(enabled: prefs.diagLoggingEnabled)
         IconSwitcher.apply(prefs.appIconStyle)
         LoginItemService.apply(prefs.launchAtLogin)
         // Hotkey must open (or toggle) and then re-assert keyboard focus —

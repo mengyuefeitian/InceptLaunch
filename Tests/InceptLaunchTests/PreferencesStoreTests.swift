@@ -52,3 +52,34 @@ import Testing
     #expect(decoded.hotKeyCode == 40)
     #expect(decoded.hotKeyModifiers == 768)
 }
+
+@Test func decodingLegacyPreferencesWithoutDiagLoggingFieldDefaultsToEnabled() throws {
+    // Simulates a preferences.json written before the diagnostic-logging
+    // toggle existed — it has no diagLoggingEnabled key at all. Must default
+    // to true so existing users keep getting logs (unchanged behavior)
+    // until they explicitly opt out in Settings.
+    let legacyJSON = """
+    {
+        "hotKeyCode": 49,
+        "hotKeyModifiers": 2048,
+        "launchAtLogin": false,
+        "showMenuBarIcon": true,
+        "showDockIcon": true,
+        "backgroundBlur": 0.72,
+        "reduceMotion": false,
+        "showSystemApplications": true,
+        "overlayDisplayMode": "activeDisplay",
+        "scanDirectories": ["/Applications"]
+    }
+    """
+    let decoded = try JSONDecoder.inceptLaunch.decode(UserPreferences.self, from: Data(legacyJSON.utf8))
+    #expect(decoded.diagLoggingEnabled == true)
+}
+
+@Test func diagLoggingEnabledRoundTripsThroughJSON() throws {
+    var preferences = UserPreferences.default
+    preferences.diagLoggingEnabled = false
+    let data = try JSONEncoder.inceptLaunch.encode(preferences)
+    let decoded = try JSONDecoder.inceptLaunch.decode(UserPreferences.self, from: data)
+    #expect(decoded.diagLoggingEnabled == false)
+}
