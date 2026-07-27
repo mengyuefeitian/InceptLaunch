@@ -103,14 +103,13 @@ struct GeneralSettingsView: View {
             }
 
             Section(Localizer.t("settings.launch")) {
-                TextField(Localizer.t("settings.hotKey"), text: $preferences.hotKey)
+                Text(Localizer.t("settings.hotKey"))
                 Toggle(Localizer.t("settings.launchAtLogin"), isOn: $preferences.launchAtLogin)
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.hotKey) { _, _ in onSave() }
         .onChange(of: preferences.launchAtLogin) { _, _ in onSave() }
         .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
         .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
