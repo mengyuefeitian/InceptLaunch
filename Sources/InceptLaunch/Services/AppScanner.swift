@@ -125,11 +125,8 @@ struct AppScanner {
         let isSystem = directory.path.hasPrefix("/System")
 
         if isSystem {
-            guard let enumerator = FileManager.default.enumerator(
-                at: directory,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else {
+            let subtreeFailures = FailureCollector()
+            guard let enumerator = enumeratorReportingFailures(at: directory, into: subtreeFailures) else {
                 DiagLog.write("AppScanner.collect: enumerator(at:) returned nil for \(directory.path)")
                 failedDirectories.append(directory.path)
                 return
@@ -140,6 +137,7 @@ struct AppScanner {
                     collected.append(record)
                 }
             }
+            failedDirectories.append(contentsOf: subtreeFailures.paths)
             return
         }
 
@@ -169,11 +167,8 @@ struct AppScanner {
                 }
             } else {
                 var memberPaths: [String] = []
-                if let enumerator = FileManager.default.enumerator(
-                    at: entry,
-                    includingPropertiesForKeys: [.isDirectoryKey],
-                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
-                ) {
+                let subtreeFailures = FailureCollector()
+                if let enumerator = enumeratorReportingFailures(at: entry, into: subtreeFailures) {
                     for item in enumerator {
                         guard let url = item as? URL, url.pathExtension == "app" else { continue }
                         if let record = record(for: url, now: now) {
@@ -182,11 +177,44 @@ struct AppScanner {
                         }
                     }
                 }
+                // A permission error partway through this subdirectory must
+                // block pruning of whatever apps it (partially) contributed —
+                // the failed subtree may hold more apps we never saw.
+                failedDirectories.append(contentsOf: subtreeFailures.paths)
                 if !memberPaths.isEmpty {
                     folderGroups.append((entry, memberPaths))
                 }
             }
         }
+    }
+
+    /// Wraps `FileManager.enumerator(at:)` with an `errorHandler` so a
+    /// permission error partway through a subtree is recorded instead of
+    /// silently truncating enumeration (FileManager's default with no
+    /// handler: stop descending into the erroring directory and continue
+    /// sibling traversal, with no thrown error and no nil result).
+    private func enumeratorReportingFailures(
+        at url: URL,
+        into failures: FailureCollector
+    ) -> FileManager.DirectoryEnumerator? {
+        FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { errorURL, error in
+                DiagLog.write("AppScanner.collect: enumeration error at \(errorURL.path) — \(error)")
+                failures.add(errorURL.path)
+                return true // keep enumerating sibling entries
+            }
+        )
+    }
+
+    /// Reference-type accumulator so the escaping `errorHandler` closure
+    /// (retained by the enumerator for the whole traversal) can record
+    /// failures without capturing an `inout` parameter.
+    private final class FailureCollector: @unchecked Sendable {
+        private(set) var paths: [String] = []
+        func add(_ path: String) { paths.append(path) }
     }
 
     private func record(for appURL: URL, now: Date) -> AppRecord? {

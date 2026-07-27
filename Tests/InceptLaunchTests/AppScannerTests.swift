@@ -110,6 +110,70 @@ import Testing
     #expect(result.failedDirectories == [missingDirectory.path])
 }
 
+/// Regression test: unlike the top-level `contentsOfDirectory` calls, the
+/// nested `FileManager.enumerator(at:)` calls used to group apps inside a
+/// directory-folder (e.g. `/Applications/Python 3.13`) and to walk `/System`
+/// trees passed no `errorHandler`. Per Apple's documented behavior, without
+/// one, a permission error on a subdirectory silently stops descent into
+/// just that subtree — the enumerator returns fewer items with no thrown
+/// error and no nil result. That subtree's apps vanished from `records` with
+/// nothing recorded in `failedDirectories`, so `applyScanResult`'s safety
+/// guard (added in cc80274/0876a08) never caught it: `pruneApps` treated the
+/// apps as uninstalled and silently wiped them from the user's folder. This
+/// reproduces with a real permission-denied subdirectory (chmod 000).
+@Test func scanReportsFailedDirectoryForUnreadableNestedFolder() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer {
+        // Restore permissions before cleanup so removal doesn't fail.
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: root.appendingPathComponent("BigFolder").path
+        )
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let bigFolder = root.appendingPathComponent("BigFolder", isDirectory: true)
+    try FileManager.default.createDirectory(at: bigFolder, withIntermediateDirectories: true)
+    try makeSyntheticApp(named: "AppB", bundleID: "com.example.AppB", in: bigFolder)
+    try makeSyntheticApp(named: "AppC", bundleID: "com.example.AppC", in: bigFolder)
+
+    // Deny read/execute on BigFolder so its contents can't be enumerated —
+    // simulating a TCC permission that hasn't fully propagated yet right
+    // after granting "App Management" and restarting.
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: bigFolder.path)
+
+    let scanner = AppScanner()
+    let result = scanner.scanAll(directories: [root])
+
+    // $TMPDIR is under /var, which FileManager's errorHandler reports
+    // resolved to /private/var — compare on the stable suffix instead.
+    #expect(
+        result.failedDirectories.contains { $0.hasSuffix("/BigFolder") },
+        "an unreadable nested folder must be reported as failed, not silently treated as empty"
+    )
+}
+
+/// Writes a minimal synthetic `.app` bundle named `name` directly inside `directory`.
+private func makeSyntheticApp(named name: String, bundleID: String, in directory: URL) throws {
+    let appURL = directory.appendingPathComponent("\(name).app", isDirectory: true)
+    let contents = appURL.appendingPathComponent("Contents", isDirectory: true)
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    try """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>CFBundleIdentifier</key>
+      <string>\(bundleID)</string>
+      <key>CFBundleName</key>
+      <string>\(name)</string>
+    </dict>
+    </plist>
+    """.data(using: .utf8)!.write(to: contents.appendingPathComponent("Info.plist"))
+}
+
 /// Creates a temp directory containing one synthetic `.app` bundle whose
 /// `CFBundleName` can differ from the file name.
 private func makeSyntheticApp(name: String, bundleName: String) throws -> URL {
