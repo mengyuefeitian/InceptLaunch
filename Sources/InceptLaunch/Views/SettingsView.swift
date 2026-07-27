@@ -83,6 +83,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @Binding var preferences: UserPreferences
+    weak var hotKeyManager: GlobalHotKeyManager?
     let onSave: () -> Void
 
     var body: some View {
@@ -104,7 +105,12 @@ struct GeneralSettingsView: View {
             }
 
             Section(Localizer.t("settings.launch")) {
-                Text(Localizer.t("settings.hotKey"))
+                HotKeyRecorderRow(
+                    keyCode: $preferences.hotKeyCode,
+                    modifiers: $preferences.hotKeyModifiers,
+                    hotKeyManager: hotKeyManager,
+                    onCommitted: onSave
+                )
                 Toggle(Localizer.t("settings.launchAtLogin"), isOn: $preferences.launchAtLogin)
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)

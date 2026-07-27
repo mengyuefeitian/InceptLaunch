@@ -68,6 +68,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "Global shortcut",
+        "settings.hotKeyPressKeys": "Press keys…",
+        "settings.hotKeyNeedsModifier": "Hold at least one modifier key (⌘⌥⌃⇧)",
+        "settings.hotKeyEscReserved": "Esc is reserved to close the overlay",
+        "settings.hotKeyConflict": "That combo is already used by another app — try a different one",
         "settings.launchAtLogin": "Launch at login",
         "settings.showMenuBarIcon": "Show menu bar icon",
         "settings.showDockIcon": "Show Dock icon",
@@ -165,6 +169,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "全局快捷键",
+        "settings.hotKeyPressKeys": "按下快捷键…",
+        "settings.hotKeyNeedsModifier": "请至少按住一个修饰键（⌘⌥⌃⇧）",
+        "settings.hotKeyEscReserved": "Esc 已保留用于关闭悬浮窗，不能作为快捷键",
+        "settings.hotKeyConflict": "该组合已被其他应用占用，请换一个",
         "settings.launchAtLogin": "开机自启",
         "settings.showMenuBarIcon": "显示菜单栏图标",
         "settings.showDockIcon": "显示 Dock 图标",
@@ -262,6 +270,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "グローバルショートカット",
+        "settings.hotKeyPressKeys": "キーを押してください…",
+        "settings.hotKeyNeedsModifier": "修飾キー（⌘⌥⌃⇧）を1つ以上押してください",
+        "settings.hotKeyEscReserved": "Escはオーバーレイを閉じるために予約されています",
+        "settings.hotKeyConflict": "この組み合わせは他のアプリで使用されています。別のキーを選んでください",
         "settings.launchAtLogin": "ログイン時に起動",
         "settings.showMenuBarIcon": "メニューバーアイコンを表示",
         "settings.showDockIcon": "Dockアイコンを表示",
@@ -359,6 +371,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "글로벌 단축키",
+        "settings.hotKeyPressKeys": "키를 누르세요…",
+        "settings.hotKeyNeedsModifier": "수정 키(⌘⌥⌃⇧)를 하나 이상 눌러야 합니다",
+        "settings.hotKeyEscReserved": "Esc는 오버레이를 닫는 데 예약되어 있습니다",
+        "settings.hotKeyConflict": "이 조합은 다른 앱에서 이미 사용 중입니다. 다른 조합을 선택하세요",
         "settings.launchAtLogin": "로그인 시 실행",
         "settings.showMenuBarIcon": "메뉴 막대 아이콘 표시",
         "settings.showDockIcon": "Dock 아이콘 표시",
@@ -456,6 +472,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "Глобальное сочетание клавиш",
+        "settings.hotKeyPressKeys": "Нажмите клавиши…",
+        "settings.hotKeyNeedsModifier": "Удерживайте хотя бы одну клавишу-модификатор (⌘⌥⌃⇧)",
+        "settings.hotKeyEscReserved": "Esc зарезервирован для закрытия окна",
+        "settings.hotKeyConflict": "Эта комбинация уже используется другим приложением — выберите другую",
         "settings.launchAtLogin": "Запускать при входе",
         "settings.showMenuBarIcon": "Показывать значок в строке меню",
         "settings.showDockIcon": "Показывать значок в Dock",
