@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, interface, appManagement, about
+    case general, interface, appManagement, logs, about
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: return "settings.general"
         case .interface: return "settings.interface"
         case .appManagement: return "settings.appManagement"
+        case .logs: return "settings.logs"
         case .about: return "settings.about"
         }
     }
@@ -20,6 +21,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: return "gearshape"
         case .interface: return "paintbrush"
         case .appManagement: return "square.grid.2x2"
+        case .logs: return "doc.text.magnifyingglass"
         case .about: return "info.circle"
         }
     }
@@ -44,27 +46,39 @@ struct SettingsView: View {
             // Settings changes — reverting those didn't fix it). Selection is
             // driven directly by Button taps here instead, so there is only
             // ever one source of truth for which category is selected.
-            List {
-                ForEach(SettingsCategory.allCases) { category in
-                    let isSelected = selectedCategory == category
-                    Button {
-                        selectedCategory = category
-                    } label: {
-                        Label(Localizer.t(category.localizationKey), systemImage: category.icon)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+            //
+            // Still wrapping the buttons in `List` (even unselected) left a
+            // residual "click 2-3 times to register" lag: on macOS `List` is
+            // backed by NSTableView, whose row views intercept the first
+            // click for their own hit-testing/tracking machinery before
+            // forwarding to a plain-style Button inside — a known AppKit
+            // interop quirk independent of the `selection:` binding. Plain
+            // `ScrollView` + `VStack` has no such row layer, so every click
+            // reaches the Button on the first try.
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(SettingsCategory.allCases) { category in
+                        let isSelected = selectedCategory == category
+                        Button {
+                            selectedCategory = category
+                        } label: {
+                            Label(Localizer.t(category.localizationKey), systemImage: category.icon)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(isSelected ? Color.accentColor : Color.clear)
+                        )
+                        .foregroundStyle(isSelected ? Color.white : Color.primary)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isSelected ? Color.accentColor : Color.clear)
-                    )
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
                 }
+                .padding(8)
             }
-            .listStyle(.sidebar)
+            .background(.regularMaterial)
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
         } detail: {
             switch selectedCategory {
@@ -74,6 +88,8 @@ struct SettingsView: View {
                 AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
             case .appManagement:
                 AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
+            case .logs:
+                LogManagementSettingsView(preferences: $preferences, onSave: savePreferences)
             case .about:
                 AboutView(preferences: preferences)
             case nil:
@@ -142,7 +158,30 @@ struct GeneralSettingsView: View {
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)
             }
+        }
+        .formStyle(.grouped)
+        .onChange(of: preferences.launchAtLogin) { _, newValue in
+            LoginItemService.apply(newValue)
+            onSave()
+        }
+        .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
+        .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
+        .onChange(of: preferences.animateIcons) { _, _ in onSave() }
+        .onChange(of: preferences.animatePageFlip) { _, _ in onSave() }
+        .onChange(of: preferences.animateFolder) { _, _ in onSave() }
+        .onChange(of: preferences.animateDrag) { _, _ in onSave() }
+        .onChange(of: preferences.animateSearch) { _, _ in onSave() }
+    }
+}
 
+// MARK: - Log Management
+
+struct LogManagementSettingsView: View {
+    @Binding var preferences: UserPreferences
+    let onSave: () -> Void
+
+    var body: some View {
+        Form {
             Section(Localizer.t("about.diagnostics")) {
                 Toggle(Localizer.t("about.diagnosticsToggle"), isOn: $preferences.diagLoggingEnabled)
                 Text(Localizer.t("about.diagnosticsHint"))
@@ -157,17 +196,6 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.launchAtLogin) { _, newValue in
-            LoginItemService.apply(newValue)
-            onSave()
-        }
-        .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
-        .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
-        .onChange(of: preferences.animateIcons) { _, _ in onSave() }
-        .onChange(of: preferences.animatePageFlip) { _, _ in onSave() }
-        .onChange(of: preferences.animateFolder) { _, _ in onSave() }
-        .onChange(of: preferences.animateDrag) { _, _ in onSave() }
-        .onChange(of: preferences.animateSearch) { _, _ in onSave() }
         .onChange(of: preferences.diagLoggingEnabled) { _, newValue in
             DiagLog.configure(enabled: newValue)
             onSave()

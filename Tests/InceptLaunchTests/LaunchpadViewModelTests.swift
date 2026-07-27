@@ -195,6 +195,72 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+/// Regression: bootstrapScan used to force a *global* repaginate whenever any
+/// folder was enlarged, pulling apps forward from later pages to fill room on
+/// earlier ones — visible as "my folders/pages got reorganized just from
+/// opening the launchpad". Page 0 has an enlarged folder plus a couple of
+/// apps, with plenty of room to spare; page 1's apps must stay put since page
+/// 0 never overflows. Only an explicit tidyGrid() should ever move them.
+@MainActor @Test func bootstrapDoesNotBackfillOtherPagesWhenAnyFolderIsEnlarged() async throws {
+    let folder = LaunchpadFolder(
+        id: "folder:big",
+        name: "Big",
+        items: ["bundle:com.example.app0", "bundle:com.example.app1"],
+        createdAt: Date(timeIntervalSince1970: 1),
+        updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let legacy = LaunchpadLayout(
+        pages: [
+            [.folder("folder:big"), .app("bundle:com.example.app2"), .app("bundle:com.example.app3")],
+            [.app("bundle:com.example.app4"), .app("bundle:com.example.app5"), .app("bundle:com.example.app6")]
+        ],
+        folders: [folder],
+        hiddenAppIDs: [],
+        grid: .init(columns: 7, rows: 4, iconSize: 72),
+        enlargedFolderIDs: ["folder:big"]
+    )
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+    persistence.save(legacy)
+
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: scanDir, withIntermediateDirectories: true)
+    for n in 0...6 {
+        try makeBundle(in: scanDir, name: "app\(n)", bundleID: "com.example.app\(n)")
+    }
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    await viewModel.bootstrapScan()
+
+    let saved = try JSONDecoder.inceptLaunch.decode(
+        LaunchpadLayout.self,
+        from: Data(contentsOf: layoutURL)
+    )
+    #expect(saved.pages.count >= 2)
+    let page1AppIDs = saved.pages[1].compactMap { item -> String? in
+        if case .app(let id) = item { return id }
+        return nil
+    }
+    #expect(Set(page1AppIDs) == ["bundle:com.example.app4", "bundle:com.example.app5", "bundle:com.example.app6"])
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 @MainActor @Test func bootstrapRoutesAppleAppsToAppleFolder() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")

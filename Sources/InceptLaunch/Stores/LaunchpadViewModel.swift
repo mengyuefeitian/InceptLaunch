@@ -266,18 +266,21 @@ final class LaunchpadViewModel {
         }
         // Start from the saved layout so user folders and positions persist.
         layoutStore = LayoutStore(layout: layoutPersistence.load())
-        // Force re-pagination when enlarged folders exist because the
-        // cell-counting logic changed (enlarged = 4 cells) without changing
-        // the stored capacity value.
-        // Sync geometry first so 2×2 occupancy uses the configured rows/cols.
+        // Sync geometry so 2×2 occupancy uses the configured rows/cols, and
+        // push any resulting overflow forward onto later pages.
+        //
+        // This used to fall through to a *global* `repaginate(force: true)`
+        // whenever any folder was enlarged, to fix up stale page capacity
+        // from before enlarged folders counted as 4 cells. `updateGrid` (via
+        // `enforcePageCapacity`) already accounts for 2×2 occupancy and pages
+        // correctly now, so that global repack is no longer needed — and it
+        // was actively harmful: bootstrapScan runs on every overlay open, so
+        // any user with an enlarged folder had their entire layout flattened
+        // and repacked (apps pulled forward from later pages into earlier
+        // ones) every single time they opened the launchpad, not just when
+        // they intentionally changed rows/columns. Global repacking should
+        // only ever happen from an explicit "整理桌面" (tidyGrid) action.
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
-        if hasEnlarged {
-            layoutStore.repaginate(
-                capacity: gridColumns * gridRows,
-                force: true
-            )
-        }
         let scanner = self.scanner
         let result = await Task.detached(priority: .userInitiated) {
             scanner.scanAll(directories: urls)
@@ -387,16 +390,20 @@ final class LaunchpadViewModel {
 
     func enlargeFolder(id: String) {
         layoutStore.enlargeFolder(id: id)
-        // 2×2 occupancy can force a 5th visual row even when cell sum ≤ capacity.
+        // 2×2 occupancy can force a 5th visual row even when cell sum ≤
+        // capacity — `updateGrid` (via `enforcePageCapacity`) already
+        // accounts for that and only pushes overflow forward onto later
+        // pages. A global `repaginate` here would additionally pull apps
+        // forward from later pages into this one, which is reserved for an
+        // explicit "整理桌面" (tidyGrid) action, not an implicit side effect
+        // of enlarging a folder.
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
     func shrinkFolder(id: String) {
         layoutStore.shrinkFolder(id: id)
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
