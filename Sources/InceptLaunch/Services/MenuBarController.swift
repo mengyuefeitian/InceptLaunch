@@ -4,6 +4,7 @@ import AppKit
 final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let overlay: OverlayWindowController
+    private weak var hotKeyManager: GlobalHotKeyManager?
     private let settings = SettingsWindowController()
     private let statusMenu = NSMenu()
     private var languageObserver: NSObjectProtocol?
@@ -13,8 +14,9 @@ final class MenuBarController: NSObject {
     private var logsItem: NSMenuItem!
     private var quitItem: NSMenuItem!
 
-    init(overlay: OverlayWindowController) {
+    init(overlay: OverlayWindowController, hotKeyManager: GlobalHotKeyManager?) {
         self.overlay = overlay
+        self.hotKeyManager = hotKeyManager
         super.init()
 
         applyIcon()
@@ -87,7 +89,7 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func openSettings() {
-        settings.show(viewModel: overlay.exposedViewModel)
+        settings.show(viewModel: overlay.exposedViewModel, hotKeyManager: hotKeyManager)
     }
 
     @objc private func openLogs() {

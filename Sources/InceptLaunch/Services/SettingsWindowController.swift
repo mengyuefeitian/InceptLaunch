@@ -5,10 +5,12 @@ import SwiftUI
 final class SettingsWindowController {
     private var window: NSWindow?
     private weak var viewModel: LaunchpadViewModel?
+    private weak var hotKeyManager: GlobalHotKeyManager?
     private var languageObserver: NSObjectProtocol?
 
-    func show(viewModel: LaunchpadViewModel? = nil) {
+    func show(viewModel: LaunchpadViewModel? = nil, hotKeyManager: GlobalHotKeyManager? = nil) {
         self.viewModel = viewModel
+        self.hotKeyManager = hotKeyManager
         if let window {
             window.title = Localizer.t("settings.title")
             window.makeKeyAndOrderFront(nil)
@@ -22,7 +24,7 @@ final class SettingsWindowController {
             defer: false
         )
         window.title = Localizer.t("settings.title")
-        window.contentView = NSHostingView(rootView: SettingsView(viewModel: viewModel))
+        window.contentView = NSHostingView(rootView: SettingsView(viewModel: viewModel, hotKeyManager: hotKeyManager))
         window.center()
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)

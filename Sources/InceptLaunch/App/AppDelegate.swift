@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Apply the user's chosen app icon to the Dock.
         let prefs = (try? PreferencesStore().load()) ?? .default
         IconSwitcher.apply(prefs.appIconStyle)
-        menuBarController = MenuBarController(overlay: overlay)
+        LoginItemService.apply(prefs.launchAtLogin)
         // Hotkey must open (or toggle) and then re-assert keyboard focus —
         // Carbon hotkeys fire while another app is frontmost.
         hotKeyManager = GlobalHotKeyManager { [overlay] in
@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         hotKeyManager?.start(keyCode: prefs.hotKeyCode, modifiers: prefs.hotKeyModifiers)
+        menuBarController = MenuBarController(overlay: overlay, hotKeyManager: hotKeyManager)
         // Launch straight into the full-screen launchpad overlay.
         overlay.show()
     }

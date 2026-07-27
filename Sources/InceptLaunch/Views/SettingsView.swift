@@ -31,6 +31,7 @@ struct SettingsView: View {
     @State private var languageVersion = 0
     private let preferencesStore = PreferencesStore()
     weak var viewModel: LaunchpadViewModel?
+    weak var hotKeyManager: GlobalHotKeyManager?
 
     var body: some View {
         NavigationSplitView {
@@ -42,7 +43,7 @@ struct SettingsView: View {
         } detail: {
             switch selectedCategory {
             case .general:
-                GeneralSettingsView(preferences: $preferences, onSave: savePreferences)
+                GeneralSettingsView(preferences: $preferences, hotKeyManager: hotKeyManager, onSave: savePreferences)
             case .interface:
                 AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
             case .appManagement:
