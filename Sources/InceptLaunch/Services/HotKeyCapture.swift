@@ -9,8 +9,9 @@ import Carbon
 /// system API.
 enum HotKeyCapture {
     /// A combo is valid to register when it holds at least one modifier
-    /// (so we never hijack plain typing) and isn't bare Esc (reserved to
-    /// close the overlay).
+    /// (so we never hijack plain typing) and isn't any Esc combination —
+    /// modified or bare — since Esc is reserved as the overlay's universal
+    /// close key.
     static func isValid(keyCode: UInt32, modifiers: UInt32) -> Bool {
         guard modifiers != 0 else { return false }
         guard keyCode != UInt32(kVK_Escape) else { return false }
@@ -29,13 +30,15 @@ enum HotKeyCapture {
         return result
     }
 
-    /// Human-readable label, e.g. "⌥Space", "⌘⇧K".
+    /// Human-readable label, e.g. "⌥Space", "⇧⌘K". Follows real macOS
+    /// convention: ⌃⌥⇧⌘ order, with Command last (e.g. Finder's "Save As"
+    /// shows "⇧⌘S", not "⌘⇧S").
     static func displayString(keyCode: UInt32, modifiers: UInt32) -> String {
         var result = ""
-        if modifiers & UInt32(cmdKey) != 0 { result += "⌘" }
+        if modifiers & UInt32(controlKey) != 0 { result += "⌃" }
         if modifiers & UInt32(optionKey) != 0 { result += "⌥" }
         if modifiers & UInt32(shiftKey) != 0 { result += "⇧" }
-        if modifiers & UInt32(controlKey) != 0 { result += "⌃" }
+        if modifiers & UInt32(cmdKey) != 0 { result += "⌘" }
         result += keyLabel(for: keyCode)
         return result
     }

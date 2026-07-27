@@ -35,5 +35,5 @@ import Testing
 
 @Test func displaysCommandShiftReturn() {
     let modifiers = UInt32(cmdKey) | UInt32(shiftKey)
-    #expect(HotKeyCapture.displayString(keyCode: UInt32(kVK_Return), modifiers: modifiers) == "⌘⇧Return")
+    #expect(HotKeyCapture.displayString(keyCode: UInt32(kVK_Return), modifiers: modifiers) == "⇧⌘Return")
 }
