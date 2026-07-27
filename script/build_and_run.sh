@@ -97,7 +97,12 @@ open_app_isolated() {
   local data_dir
   data_dir="$(mktemp -d "${TMPDIR:-/tmp}/inceptlaunch-verify.XXXXXX")"
   echo "verify data dir: $data_dir"
-  INCEPTLAUNCH_DATA_DIR="$data_dir" "$APP_BINARY" &
+  # Redirect the backgrounded GUI process's own stdout/stderr away from this
+  # script's fds — otherwise a caller piping this script's output (e.g. to
+  # `tail`) blocks forever waiting for EOF, since the long-lived app process
+  # holds the pipe open.
+  INCEPTLAUNCH_DATA_DIR="$data_dir" nohup "$APP_BINARY" >/dev/null 2>&1 &
+  disown
 }
 
 case "$MODE" in
