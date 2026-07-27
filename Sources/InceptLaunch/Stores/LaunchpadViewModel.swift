@@ -76,6 +76,11 @@ final class LaunchpadViewModel {
     /// Absolute pointer position in overlay coordinate space during grid drag.
     var gridDragLocation: CGPoint = .zero
 
+    /// Chains overlapping `bootstrapScan()` calls so each one's read-modify-
+    /// write of `layout.json` starts only after the previous one's write
+    /// finished — see `bootstrapScan()` for why this matters.
+    private var scanQueueTail: Task<Void, Never>?
+
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
     private let matcher: SearchMatcher
@@ -230,7 +235,28 @@ final class LaunchpadViewModel {
     /// worst after a permission change unlocks scanning many more
     /// directories/apps than usual. It now runs on a background task and
     /// only hops back to the MainActor to apply the result.
+    ///
+    /// The overlay re-triggers this on every show (a fresh `ContentView`,
+    /// hence a fresh `.task`), so a fast open/close/reopen can start a
+    /// second scan before the first one's background `Task.detached` (which
+    /// is NOT cancelled by the first `.task` being torn down) has finished.
+    /// Without serialization, whichever scan happens to *finish* last wins
+    /// and persists — even if it started first and read a now-stale
+    /// `layout.json`, silently reverting whatever the other scan just wrote
+    /// (e.g. a newly-installed app it discovered). Chaining through
+    /// `scanQueueTail` makes each call's read-modify-write wait for the
+    /// previous one's write to land first, so writes land in call order.
     func bootstrapScan() async {
+        let previous = scanQueueTail
+        let task = Task { [weak self] in
+            _ = await previous?.value
+            await self?.performBootstrapScan()
+        }
+        scanQueueTail = task
+        await task.value
+    }
+
+    private func performBootstrapScan() async {
         let preferences = (try? preferencesStore.load()) ?? .default
         self.preferences = preferences
         showSystemApplications = preferences.showSystemApplications

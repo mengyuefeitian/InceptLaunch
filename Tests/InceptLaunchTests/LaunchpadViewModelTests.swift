@@ -325,6 +325,81 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
+/// Regression test: the overlay re-triggers `bootstrapScan()` on every show
+/// (a fresh `ContentView`, hence a fresh `.task`), and the previous scan's
+/// `Task.detached` is NOT cancelled just because the SwiftUI task that
+/// launched it was torn down. A fast open/close/reopen (e.g. a double
+/// hotkey press) could start scan #2 while scan #1 — which read
+/// `layout.json` *before* scan #2's newly-discovered app existed — was
+/// still running. If scan #1 then finished (and persisted) *after* scan #2,
+/// its stale in-memory state silently overwrote scan #2's write, dropping
+/// the newly-installed app from `layout.json` even though scan #2 found it.
+/// `bootstrapScan()` must serialize overlapping calls so writes land in
+/// call order, not finish order.
+@MainActor @Test func bootstrapScanSerializesOverlappingCallsSoWritesLandInCallOrder() async throws {
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: scanDir, name: "AppA", bundleID: "com.example.AppA")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    // Blocks exactly the FIRST scan to reach this point (whichever call gets
+    // there first) until the test explicitly releases it — simulating the
+    // first (slower) scan still being in flight when the second one starts.
+    let gate = ScanGate()
+    var scanner = AppScanner()
+    scanner.finderNameProvider = { _ in
+        gate.blockOnce()
+        return nil
+    }
+
+    let viewModel = LaunchpadViewModel(
+        scanner: scanner,
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+
+    async let first: Void = viewModel.bootstrapScan()
+    // Give scan #1 time to start, list the directory (seeing only AppA),
+    // and block inside finderNameProvider.
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    // AppB "gets installed" while scan #1 is still blocked.
+    try makeBundle(in: scanDir, name: "AppB", bundleID: "com.example.AppB")
+    async let second: Void = viewModel.bootstrapScan()
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    // Let scan #1 (still holding the gate) finish.
+    gate.release()
+
+    _ = await first
+    _ = await second
+
+    let saved = try JSONDecoder.inceptLaunch.decode(LaunchpadLayout.self, from: Data(contentsOf: layoutURL))
+    let appIDs = saved.pages.flatMap { $0 }.compactMap { item -> String? in
+        if case .app(let id) = item { return id }
+        return nil
+    }
+    #expect(
+        appIDs.contains("bundle:com.example.AppB"),
+        "AppB, found only by the second (later-started) scan, must survive even though the first (earlier-started, slower) scan persists after it"
+    )
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
 /// Regression test: a scan that transiently returns zero apps (e.g. a
 /// filesystem hiccup around an app reinstall — AppScanner silently swallows
 /// `FileManager` errors per directory) used to be treated as fully
@@ -826,6 +901,29 @@ private final class ThreadObservationBox: @unchecked Sendable {
         lock.lock()
         _seen = true
         lock.unlock()
+    }
+}
+
+/// Blocks the first caller of `blockOnce()` on a semaphore until `release()`
+/// is called; every subsequent caller returns immediately. Used to make one
+/// (whichever) of two concurrent scans deterministically the "slow" one.
+private final class ScanGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hasBlocked = false
+    private let semaphore = DispatchSemaphore(value: 0)
+
+    func blockOnce() {
+        lock.lock()
+        let shouldBlock = !hasBlocked
+        hasBlocked = true
+        lock.unlock()
+        if shouldBlock {
+            semaphore.wait()
+        }
+    }
+
+    func release() {
+        semaphore.signal()
     }
 }
 
