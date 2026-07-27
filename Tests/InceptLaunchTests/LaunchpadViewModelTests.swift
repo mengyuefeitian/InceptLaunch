@@ -333,6 +333,73 @@ import Testing
 /// layout was persisted immediately — permanently destroying the user's
 /// arrangement from one bad scan. A scan returning nothing must never
 /// overwrite an existing non-empty layout.
+/// Regression test: a scan can return a non-empty (even large) result while
+/// one of several configured scan directories failed to enumerate (a
+/// transient race around an app install/relaunch, an unmounted volume, a
+/// permission hiccup). The prior "empty scan" guard only protected against a
+/// TOTALLY empty result — it did nothing here, because most apps still
+/// scanned fine. But pruneApps(notIn:) still silently drops layout entries
+/// for apps that happen to live only in the ONE directory that failed,
+/// dissolving any folder built from them, even though those apps are still
+/// installed. A scan reporting any failed directory must not prune at all.
+@MainActor @Test func partiallyFailedScanDoesNotWipeExistingLayout() async throws {
+    // Apps live in `folderedDir` (the directory that will fail on rescan);
+    // `otherDir` holds an unrelated, always-scannable app so the overall
+    // scan result stays non-empty and the prior "totally empty" guard alone
+    // would not save the folder here.
+    let folderedDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: folderedDir, name: "AppA", bundleID: "com.example.AppA")
+    try makeBundle(in: folderedDir, name: "AppB", bundleID: "com.example.AppB")
+    let otherDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: otherDir, name: "AppC", bundleID: "com.example.AppC")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [folderedDir.path, otherDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let viewModel = LaunchpadViewModel(
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    await viewModel.bootstrapScan()
+
+    let appAID = "bundle:com.example.AppA"
+    let appBID = "bundle:com.example.AppB"
+    let target = viewModel.visiblePages.flatMap { $0 }.first { $0.id == appAID }!
+    viewModel.handleDrop(sourceID: appBID, onto: target)
+    #expect(viewModel.visiblePages.flatMap { $0 }.count == 2, "one folder tile (AppA+AppB) plus AppC")
+
+    // Simulate folderedDir becoming transiently unreadable (deleted mid-race,
+    // an unmounted volume, a permission hiccup) while otherDir keeps working
+    // — the overall scan result is still non-empty (AppC).
+    try FileManager.default.removeItem(at: folderedDir)
+
+    await viewModel.bootstrapScan()
+
+    let afterPartialFailure = viewModel.visiblePages.flatMap { $0 }
+    #expect(afterPartialFailure.count == 2, "the folder must survive a scan where its directory failed, even though the overall result (AppC) was non-empty")
+    guard let folderItem = afterPartialFailure.first(where: { if case .folder = $0.kind { return true }; return false }),
+          case .folder(let folder) = folderItem.kind else {
+        Issue.record("expected the AppA/AppB folder to still be present after a partially-failed scan")
+        return
+    }
+    #expect(Set(folder.items) == Set([appAID, appBID]))
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: otherDir)
+}
+
 @MainActor @Test func emptyScanDoesNotWipeExistingLayout() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")

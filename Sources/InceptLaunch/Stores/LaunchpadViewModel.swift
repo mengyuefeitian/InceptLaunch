@@ -167,13 +167,22 @@ final class LaunchpadViewModel {
     }
 
     func applyScanResult(_ result: ScanResult) {
-        // AppScanner silently swallows FileManager errors per directory (a
+        // AppScanner reports directories it failed to enumerate (a
         // moved/locked directory, an unmounted volume, a transient glitch
-        // around a reinstall) and simply contributes zero records for that
-        // directory. Treating that as authoritative would prune every app
-        // off every page and out of every folder via pruneApps(notIn: []) —
-        // destroying the user's entire arrangement from one bad scan. A scan
-        // that found nothing must never overwrite a non-empty layout.
+        // around a reinstall) instead of silently pretending they're empty.
+        // Two failure shapes must be guarded against separately:
+        //  - Any directory failing must not prune at all — apps that live
+        //    only in that directory would be treated as uninstalled and
+        //    dropped from every folder/page referencing them, even though
+        //    the OVERALL result looks fine because other directories still
+        //    scanned successfully.
+        //  - A scan that found nothing anywhere must never overwrite a
+        //    non-empty layout (pruneApps(notIn: []) would wipe every page
+        //    and folder in one pass).
+        guard result.failedDirectories.isEmpty else {
+            DiagLog.write("applyScanResult: directories failed to scan (\(result.failedDirectories.joined(separator: ", "))) — skipping to avoid wiping user data for apps that live there")
+            return
+        }
         guard !result.records.isEmpty || !layoutHasContent else {
             DiagLog.write("applyScanResult: scan returned 0 apps while the layout has \(layoutStore.layout.folders.count) folder(s) — skipping to avoid wiping user data")
             return
@@ -247,6 +256,7 @@ final class LaunchpadViewModel {
         let result = await Task.detached(priority: .userInitiated) {
             scanner.scanAll(directories: urls)
         }.value
+        DiagLog.write("bootstrapScan: scanned \(urls.map(\.path)) -> \(result.records.count) app(s), \(result.directoryFolders.count) directory-folder(s)")
         applyScanResult(result)
         persistLayout()
     }
