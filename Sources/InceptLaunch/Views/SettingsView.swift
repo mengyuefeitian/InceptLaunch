@@ -110,7 +110,10 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.launchAtLogin) { _, _ in onSave() }
+        .onChange(of: preferences.launchAtLogin) { _, newValue in
+            LoginItemService.apply(newValue)
+            onSave()
+        }
         .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
         .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
         .onChange(of: preferences.animateIcons) { _, _ in onSave() }
