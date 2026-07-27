@@ -135,7 +135,7 @@ struct ContentView: View {
             handleBlankTap()
         }
         .task {
-            viewModel.bootstrapScan()
+            await viewModel.bootstrapScan()
         }
         .onAppear {
             syncScrollHijack()

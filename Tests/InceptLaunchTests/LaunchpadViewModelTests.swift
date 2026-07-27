@@ -148,7 +148,7 @@ import Testing
     try? FileManager.default.removeItem(at: prefsURL)
 }
 
-@MainActor @Test func bootstrapRepaginatesLegacyLayoutForScreen() throws {
+@MainActor @Test func bootstrapRepaginatesLegacyLayoutForScreen() async throws {
     // Legacy layout saved before adaptive rows: 45 items on 35-item pages,
     // no recorded page capacity.
     let legacyItems = (0..<45).map { LaunchpadItem.app("app\($0)") }
@@ -179,7 +179,7 @@ import Testing
         layoutPersistence: persistence,
         screenHeight: 1080
     )
-    viewModel.bootstrapScan()
+    await viewModel.bootstrapScan()
 
     let saved = try JSONDecoder.inceptLaunch.decode(
         LaunchpadLayout.self,
@@ -195,7 +195,7 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
-@MainActor @Test func bootstrapRoutesAppleAppsToAppleFolder() throws {
+@MainActor @Test func bootstrapRoutesAppleAppsToAppleFolder() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")
     try makeBundle(in: scanDir, name: "Mail", bundleID: "com.apple.Mail")
@@ -218,7 +218,7 @@ import Testing
         layoutPersistence: persistence,
         screenHeight: 1080
     )
-    viewModel.bootstrapScan()
+    await viewModel.bootstrapScan()
 
     let saved = try JSONDecoder.inceptLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
@@ -239,7 +239,7 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
-@MainActor @Test func bootstrapKeepsLoneAppleAppOnGrid() throws {
+@MainActor @Test func bootstrapKeepsLoneAppleAppOnGrid() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")
     // Only one Apple app: below the folder threshold, so it must stay on the grid.
@@ -262,7 +262,7 @@ import Testing
         layoutPersistence: persistence,
         screenHeight: 1080
     )
-    viewModel.bootstrapScan()
+    await viewModel.bootstrapScan()
 
     let saved = try JSONDecoder.inceptLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
@@ -281,7 +281,51 @@ import Testing
     try? FileManager.default.removeItem(at: scanDir)
 }
 
-@MainActor @Test func bootstrapRescanKeepsDraggedOutAppleAppOnGrid() throws {
+/// Regression test: `bootstrapScan()` used to call `AppScanner.scanAll`
+/// synchronously on the MainActor, which froze the overlay (unresponsive to
+/// Esc/click, blank render) for the full duration of the filesystem +
+/// Spotlight scan. The scan must run off the main thread.
+@MainActor @Test func bootstrapScanRunsScannerOffMainThread() async throws {
+    let scanDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-scan-\(UUID().uuidString)")
+    try makeBundle(in: scanDir, name: "TestApp", bundleID: "com.example.TestApp")
+
+    let layoutURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: layoutURL))
+
+    var preferences = UserPreferences.default
+    preferences.scanDirectories = [scanDir.path]
+    let preferencesURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-prefs-\(UUID().uuidString).json")
+    let preferencesStore = PreferencesStore(fileStore: JSONFileStore<UserPreferences>(url: preferencesURL))
+    try preferencesStore.save(preferences)
+
+    let sawBackgroundThread = ThreadObservationBox()
+    var scanner = AppScanner()
+    scanner.finderNameProvider = { _ in
+        if !Thread.isMainThread {
+            sawBackgroundThread.markSeen()
+        }
+        return nil
+    }
+
+    let viewModel = LaunchpadViewModel(
+        scanner: scanner,
+        preferencesStore: preferencesStore,
+        layoutPersistence: persistence,
+        screenHeight: 1080
+    )
+    await viewModel.bootstrapScan()
+
+    #expect(sawBackgroundThread.seen)
+
+    try? FileManager.default.removeItem(at: layoutURL)
+    try? FileManager.default.removeItem(at: preferencesURL)
+    try? FileManager.default.removeItem(at: scanDir)
+}
+
+@MainActor @Test func bootstrapRescanKeepsDraggedOutAppleAppOnGrid() async throws {
     let scanDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("test-scan-\(UUID().uuidString)")
     try makeBundle(in: scanDir, name: "Mail", bundleID: "com.apple.Mail")
@@ -306,7 +350,7 @@ import Testing
     )
 
     // First scan: the two Apple apps are collected into folder:apple.
-    viewModel.bootstrapScan()
+    await viewModel.bootstrapScan()
 
     // Simulate the user dragging Mail out of the folder onto the grid, then
     // persisting that change (as the app does after a drag).
@@ -321,7 +365,7 @@ import Testing
     try JSONEncoder.inceptLaunch.encode(saved).write(to: layoutURL)
 
     // Second scan: must NOT yank Mail back into the folder or duplicate it.
-    viewModel.bootstrapScan()
+    await viewModel.bootstrapScan()
 
     let final = try JSONDecoder.inceptLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
@@ -631,6 +675,23 @@ import Testing
     // Every page must fit 4×7 cell capacity after finalize.
     for page in viewModel.visiblePages {
         #expect(page.count <= 28)
+    }
+}
+
+private final class ThreadObservationBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _seen = false
+
+    var seen: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _seen
+    }
+
+    func markSeen() {
+        lock.lock()
+        _seen = true
+        lock.unlock()
     }
 }
 

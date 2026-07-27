@@ -196,7 +196,15 @@ final class LaunchpadViewModel {
         return launcher.launch(record)
     }
 
-    func bootstrapScan() {
+    /// Scans installed apps and applies the result to the grid.
+    ///
+    /// The scan (filesystem enumeration + a synchronous Spotlight lookup per
+    /// app) used to run inline on the MainActor, freezing the overlay
+    /// (unresponsive to Esc/click, blank render) for its whole duration —
+    /// worst after a permission change unlocks scanning many more
+    /// directories/apps than usual. It now runs on a background task and
+    /// only hops back to the MainActor to apply the result.
+    func bootstrapScan() async {
         let preferences = (try? preferencesStore.load()) ?? .default
         self.preferences = preferences
         showSystemApplications = preferences.showSystemApplications
@@ -218,7 +226,10 @@ final class LaunchpadViewModel {
                 force: true
             )
         }
-        let result = scanner.scanAll(directories: urls)
+        let scanner = self.scanner
+        let result = await Task.detached(priority: .userInitiated) {
+            scanner.scanAll(directories: urls)
+        }.value
         applyScanResult(result)
         persistLayout()
     }
