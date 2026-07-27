@@ -19,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.toggle()
             }
         }
-        hotKeyManager?.start()
+        hotKeyManager?.start(keyCode: prefs.hotKeyCode, modifiers: prefs.hotKeyModifiers)
         // Launch straight into the full-screen launchpad overlay.
         overlay.show()
     }
