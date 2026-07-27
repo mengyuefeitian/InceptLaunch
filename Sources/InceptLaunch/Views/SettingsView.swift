@@ -49,7 +49,7 @@ struct SettingsView: View {
             case .appManagement:
                 AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
             case .about:
-                AboutView(preferences: $preferences, onSave: savePreferences)
+                AboutView(preferences: preferences)
             case nil:
                 Text("")
             }
@@ -116,6 +116,19 @@ struct GeneralSettingsView: View {
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)
             }
+
+            Section(Localizer.t("about.diagnostics")) {
+                Toggle(Localizer.t("about.diagnosticsToggle"), isOn: $preferences.diagLoggingEnabled)
+                Text(Localizer.t("about.diagnosticsHint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(Localizer.t("about.openLogFolder")) {
+                    if let url = DiagLog.logFileURL {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                }
+                .buttonStyle(.link)
+            }
         }
         .formStyle(.grouped)
         .onChange(of: preferences.launchAtLogin) { _, newValue in
@@ -129,6 +142,10 @@ struct GeneralSettingsView: View {
         .onChange(of: preferences.animateFolder) { _, _ in onSave() }
         .onChange(of: preferences.animateDrag) { _, _ in onSave() }
         .onChange(of: preferences.animateSearch) { _, _ in onSave() }
+        .onChange(of: preferences.diagLoggingEnabled) { _, newValue in
+            DiagLog.configure(enabled: newValue)
+            onSave()
+        }
     }
 }
 
@@ -287,8 +304,7 @@ struct AppManagementSettingsView: View {
 // MARK: - About View
 
 struct AboutView: View {
-    @Binding var preferences: UserPreferences
-    let onSave: () -> Void
+    let preferences: UserPreferences
     @State private var showCopied = false
 
     private var appIcon: NSImage? {
@@ -356,23 +372,6 @@ struct AboutView: View {
                     .font(.caption)
                     .foregroundStyle(.green)
             }
-
-            VStack(spacing: 6) {
-                Toggle(Localizer.t("about.diagnosticsToggle"), isOn: $preferences.diagLoggingEnabled)
-                    .onChange(of: preferences.diagLoggingEnabled) { _, _ in onSave() }
-                Text(Localizer.t("about.diagnosticsHint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button(Localizer.t("about.openLogFolder")) {
-                    if let url = DiagLog.logFileURL {
-                        NSWorkspace.shared.activateFileViewerSelecting([url])
-                    }
-                }
-                .buttonStyle(.link)
-            }
-            .padding(.top, 8)
-            .frame(maxWidth: 320)
 
             Spacer()
         }
