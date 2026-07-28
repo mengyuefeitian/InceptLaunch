@@ -435,7 +435,7 @@ final class OverlayWindowController {
             title = record.name
             viewModel.floatingDragApp = record
         } else if let display = viewModel.gridDisplayItem(id: itemID) {
-            // Folder ghost must look like FolderTileView (2×2 member preview),
+            // Folder ghost must look like FolderTileView (3×3 member preview),
             // not a system folder.fill symbol.
             let tileHost = NSHostingView(rootView: FolderTileView(members: display.members, size: size))
             tileHost.frame = NSRect(x: 0, y: 28, width: size, height: size)
