@@ -31,6 +31,10 @@ struct FolderPopupView: View {
     var onReorder: ((String, Int) -> Void)? = nil
     /// Called when a folder-interior reorder drag ends (to persist layout).
     var onReorderEnded: (() -> Void)? = nil
+    /// Reports panelFrame changes so the AppKit click monitor can tell
+    /// outside-panel backdrop clicks (dismiss) from inside-panel clicks
+    /// (member tap / reorder / drag-out, which must reach SwiftUI).
+    var onPanelFrameChanged: ((CGRect) -> Void)? = nil
 
     @State private var isEditingName = false
     @State private var draftName = ""
@@ -51,10 +55,14 @@ struct FolderPopupView: View {
 
     var body: some View {
         ZStack {
+            // Real dismiss for outside-panel clicks happens in AppKit
+            // (OverlayWindowController.handleMouseDown) — SwiftUI's onTapGesture
+            // on a large, mostly-blank view is unreliable on macOS and would
+            // otherwise need many clicks before registering. This stays as a
+            // fallback for any input path that doesn't go through the monitor.
             Color.black.opacity(0.45)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    DiagLog.write("FolderPopup backdrop tap fired")
                     if editMode {
                         onCancelEditMode?()
                     } else {
@@ -105,8 +113,14 @@ struct FolderPopupView: View {
             .background(
                 GeometryReader { geo in
                     Color.clear
-                        .onAppear { panelFrame = geo.frame(in: .named("overlay")) }
-                        .onChange(of: geo.frame(in: .named("overlay"))) { _, f in panelFrame = f }
+                        .onAppear {
+                            panelFrame = geo.frame(in: .named("overlay"))
+                            onPanelFrameChanged?(panelFrame)
+                        }
+                        .onChange(of: geo.frame(in: .named("overlay"))) { _, f in
+                            panelFrame = f
+                            onPanelFrameChanged?(f)
+                        }
                 }
             )
             .transition(

@@ -48,6 +48,12 @@ final class LaunchpadViewModel {
     /// inside captured closures.
     var openFolder: LaunchpadDisplayItem?
 
+    /// Mirrors FolderPopupView's internal `panelFrame` (overlay coordinate
+    /// space, origin top-left). The click monitor uses this to tell blank
+    /// backdrop clicks (outside the panel — dismiss) from clicks that must
+    /// reach SwiftUI (member taps, reorder, drag-out — inside the panel).
+    var folderPanelFrame: CGRect = .zero
+
     /// The page currently displayed in the grid. Updated by LaunchpadGridView
     /// so drag-out from a folder can insert on the page the user is viewing.
     var currentPage = 0

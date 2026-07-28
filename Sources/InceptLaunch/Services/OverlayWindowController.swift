@@ -316,8 +316,24 @@ final class OverlayWindowController {
             return nil
         }
 
-        // Folder popup owns its clicks (backdrop closes folder in SwiftUI).
+        // Folder popup: clicks inside the panel (member tap, reorder, drag-out)
+        // must reach SwiftUI. Clicks outside it (blank backdrop) dismiss here
+        // directly and are consumed — SwiftUI's onTapGesture on a large,
+        // mostly-blank view proved unreliable on macOS, sometimes needing a
+        // dozen-plus clicks before registering (reported: the gap between the
+        // folder panel and the search box above it, though the failure isn't
+        // actually position-specific — see the folder-tile-dismiss-click
+        // investigation for the elimination process).
         if viewModel.openFolder != nil {
+            if let window {
+                let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
+                let panel = viewModel.folderPanelFrame
+                let insidePanel = panel.width > 1 && panel.height > 1 && panel.contains(point)
+                if !insidePanel {
+                    viewModel.openFolder = nil
+                    return nil
+                }
+            }
             return event
         }
 

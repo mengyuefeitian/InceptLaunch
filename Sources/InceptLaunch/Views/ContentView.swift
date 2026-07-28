@@ -96,6 +96,9 @@ struct ContentView: View {
                         },
                         onReorderEnded: {
                             viewModel.persistCurrentLayout()
+                        },
+                        onPanelFrameChanged: { frame in
+                            viewModel.folderPanelFrame = frame
                         }
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
