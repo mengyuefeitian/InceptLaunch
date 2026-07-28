@@ -96,6 +96,9 @@ struct ContentView: View {
                         },
                         onReorderEnded: {
                             viewModel.persistCurrentLayout()
+                        },
+                        onPanelFrameChanged: { frame in
+                            viewModel.folderPanelFrame = frame
                         }
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
@@ -135,7 +138,7 @@ struct ContentView: View {
             handleBlankTap()
         }
         .task {
-            viewModel.bootstrapScan()
+            await viewModel.bootstrapScan()
         }
         .onAppear {
             syncScrollHijack()

@@ -31,6 +31,17 @@ struct JSONFileStore<Value: Codable> {
     func save(_ value: Value) throws {
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        // Keep one rotating backup of whatever was on disk before this write.
+        // A bug in the code deciding WHAT to persist (not this store itself)
+        // can still overwrite good data with bad — this makes that always
+        // recoverable instead of only the specific cases already found.
+        if FileManager.default.fileExists(atPath: url.path) {
+            let backupURL = url.appendingPathExtension("bak")
+            try? FileManager.default.removeItem(at: backupURL)
+            try? FileManager.default.copyItem(at: url, to: backupURL)
+        }
+
         let data = try JSONEncoder.inceptLaunch.encode(value)
         try data.write(to: url, options: [.atomic])
     }

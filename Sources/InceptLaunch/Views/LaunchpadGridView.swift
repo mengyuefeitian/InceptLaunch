@@ -474,7 +474,13 @@ struct LaunchpadGridView: View {
         showFolderCreatePreview: Bool = false
     ) -> some View {
         if enlarged, case .folder = item.kind {
-            // Whole 2×2 chrome is the folder target (opens popup).
+            // Tap/drag target is the drawn chrome only — EnlargedFolderTileView's
+            // own inner .contentShape(Rectangle()) is already scoped to the
+            // icon-aligned chrome bounds, not the full 2×2 layout slot. A
+            // .contentShape(Rectangle()) added here would re-widen the target
+            // back to the full slot, making the ~20px margin around the chrome
+            // (needed so neighboring tiles flow correctly) falsely open the
+            // folder instead of falling through to page-level dismiss.
             EnlargedFolderTileView(
                 item: item,
                 tileWidth: tileWidth,
@@ -482,7 +488,6 @@ struct LaunchpadGridView: View {
                 iconSize: iconSize,
                 showName: showAppNames
             )
-                .contentShape(Rectangle())
                 .onTapGesture {
                     if editMode {
                         onCancelEditMode?()

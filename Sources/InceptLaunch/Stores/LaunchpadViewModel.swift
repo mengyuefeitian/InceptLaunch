@@ -48,6 +48,12 @@ final class LaunchpadViewModel {
     /// inside captured closures.
     var openFolder: LaunchpadDisplayItem?
 
+    /// Mirrors FolderPopupView's internal `panelFrame` (overlay coordinate
+    /// space, origin top-left). The click monitor uses this to tell blank
+    /// backdrop clicks (outside the panel — dismiss) from clicks that must
+    /// reach SwiftUI (member taps, reorder, drag-out — inside the panel).
+    var folderPanelFrame: CGRect = .zero
+
     /// The page currently displayed in the grid. Updated by LaunchpadGridView
     /// so drag-out from a folder can insert on the page the user is viewing.
     var currentPage = 0
@@ -75,6 +81,11 @@ final class LaunchpadViewModel {
 
     /// Absolute pointer position in overlay coordinate space during grid drag.
     var gridDragLocation: CGPoint = .zero
+
+    /// Chains overlapping `bootstrapScan()` calls so each one's read-modify-
+    /// write of `layout.json` starts only after the previous one's write
+    /// finished — see `bootstrapScan()` for why this matters.
+    private var scanQueueTail: Task<Void, Never>?
 
     private var appIndex: AppIndexStore
     private var layoutStore: LayoutStore
@@ -160,7 +171,33 @@ final class LaunchpadViewModel {
         }
     }
 
+    /// Whether the current layout has anything a scan could prune — used to
+    /// detect a scan that came back suspiciously empty.
+    private var layoutHasContent: Bool {
+        layoutStore.layout.pages.contains { !$0.isEmpty } || !layoutStore.layout.folders.isEmpty
+    }
+
     func applyScanResult(_ result: ScanResult) {
+        // AppScanner reports directories it failed to enumerate (a
+        // moved/locked directory, an unmounted volume, a transient glitch
+        // around a reinstall) instead of silently pretending they're empty.
+        // Two failure shapes must be guarded against separately:
+        //  - Any directory failing must not prune at all — apps that live
+        //    only in that directory would be treated as uninstalled and
+        //    dropped from every folder/page referencing them, even though
+        //    the OVERALL result looks fine because other directories still
+        //    scanned successfully.
+        //  - A scan that found nothing anywhere must never overwrite a
+        //    non-empty layout (pruneApps(notIn: []) would wipe every page
+        //    and folder in one pass).
+        guard result.failedDirectories.isEmpty else {
+            DiagLog.write("applyScanResult: directories failed to scan (\(result.failedDirectories.joined(separator: ", "))) — skipping to avoid wiping user data for apps that live there")
+            return
+        }
+        guard !result.records.isEmpty || !layoutHasContent else {
+            DiagLog.write("applyScanResult: scan returned 0 apps while the layout has \(layoutStore.layout.folders.count) folder(s) — skipping to avoid wiping user data")
+            return
+        }
         appIndex.merge(scanResults: result.records)
         layoutStore.syncDirectoryFolders(result.directoryFolders)
         layoutStore.pruneApps(notIn: Set(result.records.map(\.id)))
@@ -196,7 +233,36 @@ final class LaunchpadViewModel {
         return launcher.launch(record)
     }
 
-    func bootstrapScan() {
+    /// Scans installed apps and applies the result to the grid.
+    ///
+    /// The scan (filesystem enumeration + a synchronous Spotlight lookup per
+    /// app) used to run inline on the MainActor, freezing the overlay
+    /// (unresponsive to Esc/click, blank render) for its whole duration —
+    /// worst after a permission change unlocks scanning many more
+    /// directories/apps than usual. It now runs on a background task and
+    /// only hops back to the MainActor to apply the result.
+    ///
+    /// The overlay re-triggers this on every show (a fresh `ContentView`,
+    /// hence a fresh `.task`), so a fast open/close/reopen can start a
+    /// second scan before the first one's background `Task.detached` (which
+    /// is NOT cancelled by the first `.task` being torn down) has finished.
+    /// Without serialization, whichever scan happens to *finish* last wins
+    /// and persists — even if it started first and read a now-stale
+    /// `layout.json`, silently reverting whatever the other scan just wrote
+    /// (e.g. a newly-installed app it discovered). Chaining through
+    /// `scanQueueTail` makes each call's read-modify-write wait for the
+    /// previous one's write to land first, so writes land in call order.
+    func bootstrapScan() async {
+        let previous = scanQueueTail
+        let task = Task { [weak self] in
+            _ = await previous?.value
+            await self?.performBootstrapScan()
+        }
+        scanQueueTail = task
+        await task.value
+    }
+
+    private func performBootstrapScan() async {
         let preferences = (try? preferencesStore.load()) ?? .default
         self.preferences = preferences
         showSystemApplications = preferences.showSystemApplications
@@ -206,19 +272,26 @@ final class LaunchpadViewModel {
         }
         // Start from the saved layout so user folders and positions persist.
         layoutStore = LayoutStore(layout: layoutPersistence.load())
-        // Force re-pagination when enlarged folders exist because the
-        // cell-counting logic changed (enlarged = 4 cells) without changing
-        // the stored capacity value.
-        // Sync geometry first so 2×2 occupancy uses the configured rows/cols.
+        // Sync geometry so 2×2 occupancy uses the configured rows/cols, and
+        // push any resulting overflow forward onto later pages.
+        //
+        // This used to fall through to a *global* `repaginate(force: true)`
+        // whenever any folder was enlarged, to fix up stale page capacity
+        // from before enlarged folders counted as 4 cells. `updateGrid` (via
+        // `enforcePageCapacity`) already accounts for 2×2 occupancy and pages
+        // correctly now, so that global repack is no longer needed — and it
+        // was actively harmful: bootstrapScan runs on every overlay open, so
+        // any user with an enlarged folder had their entire layout flattened
+        // and repacked (apps pulled forward from later pages into earlier
+        // ones) every single time they opened the launchpad, not just when
+        // they intentionally changed rows/columns. Global repacking should
+        // only ever happen from an explicit "整理桌面" (tidyGrid) action.
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        let hasEnlarged = !layoutStore.layout.enlargedFolderIDs.isEmpty
-        if hasEnlarged {
-            layoutStore.repaginate(
-                capacity: gridColumns * gridRows,
-                force: true
-            )
-        }
-        let result = scanner.scanAll(directories: urls)
+        let scanner = self.scanner
+        let result = await Task.detached(priority: .userInitiated) {
+            scanner.scanAll(directories: urls)
+        }.value
+        DiagLog.write("bootstrapScan: scanned \(urls.map(\.path)) -> \(result.records.count) app(s), \(result.directoryFolders.count) directory-folder(s)")
         applyScanResult(result)
         persistLayout()
     }
@@ -323,16 +396,20 @@ final class LaunchpadViewModel {
 
     func enlargeFolder(id: String) {
         layoutStore.enlargeFolder(id: id)
-        // 2×2 occupancy can force a 5th visual row even when cell sum ≤ capacity.
+        // 2×2 occupancy can force a 5th visual row even when cell sum ≤
+        // capacity — `updateGrid` (via `enforcePageCapacity`) already
+        // accounts for that and only pushes overflow forward onto later
+        // pages. A global `repaginate` here would additionally pull apps
+        // forward from later pages into this one, which is reserved for an
+        // explicit "整理桌面" (tidyGrid) action, not an implicit side effect
+        // of enlarging a folder.
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
     func shrinkFolder(id: String) {
         layoutStore.shrinkFolder(id: id)
         layoutStore.updateGrid(columns: gridColumns, rows: gridRows)
-        layoutStore.repaginate(capacity: gridColumns * gridRows, force: true)
         persistLayout()
     }
 
@@ -390,6 +467,10 @@ final class LaunchpadViewModel {
     func endLiveReorder() {
         preReorderDragID = nil
         preReorderPage = []
+        // Live reorder may temporarily overflow a page (extra row during drag
+        // preview / cross-page insert). On finalize, push overflow forward so
+        // no page keeps a permanent 5th row or unfilled capacity violation.
+        layoutStore.enforcePageCapacity()
         persistLayout()
     }
 

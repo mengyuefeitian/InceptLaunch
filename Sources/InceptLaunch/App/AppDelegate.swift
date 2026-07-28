@@ -7,11 +7,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyManager: GlobalHotKeyManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Two InceptLaunch.app copies (e.g. /Applications and a locally built
+        // dist/) share the same bundle identifier, so `pkill -x InceptLaunch`
+        // during a rebuild can't distinguish them and two live processes can
+        // end up racing writes to the same layout.json, silently clobbering
+        // the user's custom folders. Refuse to run a second instance:
+        // activate the existing one and quit instead.
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let myPID = ProcessInfo.processInfo.processIdentifier
+            let others = NSRunningApplication
+                .runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != myPID }
+            if let existing = others.first {
+                DiagLog.write("applicationDidFinishLaunching: duplicate instance pid=\(myPID) bundle=\(Bundle.main.bundlePath) — activating existing pid=\(existing.processIdentifier) bundle=\(existing.bundleURL?.path ?? "?") and quitting")
+                existing.activate()
+                NSApp.terminate(nil)
+                return
+            }
+        }
         NSApp.setActivationPolicy(.regular)
         // Apply the user's chosen app icon to the Dock.
         let prefs = (try? PreferencesStore().load()) ?? .default
+        DiagLog.configure(enabled: prefs.diagLoggingEnabled)
         IconSwitcher.apply(prefs.appIconStyle)
-        menuBarController = MenuBarController(overlay: overlay)
+        LoginItemService.apply(prefs.launchAtLogin)
         // Hotkey must open (or toggle) and then re-assert keyboard focus —
         // Carbon hotkeys fire while another app is frontmost.
         hotKeyManager = GlobalHotKeyManager { [overlay] in
@@ -19,7 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.toggle()
             }
         }
-        hotKeyManager?.start()
+        hotKeyManager?.start(keyCode: prefs.hotKeyCode, modifiers: prefs.hotKeyModifiers)
+        menuBarController = MenuBarController(overlay: overlay, hotKeyManager: hotKeyManager)
         // Launch straight into the full-screen launchpad overlay.
         overlay.show()
     }

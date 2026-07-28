@@ -68,6 +68,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "Global shortcut",
+        "settings.hotKeyPressKeys": "Press keys…",
+        "settings.hotKeyNeedsModifier": "Hold at least one modifier key (⌘⌥⌃⇧)",
+        "settings.hotKeyEscReserved": "Esc is reserved to close the overlay",
+        "settings.hotKeyConflict": "That combo is already used by another app — try a different one",
         "settings.launchAtLogin": "Launch at login",
         "settings.showMenuBarIcon": "Show menu bar icon",
         "settings.showDockIcon": "Show Dock icon",
@@ -102,6 +106,7 @@ struct Localizer {
         "settings.interface": "Interface",
         "settings.appManagement": "App Management",
         "settings.about": "About",
+        "settings.logs": "Logs",
         "settings.systemApps": "System Applications",
         "settings.showHiddenInSearch": "Show hidden apps in search",
         "settings.title": "InceptLaunch Settings",
@@ -111,6 +116,10 @@ struct Localizer {
         "about.website": "Website",
         "about.wechatOA": "WeChat OA",
         "about.copied": "Copied",
+        "about.diagnostics": "Diagnostics",
+        "about.diagnosticsToggle": "Enable diagnostic logging",
+        "about.diagnosticsHint": "Helps troubleshoot issues. Saved locally only, never uploaded.",
+        "about.openLogFolder": "Show Log Folder",
 
         // Context menu
         "menu.trash": "Move to Trash",
@@ -165,6 +174,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "全局快捷键",
+        "settings.hotKeyPressKeys": "按下快捷键…",
+        "settings.hotKeyNeedsModifier": "请至少按住一个修饰键（⌘⌥⌃⇧）",
+        "settings.hotKeyEscReserved": "Esc 已保留用于关闭悬浮窗，不能作为快捷键",
+        "settings.hotKeyConflict": "该组合已被其他应用占用，请换一个",
         "settings.launchAtLogin": "开机自启",
         "settings.showMenuBarIcon": "显示菜单栏图标",
         "settings.showDockIcon": "显示 Dock 图标",
@@ -199,6 +212,7 @@ struct Localizer {
         "settings.interface": "界面",
         "settings.appManagement": "应用管理",
         "settings.about": "关于",
+        "settings.logs": "日志管理",
         "settings.systemApps": "系统应用",
         "settings.showHiddenInSearch": "在搜索中显示隐藏应用",
         "settings.title": "InceptLaunch 设置",
@@ -208,6 +222,10 @@ struct Localizer {
         "about.website": "官网",
         "about.wechatOA": "公众号",
         "about.copied": "已复制",
+        "about.diagnostics": "诊断",
+        "about.diagnosticsToggle": "记录诊断日志",
+        "about.diagnosticsHint": "用于排查问题，仅保存在本地，不会上传。",
+        "about.openLogFolder": "显示日志文件夹",
 
         // Context menu
         "menu.trash": "移到废纸篓",
@@ -262,6 +280,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "グローバルショートカット",
+        "settings.hotKeyPressKeys": "キーを押してください…",
+        "settings.hotKeyNeedsModifier": "修飾キー（⌘⌥⌃⇧）を1つ以上押してください",
+        "settings.hotKeyEscReserved": "Escはオーバーレイを閉じるために予約されています",
+        "settings.hotKeyConflict": "この組み合わせは他のアプリで使用されています。別のキーを選んでください",
         "settings.launchAtLogin": "ログイン時に起動",
         "settings.showMenuBarIcon": "メニューバーアイコンを表示",
         "settings.showDockIcon": "Dockアイコンを表示",
@@ -296,6 +318,7 @@ struct Localizer {
         "settings.interface": "インターフェース",
         "settings.appManagement": "アプリ管理",
         "settings.about": "について",
+        "settings.logs": "ログ",
         "settings.systemApps": "システムアプリケーション",
         "settings.showHiddenInSearch": "検索で非表示アプリを表示",
         "settings.title": "InceptLaunch 設定",
@@ -305,6 +328,10 @@ struct Localizer {
         "about.website": "ウェブサイト",
         "about.wechatOA": "WeChat公式アカウント",
         "about.copied": "コピーしました",
+        "about.diagnostics": "診断",
+        "about.diagnosticsToggle": "診断ログを記録",
+        "about.diagnosticsHint": "問題の調査に使用します。ローカルにのみ保存され、アップロードされません。",
+        "about.openLogFolder": "ログフォルダを表示",
 
         // Context menu
         "menu.trash": "ゴミ箱に移動",
@@ -359,6 +386,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "글로벌 단축키",
+        "settings.hotKeyPressKeys": "키를 누르세요…",
+        "settings.hotKeyNeedsModifier": "수정 키(⌘⌥⌃⇧)를 하나 이상 눌러야 합니다",
+        "settings.hotKeyEscReserved": "Esc는 오버레이를 닫는 데 예약되어 있습니다",
+        "settings.hotKeyConflict": "이 조합은 다른 앱에서 이미 사용 중입니다. 다른 조합을 선택하세요",
         "settings.launchAtLogin": "로그인 시 실행",
         "settings.showMenuBarIcon": "메뉴 막대 아이콘 표시",
         "settings.showDockIcon": "Dock 아이콘 표시",
@@ -393,6 +424,7 @@ struct Localizer {
         "settings.interface": "인터페이스",
         "settings.appManagement": "앱 관리",
         "settings.about": "정보",
+        "settings.logs": "로그",
         "settings.systemApps": "시스템 응용 프로그램",
         "settings.showHiddenInSearch": "검색에서 숨긴 앱 표시",
         "settings.title": "InceptLaunch 설정",
@@ -402,6 +434,10 @@ struct Localizer {
         "about.website": "웹사이트",
         "about.wechatOA": "WeChat 공식 계정",
         "about.copied": "복사됨",
+        "about.diagnostics": "진단",
+        "about.diagnosticsToggle": "진단 로그 기록",
+        "about.diagnosticsHint": "문제 해결에 사용됩니다. 로컬에만 저장되며 업로드되지 않습니다.",
+        "about.openLogFolder": "로그 폴더 표시",
 
         // Context menu
         "menu.trash": "휴지통으로 이동",
@@ -456,6 +492,10 @@ struct Localizer {
 
         // Launch settings
         "settings.hotKey": "Глобальное сочетание клавиш",
+        "settings.hotKeyPressKeys": "Нажмите клавиши…",
+        "settings.hotKeyNeedsModifier": "Удерживайте хотя бы одну клавишу-модификатор (⌘⌥⌃⇧)",
+        "settings.hotKeyEscReserved": "Esc зарезервирован для закрытия окна",
+        "settings.hotKeyConflict": "Эта комбинация уже используется другим приложением — выберите другую",
         "settings.launchAtLogin": "Запускать при входе",
         "settings.showMenuBarIcon": "Показывать значок в строке меню",
         "settings.showDockIcon": "Показывать значок в Dock",
@@ -499,6 +539,10 @@ struct Localizer {
         "about.website": "Веб-сайт",
         "about.wechatOA": "WeChat OA",
         "about.copied": "Скопировано",
+        "about.diagnostics": "Диагностика",
+        "about.diagnosticsToggle": "Вести диагностический журнал",
+        "about.diagnosticsHint": "Помогает в устранении неполадок. Хранится только локально, не отправляется.",
+        "about.openLogFolder": "Показать папку журнала",
 
         // Context menu
         "menu.trash": "Переместить в корзину",

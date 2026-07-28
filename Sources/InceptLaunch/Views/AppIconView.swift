@@ -132,15 +132,15 @@ private struct OptionalIconGestures: ViewModifier {
     }
 }
 
-/// Launchpad-style folder tile: a frosted rounded square showing up to a 2x2
+/// Launchpad-style folder tile: a frosted rounded square showing up to a 3x3
 /// preview of the contained apps' icons.
 struct FolderTileView: View {
     let members: [AppRecord]
     var size: CGFloat = 104
 
-    private var preview: [AppRecord] { Array(members.prefix(4)) }
-    private var cellSize: CGFloat { size * 0.36 }
-    private var gridSpacing: CGFloat { size * 0.06 }
+    private var preview: [AppRecord] { Array(members.prefix(9)) }
+    private var cellSize: CGFloat { size * 0.24 }
+    private var gridSpacing: CGFloat { size * 0.035 }
 
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
@@ -154,10 +154,17 @@ struct FolderTileView: View {
                     GridRow {
                         cell(0)
                         cell(1)
+                        cell(2)
                     }
                     GridRow {
-                        cell(2)
                         cell(3)
+                        cell(4)
+                        cell(5)
+                    }
+                    GridRow {
+                        cell(6)
+                        cell(7)
+                        cell(8)
                     }
                 }
             )

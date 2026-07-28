@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, interface, appManagement, about
+    case general, interface, appManagement, logs, about
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: return "settings.general"
         case .interface: return "settings.interface"
         case .appManagement: return "settings.appManagement"
+        case .logs: return "settings.logs"
         case .about: return "settings.about"
         }
     }
@@ -20,6 +21,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: return "gearshape"
         case .interface: return "paintbrush"
         case .appManagement: return "square.grid.2x2"
+        case .logs: return "doc.text.magnifyingglass"
         case .about: return "info.circle"
         }
     }
@@ -31,22 +33,63 @@ struct SettingsView: View {
     @State private var languageVersion = 0
     private let preferencesStore = PreferencesStore()
     weak var viewModel: LaunchpadViewModel?
+    weak var hotKeyManager: GlobalHotKeyManager?
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
-                Label(Localizer.t(category.localizationKey), systemImage: category.icon)
-                    .tag(category)
+            // `List(_:selection:)` + `.tag()` used to drive this sidebar, but
+            // its native row-selection tracking could desync from
+            // `selectedCategory` — clicking a row sometimes left the sidebar
+            // highlighting one category while the detail pane rendered a
+            // different one's content, and stuck that way until a further
+            // click (observed on multiple builds, independent of any recent
+            // Settings changes — reverting those didn't fix it). Selection is
+            // driven directly by Button taps here instead, so there is only
+            // ever one source of truth for which category is selected.
+            //
+            // Still wrapping the buttons in `List` (even unselected) left a
+            // residual "click 2-3 times to register" lag: on macOS `List` is
+            // backed by NSTableView, whose row views intercept the first
+            // click for their own hit-testing/tracking machinery before
+            // forwarding to a plain-style Button inside — a known AppKit
+            // interop quirk independent of the `selection:` binding. Plain
+            // `ScrollView` + `VStack` has no such row layer, so every click
+            // reaches the Button on the first try.
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(SettingsCategory.allCases) { category in
+                        let isSelected = selectedCategory == category
+                        Button {
+                            selectedCategory = category
+                        } label: {
+                            Label(Localizer.t(category.localizationKey), systemImage: category.icon)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(isSelected ? Color.accentColor : Color.clear)
+                        )
+                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    }
+                }
+                .padding(8)
             }
+            .background(.regularMaterial)
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
         } detail: {
             switch selectedCategory {
             case .general:
-                GeneralSettingsView(preferences: $preferences, onSave: savePreferences)
+                GeneralSettingsView(preferences: $preferences, hotKeyManager: hotKeyManager, onSave: savePreferences)
             case .interface:
                 AppearanceSettingsView(preferences: $preferences, onSave: savePreferences)
             case .appManagement:
                 AppManagementSettingsView(preferences: $preferences, viewModel: viewModel, onSave: savePreferences)
+            case .logs:
+                LogManagementSettingsView(preferences: $preferences, onSave: savePreferences)
             case .about:
                 AboutView(preferences: preferences)
             case nil:
@@ -69,6 +112,7 @@ struct SettingsView: View {
     }
 
     private func savePreferences() {
+        DiagLog.configure(enabled: preferences.diagLoggingEnabled)
         do {
             try preferencesStore.save(preferences)
             DiagLog.write("preferences saved OK, showSystemApps=\(preferences.showSystemApplications)")
@@ -82,6 +126,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @Binding var preferences: UserPreferences
+    weak var hotKeyManager: GlobalHotKeyManager?
     let onSave: () -> Void
 
     var body: some View {
@@ -103,15 +148,22 @@ struct GeneralSettingsView: View {
             }
 
             Section(Localizer.t("settings.launch")) {
-                TextField(Localizer.t("settings.hotKey"), text: $preferences.hotKey)
+                HotKeyRecorderRow(
+                    keyCode: $preferences.hotKeyCode,
+                    modifiers: $preferences.hotKeyModifiers,
+                    hotKeyManager: hotKeyManager,
+                    onCommitted: onSave
+                )
                 Toggle(Localizer.t("settings.launchAtLogin"), isOn: $preferences.launchAtLogin)
                 Toggle(Localizer.t("settings.showMenuBarIcon"), isOn: $preferences.showMenuBarIcon)
                 Toggle(Localizer.t("settings.showDockIcon"), isOn: $preferences.showDockIcon)
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.hotKey) { _, _ in onSave() }
-        .onChange(of: preferences.launchAtLogin) { _, _ in onSave() }
+        .onChange(of: preferences.launchAtLogin) { _, newValue in
+            LoginItemService.apply(newValue)
+            onSave()
+        }
         .onChange(of: preferences.showMenuBarIcon) { _, _ in onSave() }
         .onChange(of: preferences.showDockIcon) { _, _ in onSave() }
         .onChange(of: preferences.animateIcons) { _, _ in onSave() }
@@ -119,6 +171,35 @@ struct GeneralSettingsView: View {
         .onChange(of: preferences.animateFolder) { _, _ in onSave() }
         .onChange(of: preferences.animateDrag) { _, _ in onSave() }
         .onChange(of: preferences.animateSearch) { _, _ in onSave() }
+    }
+}
+
+// MARK: - Log Management
+
+struct LogManagementSettingsView: View {
+    @Binding var preferences: UserPreferences
+    let onSave: () -> Void
+
+    var body: some View {
+        Form {
+            Section(Localizer.t("about.diagnostics")) {
+                Toggle(Localizer.t("about.diagnosticsToggle"), isOn: $preferences.diagLoggingEnabled)
+                Text(Localizer.t("about.diagnosticsHint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(Localizer.t("about.openLogFolder")) {
+                    if let url = DiagLog.logFileURL {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                }
+                .buttonStyle(.link)
+            }
+        }
+        .formStyle(.grouped)
+        .onChange(of: preferences.diagLoggingEnabled) { _, newValue in
+            DiagLog.configure(enabled: newValue)
+            onSave()
+        }
     }
 }
 
@@ -281,16 +362,7 @@ struct AboutView: View {
     @State private var showCopied = false
 
     private var appIcon: NSImage? {
-        let name = preferences.appIconStyle.resourceName
-        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        return NSImage(named: name)
+        IconThumbnailCache.image(named: preferences.appIconStyle.resourceName)
     }
 
     private var versionString: String {
@@ -491,21 +563,41 @@ struct AppIconSmall: View {
 
 // MARK: - Icon Thumbnail View
 
+/// `IconThumbnailView` sits in a `ForEach` inside `AppearanceSettingsView`'s
+/// `Form`, so its `body` (and thus `nsImage`) re-evaluates on every unrelated
+/// preference change in that Form — e.g. dragging the blur slider. Without
+/// caching, that redid a `Bundle.main.url` lookup + disk read per style on
+/// every frame, which is the settings-page click lag reported after other
+/// fixes had already addressed the more severe scrambled/frozen state.
+@MainActor
+private enum IconThumbnailCache {
+    static var images: [String: NSImage] = [:]
+
+    static func image(named name: String) -> NSImage? {
+        if let cached = images[name] { return cached }
+        let loaded: NSImage?
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            loaded = img
+        } else if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
+                  let img = NSImage(contentsOf: url) {
+            loaded = img
+        } else {
+            loaded = NSImage(named: name)
+        }
+        if let loaded {
+            images[name] = loaded
+        }
+        return loaded
+    }
+}
+
 struct IconThumbnailView: View {
     let style: UserPreferences.AppIconStyle
     let isSelected: Bool
 
     private var nsImage: NSImage? {
-        let name = style.thumbnailName
-        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: "icns"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        return NSImage(named: name)
+        IconThumbnailCache.image(named: style.thumbnailName)
     }
 
     var body: some View {

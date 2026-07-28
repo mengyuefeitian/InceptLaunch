@@ -155,7 +155,7 @@ final class OverlayWindowController {
         Localizer.setLanguage(prefs.language)
         viewModel.showSystemApplications = prefs.showSystemApplications
         viewModel.showHiddenInSearch = prefs.showHiddenInSearch
-        DiagLog.write("show() loaded prefs: showSystemApps=\(prefs.showSystemApplications) showHidden=\(prefs.showHiddenInSearch)")
+        DiagLog.write("show() pid=\(ProcessInfo.processInfo.processIdentifier) bundle=\(Bundle.main.bundlePath) loaded prefs: showSystemApps=\(prefs.showSystemApplications) showHidden=\(prefs.showHiddenInSearch)")
 
         // Root container: hosting view (full) + AppKit search on top.
         let container = NSView(frame: NSRect(origin: .zero, size: frame.size))
@@ -224,6 +224,14 @@ final class OverlayWindowController {
             if !(window.firstResponder is NSTextField || window.firstResponder is NSTextView) {
                 window.makeFirstResponder(window.contentView)
             }
+            // Diagnostic for reports of an overlay that renders but takes no
+            // input (unresponsive to click/Esc/scroll) right after macOS
+            // relaunches the app for a permission change: if isActive/isKey
+            // come back false here, the window is only *visually* frontmost
+            // (high window level) while keyboard/mouse events are still being
+            // routed to whatever app the system considers actually active —
+            // NSApp.activate() can silently no-op in that relaunch context.
+            DiagLog.write("activate: isActive=\(NSApp.isActive) isKey=\(window.isKeyWindow) policy=\(NSApp.activationPolicy().rawValue)")
         }
     }
 
@@ -295,15 +303,37 @@ final class OverlayWindowController {
             return event
         }
 
-        // FIRST click while jiggling: cancel and consume.
+        // Blank click while jiggling: cancel edit mode and consume.
+        // Clicks **on a tile** must pass through so the first drag after
+        // long-press jiggle can start (consuming every mouseDown forced a
+        // second attempt before drag worked).
         if viewModel.editMode {
+            if hitTile(event) {
+                return event
+            }
             viewModel.editMode = false
             NotificationCenter.default.post(name: .inceptLaunchEditModeCancelled, object: nil)
             return nil
         }
 
-        // Folder popup owns its clicks (backdrop closes folder in SwiftUI).
+        // Folder popup: clicks inside the panel (member tap, reorder, drag-out)
+        // must reach SwiftUI. Clicks outside it (blank backdrop) dismiss here
+        // directly and are consumed — SwiftUI's onTapGesture on a large,
+        // mostly-blank view proved unreliable on macOS, sometimes needing a
+        // dozen-plus clicks before registering (reported: the gap between the
+        // folder panel and the search box above it, though the failure isn't
+        // actually position-specific — see the folder-tile-dismiss-click
+        // investigation for the elimination process).
         if viewModel.openFolder != nil {
+            if let window {
+                let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
+                let panel = viewModel.folderPanelFrame
+                let insidePanel = panel.width > 1 && panel.height > 1 && panel.contains(point)
+                if !insidePanel {
+                    viewModel.openFolder = nil
+                    return nil
+                }
+            }
             return event
         }
 
@@ -327,6 +357,17 @@ final class OverlayWindowController {
         guard let content = window?.contentView else { return false }
         let p = content.convert(event.locationInWindow, from: nil)
         return searchChrome.view.frame.contains(p)
+    }
+
+    /// Whether the click lands on a grid tile (or folder member) frame so
+    /// edit-mode drag / activate can receive the event.
+    private func hitTile(_ event: NSEvent) -> Bool {
+        guard let window else { return false }
+        let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
+        // Slight inset slop so near-edge icon clicks still count as tile hits.
+        return viewModel.tileFrames.contains { info in
+            info.frame.insetBy(dx: -6, dy: -6).contains(point)
+        }
     }
 
     private func removeClickMonitor() {
@@ -410,7 +451,7 @@ final class OverlayWindowController {
             title = record.name
             viewModel.floatingDragApp = record
         } else if let display = viewModel.gridDisplayItem(id: itemID) {
-            // Folder ghost must look like FolderTileView (2×2 member preview),
+            // Folder ghost must look like FolderTileView (3×3 member preview),
             // not a system folder.fill symbol.
             let tileHost = NSHostingView(rootView: FolderTileView(members: display.members, size: size))
             tileHost.frame = NSRect(x: 0, y: 28, width: size, height: size)

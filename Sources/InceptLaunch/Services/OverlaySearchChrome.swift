@@ -69,13 +69,31 @@ private struct SearchChromeFrostBackground: View {
 /// AppKit search field on the overlay. Background is painted frost; the field
 /// is a real `NSTextField` so typing / IME stay reliable.
 @MainActor
+/// Plain `NSView` hit-tests as itself for any point inside its `frame`, even
+/// where nothing is drawn. `container` below spans the *entire* width of the
+/// window at a fixed height to host a much narrower centered search capsule
+/// — every point in that full-width strip outside the capsule was silently
+/// swallowing clicks meant for whatever's visually behind it (grid tiles, or
+/// a folder popup's backdrop dismiss-tap — reported as needing a dozen-plus
+/// clicks on the blank area above an open folder before one landed). Falling
+/// back to `nil` when the default hit test would return this container
+/// itself (i.e. no subview claimed the point) makes the empty regions
+/// click-through while the capsule and its children keep working normally.
+private final class ClickThroughContainerView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let result = super.hitTest(point)
+        return result === self ? nil : result
+    }
+}
+
+@MainActor
 final class OverlaySearchChrome: NSObject, NSTextFieldDelegate {
     static let chromeHeight: CGFloat = 128
     static let fieldWidth: CGFloat = 420
     static let fieldHeight: CGFloat = 36
     static let topPadding: CGFloat = 78
 
-    private let container = NSView()
+    private let container = ClickThroughContainerView()
     private let frostHost = NSHostingView(rootView: SearchChromeFrostBackground())
     private let content = NSView()
     private let icon = NSImageView()

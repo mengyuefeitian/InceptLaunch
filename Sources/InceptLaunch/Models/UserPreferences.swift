@@ -85,7 +85,8 @@ struct UserPreferences: Codable, Equatable {
         }
     }
 
-    var hotKey: String
+    var hotKeyCode: UInt32
+    var hotKeyModifiers: UInt32
     var launchAtLogin: Bool
     var showMenuBarIcon: Bool
     var showDockIcon: Bool
@@ -113,8 +114,13 @@ struct UserPreferences: Codable, Equatable {
     var iconSizeLevel: IconSizeLevel = .medium
     var showAppNames: Bool = true
 
+    /// Whether DiagLog writes to disk. Default on so bug reports have
+    /// evidence out of the box; users can turn it off in Settings > About.
+    var diagLoggingEnabled: Bool = true
+
     static let `default` = UserPreferences(
-        hotKey: "option+space",
+        hotKeyCode: 49,        // kVK_Space
+        hotKeyModifiers: 2048, // Carbon optionKey
         launchAtLogin: false,
         showMenuBarIcon: true,
         showDockIcon: true,
@@ -132,17 +138,19 @@ struct UserPreferences: Codable, Equatable {
     )
 
     private enum CodingKeys: String, CodingKey {
-        case hotKey, launchAtLogin, showMenuBarIcon, showDockIcon
+        case hotKeyCode, hotKeyModifiers, launchAtLogin, showMenuBarIcon, showDockIcon
         case backgroundBlur, reduceMotion, showSystemApplications
         case overlayDisplayMode, scanDirectories, appIconStyle
         case language, backgroundMode, backgroundImages, autoCarousel
         case animateIcons, animatePageFlip, animateFolder, animateDrag, animateSearch
         case showHiddenInSearch
         case gridRows, gridColumns, iconSizeLevel, showAppNames
+        case diagLoggingEnabled
     }
 
-    init(hotKey: String, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true, gridRows: Int = 4, gridColumns: Int = 7, iconSizeLevel: IconSizeLevel = .medium, showAppNames: Bool = true) {
-        self.hotKey = hotKey
+    init(hotKeyCode: UInt32, hotKeyModifiers: UInt32, launchAtLogin: Bool, showMenuBarIcon: Bool, showDockIcon: Bool, backgroundBlur: Double, reduceMotion: Bool, showSystemApplications: Bool, overlayDisplayMode: OverlayDisplayMode, scanDirectories: [String], appIconStyle: AppIconStyle = .iconD, language: Language = .system, backgroundMode: BackgroundMode = .desktop, backgroundImages: [String] = [], autoCarousel: Bool = false, animateIcons: Bool = true, animatePageFlip: Bool = true, animateFolder: Bool = true, animateDrag: Bool = true, animateSearch: Bool = true, showHiddenInSearch: Bool = true, gridRows: Int = 4, gridColumns: Int = 7, iconSizeLevel: IconSizeLevel = .medium, showAppNames: Bool = true, diagLoggingEnabled: Bool = true) {
+        self.hotKeyCode = hotKeyCode
+        self.hotKeyModifiers = hotKeyModifiers
         self.launchAtLogin = launchAtLogin
         self.showMenuBarIcon = showMenuBarIcon
         self.showDockIcon = showDockIcon
@@ -166,11 +174,13 @@ struct UserPreferences: Codable, Equatable {
         self.gridColumns = gridColumns
         self.iconSizeLevel = iconSizeLevel
         self.showAppNames = showAppNames
+        self.diagLoggingEnabled = diagLoggingEnabled
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        hotKey = try c.decode(String.self, forKey: .hotKey)
+        hotKeyCode = (try? c.decodeIfPresent(UInt32.self, forKey: .hotKeyCode)) ?? 49
+        hotKeyModifiers = (try? c.decodeIfPresent(UInt32.self, forKey: .hotKeyModifiers)) ?? 2048
         launchAtLogin = try c.decode(Bool.self, forKey: .launchAtLogin)
         showMenuBarIcon = try c.decode(Bool.self, forKey: .showMenuBarIcon)
         showDockIcon = try c.decode(Bool.self, forKey: .showDockIcon)
@@ -194,5 +204,6 @@ struct UserPreferences: Codable, Equatable {
         gridColumns = (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 7
         iconSizeLevel = (try? c.decodeIfPresent(IconSizeLevel.self, forKey: .iconSizeLevel)) ?? .medium
         showAppNames = (try? c.decodeIfPresent(Bool.self, forKey: .showAppNames)) ?? true
+        diagLoggingEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .diagLoggingEnabled)) ?? true
     }
 }

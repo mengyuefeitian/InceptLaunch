@@ -8,19 +8,64 @@ final class GlobalHotKeyManager: @unchecked Sendable {
     private let onToggle: () -> Void
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
+    private var currentKeyCode: UInt32 = UInt32(kVK_Space)
+    private var currentModifiers: UInt32 = UInt32(optionKey)
+    private var nextHotKeyID: UInt32 = 1
 
     init(onToggle: @escaping () -> Void) {
         self.onToggle = onToggle
     }
 
-    func start() {
-        let hotKeyID = EventHotKeyID(signature: 0x494E4350, id: 1) // "INCP"
+    /// Installs the Carbon event handler (once) and registers the initial
+    /// hotkey. Call once at launch with the user's stored preference.
+    func start(keyCode: UInt32, modifiers: UInt32) {
+        installEventHandlerIfNeeded()
+        currentKeyCode = keyCode
+        currentModifiers = modifiers
+        if register(keyCode: keyCode, modifiers: modifiers) { return }
+        DiagLog.write("GlobalHotKeyManager.start: failed to register initial hotkey (code=\(keyCode) mods=\(modifiers))")
+        // Fall back to the Option+Space default so the app never launches
+        // with zero working hotkey.
+        let fallbackKeyCode = UInt32(kVK_Space)
+        let fallbackModifiers = UInt32(optionKey)
+        currentKeyCode = fallbackKeyCode
+        currentModifiers = fallbackModifiers
+        if !register(keyCode: fallbackKeyCode, modifiers: fallbackModifiers) {
+            DiagLog.write("GlobalHotKeyManager.start: fallback Option+Space registration also failed — no hotkey is currently active")
+        }
+    }
 
+    /// Unregisters the current hotkey and registers `keyCode`/`modifiers`.
+    /// Returns `false` (and leaves the previous hotkey active) if the new
+    /// combo is already registered by another app — the Carbon
+    /// `RegisterEventHotKey` error is the only conflict signal available;
+    /// there's no API to enumerate who holds a combo.
+    @discardableResult
+    func updateHotKey(keyCode: UInt32, modifiers: UInt32) -> Bool {
+        let previousKeyCode = currentKeyCode
+        let previousModifiers = currentModifiers
+        unregisterCurrent()
+        if register(keyCode: keyCode, modifiers: modifiers) {
+            currentKeyCode = keyCode
+            currentModifiers = modifiers
+            return true
+        }
+        // Roll back so the overlay toggle keeps working.
+        if register(keyCode: previousKeyCode, modifiers: previousModifiers) {
+            currentKeyCode = previousKeyCode
+            currentModifiers = previousModifiers
+        } else {
+            DiagLog.write("GlobalHotKeyManager.updateHotKey: rollback registration also failed — no hotkey is currently active")
+        }
+        return false
+    }
+
+    private func installEventHandlerIfNeeded() {
+        guard eventHandlerRef == nil else { return }
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
         )
-
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
@@ -36,23 +81,37 @@ final class GlobalHotKeyManager: @unchecked Sendable {
             },
             1, &eventType, selfPtr, &eventHandlerRef
         )
+    }
 
-        // Option (⌥) + Space — keycode 49, modifier 2048 (optionKey)
-        RegisterEventHotKey(
-            UInt32(kVK_Space),
-            UInt32(optionKey),
+    /// Registers `keyCode`/`modifiers` under a fresh hotkey ID. Returns
+    /// whether registration succeeded.
+    @discardableResult
+    private func register(keyCode: UInt32, modifiers: UInt32) -> Bool {
+        nextHotKeyID += 1
+        let hotKeyID = EventHotKeyID(signature: 0x494E4350, id: nextHotKeyID) // "INCP"
+        var ref: EventHotKeyRef?
+        let status = RegisterEventHotKey(
+            keyCode,
+            modifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
-            &hotKeyRef
+            &ref
         )
+        guard status == noErr, let ref else { return false }
+        hotKeyRef = ref
+        return true
     }
 
-    func stop() {
+    private func unregisterCurrent() {
         if let ref = hotKeyRef {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+    }
+
+    func stop() {
+        unregisterCurrent()
         if let handler = eventHandlerRef {
             RemoveEventHandler(handler)
             eventHandlerRef = nil
