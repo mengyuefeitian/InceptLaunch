@@ -23,11 +23,18 @@ import Testing
     #expect(isDirectory.boolValue)
 }
 
-@Test func applicationSupportDirectoryIgnoresEmptyOverride() throws {
+/// Regression: an empty override must NOT silently fall through to the real
+/// ~/Library/Application Support/InceptLaunch directory. `swift test` runs
+/// inside a process named `swiftpm-testing-helper`, so without a real
+/// override this must throw — several tests forgetting to pass an isolated
+/// layoutPersistence:/preferencesStore: silently read and overwrote the
+/// user's actual layout.json across many `swift test` runs before this
+/// guard existed.
+@Test func applicationSupportDirectoryThrowsUnderTestHostWithoutOverride() throws {
     defer { unsetenv(InceptLaunchPaths.dataDirOverrideEnvKey) }
     setenv(InceptLaunchPaths.dataDirOverrideEnvKey, "", 1)
 
-    let resolved = try InceptLaunchPaths.applicationSupportDirectory()
-
-    #expect(resolved.path.hasSuffix("/InceptLaunch"))
+    #expect(throws: RealDataDirectoryAccessedFromTestHostError.self) {
+        try InceptLaunchPaths.applicationSupportDirectory()
+    }
 }

@@ -887,6 +887,12 @@ import Testing
         createdAt: Date(timeIntervalSince1970: 1),
         updatedAt: Date(timeIntervalSince1970: 1)
     )
+    // beginFloatingDragOut persists — isolate so this never touches the
+    // user's real layout.json (a prior incident had exactly this kind of
+    // omission silently overwriting real data on every `swift test` run).
+    let tempURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: tempURL))
     let viewModel = LaunchpadViewModel(
         appIndex: AppIndexStore(records: [
             appA.id: appA, appB.id: appB, appC.id: appC
@@ -898,7 +904,8 @@ import Testing
             grid: .init(columns: 7, rows: 5, iconSize: 72)
         )),
         matcher: SearchMatcher(),
-        launcher: AppLauncher(workspace: MockWorkspace())
+        launcher: AppLauncher(workspace: MockWorkspace()),
+        layoutPersistence: persistence
     )
 
     viewModel.beginFloatingDragOut(appID: appC.id, at: CGPoint(x: 100, y: 100))
@@ -913,6 +920,7 @@ import Testing
 
     #expect(viewModel.visiblePages[0].contains(where: { $0.id == appC.id }))
     #expect(viewModel.editDragID == appC.id)
+    try? FileManager.default.removeItem(at: tempURL)
 }
 
 /// Live reorder during drag may temporarily overflow a page (extra visual row).
@@ -922,6 +930,11 @@ import Testing
     let records = (0..<29).map { makeRecord("App\($0)") }
     let page0 = Array(records.prefix(28).map { LaunchpadItem.app($0.id) })
     let page1 = [LaunchpadItem.app(records[28].id)]
+    // endLiveReorder() persists — isolate so this never touches the user's
+    // real layout.json (see updateFloatingDragInsertsAppOntoGrid above).
+    let tempURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("test-layout-\(UUID().uuidString).json")
+    let persistence = LayoutPersistenceStore(fileStore: JSONFileStore<LaunchpadLayout>(url: tempURL))
     let viewModel = LaunchpadViewModel(
         appIndex: AppIndexStore(records: Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })),
         layoutStore: LayoutStore(layout: .init(
@@ -932,7 +945,8 @@ import Testing
             pageCapacity: 28
         )),
         matcher: SearchMatcher(),
-        launcher: AppLauncher(workspace: MockWorkspace())
+        launcher: AppLauncher(workspace: MockWorkspace()),
+        layoutPersistence: persistence
     )
 
     let dragged = records[28].id
@@ -951,6 +965,7 @@ import Testing
     for page in viewModel.visiblePages {
         #expect(page.count <= 28)
     }
+    try? FileManager.default.removeItem(at: tempURL)
 }
 
 private final class ThreadObservationBox: @unchecked Sendable {
