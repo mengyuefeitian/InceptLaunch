@@ -330,9 +330,8 @@ final class OverlayWindowController {
                 let panel = viewModel.folderPanelFrame
                 let insidePanel = panel.width > 1 && panel.height > 1 && panel.contains(point)
                 if !insidePanel {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        viewModel.openFolder = nil
-                    }
+                    // Scale-out runs inside FolderPopupView; do not nil immediately.
+                    viewModel.requestCloseFolder()
                     return nil
                 }
             }
@@ -617,9 +616,7 @@ final class OverlayWindowController {
             return
         }
         if viewModel.openFolder != nil {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                viewModel.openFolder = nil
-            }
+            viewModel.requestCloseFolder()
             return
         }
         // Searching or idle → leave fullscreen.

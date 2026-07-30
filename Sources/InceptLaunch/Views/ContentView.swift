@@ -68,6 +68,10 @@ struct ContentView: View {
                             }
                         },
                         onClose: { closeFolderPopup() },
+                        onCloseAnimationFinished: {
+                            viewModel.finishClosingFolder()
+                        },
+                        closeEpoch: viewModel.folderCloseEpoch,
                         animate: animEnabled && preferences.animateFolder,
                         wallpaperImage: DesktopWallpaperCapture.currentImage,
                         backgroundBlur: preferences.backgroundBlur,
@@ -109,8 +113,6 @@ struct ContentView: View {
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
-                    // Removal fade (open spring is driven inside FolderPopupView via `revealed`).
-                    .transition(.opacity)
                 }
 
                 if let dragItem = viewModel.gridDragItem {
@@ -364,12 +366,10 @@ struct ContentView: View {
         }
     }
 
-    /// Animated folder close when the user dismisses the popup (not used for
-    /// launch/drag-out paths that should hide immediately).
+    /// User dismiss (backdrop / Esc / blank). FolderPopupView plays scale-out,
+    /// then `finishClosingFolder` removes it. Launch / drag-out still clear immediately.
     private func closeFolderPopup() {
-        withAnimation(folderAnimation) {
-            viewModel.openFolder = nil
-        }
+        viewModel.requestCloseFolder()
     }
 
     private func syncScrollHijack() {

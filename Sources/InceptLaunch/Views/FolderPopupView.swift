@@ -10,6 +10,10 @@ struct FolderPopupView: View {
     let onRename: (String) -> Void
     let onTrash: (AppRecord) -> Void
     let onClose: () -> Void
+    /// Invoked after the close scale/fade finishes so the parent can nil `openFolder`.
+    var onCloseAnimationFinished: (() -> Void)? = nil
+    /// When this value increases while the popup is visible, play the close animation.
+    var closeEpoch: Int = 0
     var animate: Bool = true
     var wallpaperImage: NSImage? = nil
     var backgroundBlur: Double = 0.72
@@ -43,22 +47,35 @@ struct FolderPopupView: View {
     @State private var reorderDragID: String? = nil
     @State private var folderDragLocation: CGPoint = .zero
     @State private var panelFrame: CGRect = .zero
-    /// Drives open spring (scale + fade). Transitions on always-present children
+    /// Drives open/close scale + fade. Transitions on always-present children
     /// never fire when the whole popup is inserted, so we animate explicitly.
     @State private var revealed = false
+    @State private var isClosing = false
+    @State private var closeGeneration = 0
     @FocusState private var nameFieldFocused: Bool
 
     private var folderTileWidth: CGFloat { GridMetrics.tileWidth * iconSizeLevel.multiplier }
     private var folderIconSize: CGFloat { 88 * iconSizeLevel.multiplier }
     private var folderTileHeight: CGFloat { 128 * iconSizeLevel.multiplier }
 
+    /// Collapsed size when opening (small → full) / closing target feels related.
+    private var collapsedScale: CGFloat { 0.42 }
+
     private var columns: [GridItem] {
         Array(repeating: GridItem(.fixed(folderTileWidth), spacing: 16), count: 5)
     }
 
+    /// Open: a bit of overshoot so the panel “pops” larger.
     private var openSpring: Animation {
-        .spring(response: 0.32, dampingFraction: 0.82)
+        .spring(response: 0.42, dampingFraction: 0.78)
     }
+
+    /// Close: snappier ease into the shrink so exit feels deliberate, not instant.
+    private var closeSpring: Animation {
+        .spring(response: 0.30, dampingFraction: 0.92)
+    }
+
+    private var closeDuration: TimeInterval { 0.30 }
 
     var body: some View {
         ZStack {
@@ -71,12 +88,14 @@ struct FolderPopupView: View {
                 .opacity(revealed ? 1 : 0)
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    // Jiggle mode: first blank tap exits edit, not the folder.
                     if editMode {
                         onCancelEditMode?()
                     } else {
-                        onClose()
+                        beginDismiss()
                     }
                 }
+                .allowsHitTesting(revealed && !isClosing)
 
             VStack(spacing: 20) {
                 titleView
@@ -131,7 +150,8 @@ struct FolderPopupView: View {
                         }
                 }
             )
-            .scaleEffect(revealed ? 1 : 0.62)
+            // Gradual enlarge on open / shrink on close (not just fade).
+            .scaleEffect(revealed ? 1 : collapsedScale)
             .opacity(revealed ? 1 : 0)
 
             if let dragID = reorderDragID,
@@ -148,18 +168,49 @@ struct FolderPopupView: View {
             }
         }
         .onAppear { playOpenAnimationIfNeeded() }
+        .onChange(of: closeEpoch) { _, _ in
+            beginDismiss()
+        }
     }
 
     private func playOpenAnimationIfNeeded() {
-        guard !revealed else { return }
+        guard !revealed, !isClosing else { return }
         if animate {
-            // Ensure first frame is collapsed, then spring open.
             revealed = false
             withAnimation(openSpring) {
                 revealed = true
             }
         } else {
             revealed = true
+        }
+    }
+
+    /// Scale + fade out, then tell the parent to remove the popup from the tree.
+    private func beginDismiss() {
+        guard !isClosing else { return }
+
+        guard animate, revealed else {
+            if let onCloseAnimationFinished {
+                onCloseAnimationFinished()
+            } else {
+                onClose()
+            }
+            return
+        }
+
+        isClosing = true
+        closeGeneration &+= 1
+        let generation = closeGeneration
+        withAnimation(closeSpring) {
+            revealed = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + closeDuration) {
+            guard generation == closeGeneration else { return }
+            if let onCloseAnimationFinished {
+                onCloseAnimationFinished()
+            } else {
+                onClose()
+            }
         }
     }
 

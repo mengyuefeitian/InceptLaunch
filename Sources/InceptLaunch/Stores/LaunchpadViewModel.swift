@@ -48,6 +48,22 @@ final class LaunchpadViewModel {
     /// inside captured closures.
     var openFolder: LaunchpadDisplayItem?
 
+    /// Bumped by `requestCloseFolder()` so `FolderPopupView` can play the
+    /// scale-out animation before `finishClosingFolder()` clears `openFolder`.
+    private(set) var folderCloseEpoch: Int = 0
+
+    /// Ask the open folder popup to animate closed. No-op if nothing is open.
+    func requestCloseFolder() {
+        guard openFolder != nil else { return }
+        folderCloseEpoch &+= 1
+    }
+
+    /// Called after the close animation finishes (or immediately when animation is off).
+    func finishClosingFolder() {
+        openFolder = nil
+        folderPanelFrame = .zero
+    }
+
     /// Mirrors FolderPopupView's internal `panelFrame` (overlay coordinate
     /// space, origin top-left). The click monitor uses this to tell blank
     /// backdrop clicks (outside the panel — dismiss) from clicks that must
