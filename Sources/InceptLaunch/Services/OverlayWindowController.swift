@@ -56,8 +56,11 @@ final class OverlayWindowController {
     private let scrollModel = OverlayScrollModel()
     private let viewModel = LaunchpadViewModel()
     private let preferencesStore = PreferencesStore()
-    /// Logs the first mouseDown after each show() to diagnose “first click dies”.
-    private var loggedFirstClickAfterShow = false
+    /// After each show(), the first grid click is handled in AppKit — SwiftUI
+    /// often never sees that mouseDown (post-hide/activate). Cleared after use.
+    private var recoverFirstContentClick = false
+    /// App that was frontmost before we stole focus — reactivated on hide.
+    private var appToReactivate: NSRunningApplication?
 
     var exposedViewModel: LaunchpadViewModel { viewModel }
 
@@ -164,7 +167,14 @@ final class OverlayWindowController {
         viewModel.currentPage = 0
         viewModel.searchText = ""
         viewModel.clearFloatingDrag()
-        loggedFirstClickAfterShow = false
+        recoverFirstContentClick = true
+
+        // Remember who was front so hide() can give focus back without NSApp.hide
+        // (hide→unhide is what made the first content click a permanent no-op).
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.bundleIdentifier != Bundle.main.bundleIdentifier {
+            appToReactivate = front
+        }
 
         let prefs = (try? preferencesStore.load()) ?? .default
         Localizer.setLanguage(prefs.language)
@@ -213,12 +223,11 @@ final class OverlayWindowController {
     /// frontmost, so we re-assert activation + key status (without mutating
     /// collectionBehavior — incompatible flags crash in _validateCollectionBehavior).
     private func activateForKeyboard(_ window: NSWindow) {
+        // Prefer not to rely on unhide — we no longer NSApp.hide on dismiss.
         if NSApp.isHidden {
             NSApp.unhide(nil)
         }
         NSApp.setActivationPolicy(.regular)
-        // Always force activation — after hide(), the next user click is otherwise
-        // spent activating the app and never reaches the overlay content.
         if #available(macOS 14.0, *) {
             NSApp.activate()
         } else {
@@ -274,8 +283,15 @@ final class OverlayWindowController {
         hostingView = nil
         window?.orderOut(nil)
         window = nil
-        // Hide app so Dock re-click reliably fires applicationShouldHandleReopen.
-        NSApp.hide(nil)
+        recoverFirstContentClick = false
+
+        // Do NOT NSApp.hide — the matching unhide makes the next show()'s first
+        // click a no-op for SwiftUI (app/folder/blank all need a second click).
+        // Hand focus back to whoever was frontmost before we opened.
+        if let previous = appToReactivate, !previous.isTerminated {
+            previous.activate()
+        }
+        appToReactivate = nil
     }
 
     // MARK: - Scroll
@@ -322,13 +338,6 @@ final class OverlayWindowController {
             return event
         }
 
-        if !loggedFirstClickAfterShow {
-            loggedFirstClickAfterShow = true
-            DiagLog.write(
-                "firstClick after show: isActive=\(NSApp.isActive) isKey=\(eventWindow.isKeyWindow) firstResponder=\(String(describing: type(of: eventWindow.firstResponder))) loc=\(event.locationInWindow)"
-            )
-        }
-
         // Floating drag owns the pointer (app or folder handoff / drag-out).
         if viewModel.floatingDragItemID != nil {
             return event
@@ -336,6 +345,7 @@ final class OverlayWindowController {
 
         // Clicks on the AppKit search field pass through.
         if hitSearchField(event) {
+            recoverFirstContentClick = false
             return event
         }
 
@@ -344,6 +354,7 @@ final class OverlayWindowController {
         // long-press jiggle can start (consuming every mouseDown forced a
         // second attempt before drag worked).
         if viewModel.editMode {
+            recoverFirstContentClick = false
             if hitTile(event) {
                 return event
             }
@@ -361,6 +372,7 @@ final class OverlayWindowController {
         // actually position-specific — see the folder-tile-dismiss-click
         // investigation for the elimination process).
         if viewModel.openFolder != nil {
+            recoverFirstContentClick = false
             if let window {
                 let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
                 let panel = viewModel.folderPanelFrame
@@ -379,8 +391,20 @@ final class OverlayWindowController {
         // Idle grid: pass the event through so icon taps still launch apps.
         let searching = !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if searching {
+            recoverFirstContentClick = false
             hide()
             return nil
+        }
+
+        // First click after show(): SwiftUI often never sees this mouseDown
+        // (activation / first-mouse). Handle open-app / open-folder / blank
+        // dismiss here and consume the event so the action still happens once.
+        if recoverFirstContentClick {
+            recoverFirstContentClick = false
+            if performFirstContentClick(event) {
+                return nil
+            }
+            // Unknown target — still pass through in case SwiftUI can use it.
         }
 
         // Defocus search if it somehow held focus while empty — but do NOT blur
@@ -393,6 +417,44 @@ final class OverlayWindowController {
             }
         }
         return event
+    }
+
+    /// AppKit fallback for the first grid interaction after show().
+    /// Returns true when the click was fully handled (caller should consume event).
+    private func performFirstContentClick(_ event: NSEvent) -> Bool {
+        guard let window else { return false }
+        let point = swiftUIPoint(fromWindow: event.locationInWindow, in: window)
+
+        // Smallest containing tile wins (tighter hit among overlapping frames).
+        let hits = viewModel.tileFrames.filter {
+            $0.frame.insetBy(dx: -6, dy: -6).contains(point)
+        }
+        let hit = hits.min {
+            ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height)
+        }
+
+        if let hit {
+            if hit.isFolder {
+                if let item = viewModel.gridDisplayItem(id: hit.id) {
+                    DiagLog.write("firstClick recovery: open folder id=\(hit.id)")
+                    viewModel.openFolderPopup(item)
+                    return true
+                }
+            } else if let record = viewModel.appRecord(id: hit.id) {
+                DiagLog.write("firstClick recovery: launch app id=\(hit.id)")
+                viewModel.finishClosingFolder()
+                NotificationCenter.default.post(name: .inceptLaunchDismiss, object: nil)
+                DispatchQueue.main.async {
+                    _ = AppLauncher().launch(record)
+                }
+                return true
+            }
+        }
+
+        // Blank area → dismiss overlay (same as SwiftUI blank tap).
+        DiagLog.write("firstClick recovery: blank dismiss at \(point)")
+        hide()
+        return true
     }
 
     private func hitSearchField(_ event: NSEvent) -> Bool {
