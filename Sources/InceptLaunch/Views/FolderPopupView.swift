@@ -81,38 +81,39 @@ struct FolderPopupView: View {
     }
 
     private var openSpring: Animation {
-        .spring(response: 0.45, dampingFraction: 0.82)
+        .spring(response: 0.40, dampingFraction: 0.86)
     }
 
     private var closeSpring: Animation {
-        .spring(response: 0.38, dampingFraction: 0.90)
+        .spring(response: 0.32, dampingFraction: 0.92)
     }
 
-    /// Must outlast the close spring so we never remove the view while a 5-col
-    /// panel is still visible at tile scale (that looked like a “stuck 5×4 folder”).
-    private var closeDuration: TimeInterval { 0.42 }
+    private var closeDuration: TimeInterval { 0.38 }
+    /// Hard cap so a hung spring cannot leave a blurred shell forever.
+    private var openWatchdog: TimeInterval { 0.70 }
+    private var closeWatchdog: TimeInterval { 0.55 }
 
-    /// 0 at tile, 1 when fully open — how much of the 5-column popup is shown.
-    /// Stays near 0 longer on close so the last frames are 3×3, not 5×4.
+    /// How much of the full 5-col popup is shown (stays 3×3 near the tile).
     private var expandedContentReveal: CGFloat {
-        // Smoothstep from progress 0.22 → 0.72
-        let t = (progress - 0.22) / 0.50
+        let t = (progress - 0.28) / 0.45
         let x = min(1, max(0, t))
         return x * x * (3 - 2 * x)
     }
 
-    /// Motion blur while zooming (stronger near the tile, clear when fully open).
-    private var motionBlurRadius: CGFloat {
+    /// Light motion haze — opacity only. GPU `blur` on full folder grids was
+    /// freezing the main thread (clicks / Esc / scroll all dead).
+    private var transitDim: Double {
         guard animate else { return 0 }
-        return (1 - progress) * 10
+        // Peaks mid-flight, 0 when fully open or fully closed.
+        let p = Double(progress)
+        return 0.18 * (4 * p * (1 - p))
     }
 
-    /// Scale + offset that place the full-size panel over the source tile at `progress == 0`.
+    /// Scale + offset: tile frame → screen center.
     private var zoomTransform: (scale: CGFloat, offset: CGSize) {
         let hasSource = sourceFrame.width > 2 && sourceFrame.height > 2
             && overlaySize.width > 2 && overlaySize.height > 2
         guard hasSource else {
-            // Fallback: simple center scale when tile frame is unknown.
             let s = 0.40 + 0.60 * progress
             return (s, .zero)
         }
@@ -124,8 +125,6 @@ struct FolderPopupView: View {
             min(sourceFrame.width / panelW, sourceFrame.height / panelH)
         )
         let scale = startScale + (1 - startScale) * progress
-
-        // ZStack centers the panel → resting layout center ≈ overlay center.
         let finalCenter = CGPoint(x: overlaySize.width / 2, y: overlaySize.height / 2)
         let sourceCenter = CGPoint(x: sourceFrame.midX, y: sourceFrame.midY)
         let offset = CGSize(
@@ -138,65 +137,71 @@ struct FolderPopupView: View {
     var body: some View {
         let zoom = zoomTransform
         let reveal = expandedContentReveal
+        let fullyOpen = progress > 0.97 && !isClosing
         ZStack {
-            // Real dismiss for outside-panel clicks happens in AppKit
-            // (OverlayWindowController.handleMouseDown) — SwiftUI's onTapGesture
-            // on a large, mostly-blank view is unreliable on macOS and would
-            // otherwise need many clicks before registering. This stays as a
-            // fallback for any input path that doesn't go through the monitor.
+            // Real dismiss for outside-panel clicks happens in AppKit.
             Color.black.opacity(0.45)
                 .opacity(Double(progress))
-                // Soft blur on the dim layer while in transit.
-                .blur(radius: motionBlurRadius * 0.35)
+                .overlay(Color.white.opacity(transitDim))
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    // Jiggle mode: first blank tap exits edit, not the folder.
                     if editMode {
                         onCancelEditMode?()
                     } else {
                         beginDismiss()
                     }
                 }
-                .allowsHitTesting(progress > 0.85 && !isClosing)
+                // Always hittable once mostly open so a stuck shell can still be dismissed.
+                .allowsHitTesting(progress > 0.5 && !isClosing)
 
-            // Morphing shell: 3×3 tile look near the source, full 5-col popup when open.
-            // Without this, scaling the 5-col layout down to the tile looked like the
-            // folder “became” a 5×4 expanded panel.
             ZStack {
+                // Always-light 3×3 chrome near the tile (no heavy member grid).
                 compactTileLayer
                     .opacity(Double(1 - reveal))
                     .allowsHitTesting(false)
 
-                expandedPanelLayer
-                    .opacity(Double(reveal))
-                    .allowsHitTesting(reveal > 0.9 && !isClosing)
+                // Mount the expensive 5-col panel only once reveal starts —
+                // building LazyVGrid + wallpaper blur every frame was a hang source.
+                if reveal > 0.02 {
+                    expandedPanelLayer
+                        .opacity(Double(reveal))
+                        .allowsHitTesting(fullyOpen)
+                }
             }
             .frame(width: panelWidth, height: max(120, estimatedPanelHeight))
-            .compositingGroup()
-            .blur(radius: motionBlurRadius)
+            // Soft “haze” via dim overlay instead of GPU blur of the whole tree.
+            .overlay(Color.white.opacity(transitDim * 0.6).allowsHitTesting(false))
             .scaleEffect(zoom.scale, anchor: .center)
             .offset(zoom.offset)
-            .background(
+            .background {
+                // Report hit frame ONLY when fully open — never during transit
+                // (avoids Observable feedback loops with viewModel.folderPanelFrame).
                 GeometryReader { geo in
                     Color.clear
+                        .onChange(of: fullyOpen) { _, open in
+                            if open {
+                                let f = geo.frame(in: .named("overlay"))
+                                panelFrame = f
+                                onPanelFrameChanged?(f)
+                                DiagLog.write("folderPanel fullyOpen frame=\(NSStringFromRect(f))")
+                            } else if panelFrame != .zero {
+                                panelFrame = .zero
+                                onPanelFrameChanged?(.zero)
+                            }
+                        }
                         .onAppear {
-                            // Hit-test frame must track the *visual* bounds after transform
-                            // once fully open; during transit AppKit should not treat the
-                            // shrinking shell as a persistent 5×4 folder on the grid.
-                            reportPanelFrame(geo.frame(in: .named("overlay")), visual: zoom)
-                        }
-                        .onChange(of: progress) { _, _ in
-                            reportPanelFrame(geo.frame(in: .named("overlay")), visual: zoomTransform)
-                        }
-                        .onChange(of: geo.frame(in: .named("overlay"))) { _, f in
-                            reportPanelFrame(f, visual: zoomTransform)
+                            if fullyOpen {
+                                let f = geo.frame(in: .named("overlay"))
+                                panelFrame = f
+                                onPanelFrameChanged?(f)
+                            }
                         }
                 }
-            )
+            }
 
             if let dragID = reorderDragID,
                let dragMember = item.members.first(where: { $0.id == dragID }),
-               animate, reveal > 0.9 {
+               animate, fullyOpen {
                 RealAppIcon(record: dragMember)
                     .frame(width: folderIconSize, height: folderIconSize)
                     .scaleEffect(1.15)
@@ -239,10 +244,6 @@ struct FolderPopupView: View {
                 .coordinateSpace(name: "folderGrid")
                 .padding(.horizontal, 26)
                 .padding(.bottom, 26)
-                .animation(
-                    animate ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
-                    value: item.members.map(\.id)
-                )
             }
             .frame(maxHeight: 560)
         }
@@ -254,6 +255,8 @@ struct FolderPopupView: View {
                     Image(nsImage: wallpaperImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
+                        // Static backdrop blur — only while fully mounted, not re-blurred
+                        // every animation frame of the shell.
                         .blur(radius: 50)
                         .overlay(Color.white.opacity(0.08))
                 } else {
@@ -269,33 +272,22 @@ struct FolderPopupView: View {
         .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
     }
 
-    /// Publish panel frame for AppKit. While mostly closed, report `.zero` so a
-    /// shrinking popup is not treated as a permanent hit target on the grid.
-    private func reportPanelFrame(_ layoutFrame: CGRect, visual zoom: (scale: CGFloat, offset: CGSize)) {
-        if progress < 0.5 || (isClosing && progress < 0.85) {
-            if panelFrame != .zero {
-                panelFrame = .zero
-                onPanelFrameChanged?(.zero)
-            }
-            return
-        }
-        // Apply the same scale/offset the user sees (layout is pre-transform).
-        var f = layoutFrame
-        let cx = f.midX + zoom.offset.width
-        let cy = f.midY + zoom.offset.height
-        let w = f.width * zoom.scale
-        let h = f.height * zoom.scale
-        f = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
-        panelFrame = f
-        onPanelFrameChanged?(f)
-    }
-
     private func playOpenAnimationIfNeeded() {
         guard progress < 1, !isClosing else { return }
+        DiagLog.write("folderOpen begin id=\(item.id) animate=\(animate) source=\(NSStringFromRect(sourceFrame))")
         if animate {
             progress = 0
             withAnimation(openSpring) {
                 progress = 1
+            }
+            // Watchdog: if spring stalls (GPU/layout jam), snap open so UI stays usable.
+            let generation = closeGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + openWatchdog) {
+                guard generation == closeGeneration, !isClosing, progress < 0.99 else { return }
+                DiagLog.write("folderOpen WATCHDOG snap progress=\(progress) → 1")
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { progress = 1 }
             }
         } else {
             progress = 1
@@ -304,7 +296,12 @@ struct FolderPopupView: View {
 
     /// Zoom back to the source tile (as 3×3), then remove the popup from the tree.
     private func beginDismiss() {
-        guard !isClosing else { return }
+        guard !isClosing else {
+            DiagLog.write("folderClose beginDismiss ignored (already closing)")
+            return
+        }
+
+        DiagLog.write("folderClose begin id=\(item.id) progress=\(progress)")
 
         guard animate, progress > 0.01 else {
             finishDismiss()
@@ -314,7 +311,6 @@ struct FolderPopupView: View {
         isClosing = true
         closeGeneration &+= 1
         let generation = closeGeneration
-        // Clear hit frame immediately so AppKit never “sticks” on a tiny 5×4.
         panelFrame = .zero
         onPanelFrameChanged?(.zero)
         withAnimation(closeSpring) {
@@ -322,6 +318,13 @@ struct FolderPopupView: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + closeDuration) {
             guard generation == closeGeneration else { return }
+            DiagLog.write("folderClose finished id=\(item.id)")
+            finishDismiss()
+        }
+        // Watchdog if asyncAfter is delayed by main-thread load.
+        DispatchQueue.main.asyncAfter(deadline: .now() + closeWatchdog) {
+            guard generation == closeGeneration, isClosing else { return }
+            DiagLog.write("folderClose WATCHDOG force finish id=\(item.id)")
             finishDismiss()
         }
     }
