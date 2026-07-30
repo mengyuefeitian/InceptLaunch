@@ -1,3 +1,14 @@
+## 1.7.21 - 2026-07-30
+
+### Features
+- Folder popup zooms open from its grid tile and zooms back on close (3×3 tile morph mid-flight)
+
+### Fixes
+- First click after opening the overlay (app / folder / blank dismiss) no longer no-ops
+- Folder open/close no longer freezes the UI mid-animation or leaves a stuck half-open shell
+- Close timers from a previous folder no longer kill a newly opened folder
+- Stopped using `NSApp.hide` on dismiss (restore previous frontmost app instead)
+
 ## 1.7.13 - 2026-07-30
 
 ### Features
