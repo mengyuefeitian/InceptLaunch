@@ -18,6 +18,8 @@ struct EnlargedFolderTileView: View {
     /// Live icon size from the grid (scales with tile height).
     var iconSize: CGFloat = GridMetrics.iconSize
     var showName: Bool = true
+    /// When set, tapping a mini member icon invokes this instead of bubbling to the parent chrome tap (open folder).
+    var onActivateMember: ((AppRecord) -> Void)? = nil
 
     @State private var carouselPage = 0
     @State private var autoAdvanceTimer: Timer?
@@ -154,6 +156,7 @@ struct EnlargedFolderTileView: View {
                     let slice = Array(members.dropFirst(start).prefix(9))
                     iconGrid(members: slice)
                         .opacity(page == carouselPage ? 1 : 0)
+                        .allowsHitTesting(page == carouselPage)
                 }
             }
             .frame(maxHeight: .infinity)
@@ -227,14 +230,36 @@ struct EnlargedFolderTileView: View {
                     ForEach(0..<3, id: \.self) { col in
                         let index = row * 3 + col
                         if index < members.count {
-                            RealAppIcon(record: members[index])
+                            let record = members[index]
+                            RealAppIcon(record: record)
                                 .frame(width: miniIconSize, height: miniIconSize)
+                                .contentShape(Rectangle())
+                                .modifier(EnlargedMemberTapModifier(
+                                    record: record,
+                                    onActivateMember: onActivateMember
+                                ))
                         } else {
                             Color.clear.frame(width: miniIconSize, height: miniIconSize)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/// High-priority tap on a mini icon so parent chrome `.onTapGesture` (open folder) does not fire.
+private struct EnlargedMemberTapModifier: ViewModifier {
+    let record: AppRecord
+    var onActivateMember: ((AppRecord) -> Void)?
+
+    func body(content: Content) -> some View {
+        if let onActivateMember {
+            content.highPriorityGesture(
+                TapGesture().onEnded { onActivateMember(record) }
+            )
+        } else {
+            content
         }
     }
 }
