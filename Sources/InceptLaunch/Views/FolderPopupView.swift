@@ -39,6 +39,10 @@ struct FolderPopupView: View {
     /// outside-panel backdrop clicks (dismiss) from inside-panel clicks
     /// (member tap / reorder / drag-out, which must reach SwiftUI).
     var onPanelFrameChanged: ((CGRect) -> Void)? = nil
+    /// Grid tile frame in overlay coordinates (origin top-left) — zoom origin/target.
+    var sourceFrame: CGRect = .zero
+    /// Full overlay size for computing the panel’s resting center.
+    var overlaySize: CGSize = .zero
 
     @State private var isEditingName = false
     @State private var draftName = ""
@@ -47,9 +51,8 @@ struct FolderPopupView: View {
     @State private var reorderDragID: String? = nil
     @State private var folderDragLocation: CGPoint = .zero
     @State private var panelFrame: CGRect = .zero
-    /// Drives open/close scale + fade. Transitions on always-present children
-    /// never fire when the whole popup is inserted, so we animate explicitly.
-    @State private var revealed = false
+    /// 0 = parked on source tile, 1 = fully open at screen center.
+    @State private var progress: CGFloat = 0
     @State private var isClosing = false
     @State private var closeGeneration = 0
     @FocusState private var nameFieldFocused: Bool
@@ -58,26 +61,65 @@ struct FolderPopupView: View {
     private var folderIconSize: CGFloat { 88 * iconSizeLevel.multiplier }
     private var folderTileHeight: CGFloat { 128 * iconSizeLevel.multiplier }
 
-    /// Collapsed size when opening (small → full) / closing target feels related.
-    private var collapsedScale: CGFloat { 0.42 }
+    private var panelWidth: CGFloat { 5 * folderTileWidth + 4 * 16 + 52 }
+
+    /// Estimate resting panel height so we can map source tile → full panel scale.
+    private var estimatedPanelHeight: CGFloat {
+        let columns = 5
+        let rows = max(1, min(4, (item.members.count + columns - 1) / columns))
+        let titleBlock: CGFloat = 26 + 28
+        let vSpacing: CGFloat = 20
+        let grid =
+            CGFloat(rows) * folderTileHeight
+            + CGFloat(max(0, rows - 1)) * 24
+            + 26
+        return titleBlock + vSpacing + min(560, grid)
+    }
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.fixed(folderTileWidth), spacing: 16), count: 5)
     }
 
-    /// Open: a bit of overshoot so the panel “pops” larger.
     private var openSpring: Animation {
-        .spring(response: 0.42, dampingFraction: 0.78)
+        .spring(response: 0.45, dampingFraction: 0.82)
     }
 
-    /// Close: snappier ease into the shrink so exit feels deliberate, not instant.
     private var closeSpring: Animation {
-        .spring(response: 0.30, dampingFraction: 0.92)
+        .spring(response: 0.36, dampingFraction: 0.90)
     }
 
-    private var closeDuration: TimeInterval { 0.30 }
+    private var closeDuration: TimeInterval { 0.36 }
+
+    /// Scale + offset that place the full-size panel over the source tile at `progress == 0`.
+    private var zoomTransform: (scale: CGFloat, offset: CGSize) {
+        let hasSource = sourceFrame.width > 2 && sourceFrame.height > 2
+            && overlaySize.width > 2 && overlaySize.height > 2
+        guard hasSource else {
+            // Fallback: simple center scale when tile frame is unknown.
+            let s = 0.40 + 0.60 * progress
+            return (s, .zero)
+        }
+
+        let panelW = panelWidth
+        let panelH = max(120, estimatedPanelHeight)
+        let startScale = max(
+            0.12,
+            min(sourceFrame.width / panelW, sourceFrame.height / panelH)
+        )
+        let scale = startScale + (1 - startScale) * progress
+
+        // ZStack centers the panel → resting layout center ≈ overlay center.
+        let finalCenter = CGPoint(x: overlaySize.width / 2, y: overlaySize.height / 2)
+        let sourceCenter = CGPoint(x: sourceFrame.midX, y: sourceFrame.midY)
+        let offset = CGSize(
+            width: (sourceCenter.x - finalCenter.x) * (1 - progress),
+            height: (sourceCenter.y - finalCenter.y) * (1 - progress)
+        )
+        return (scale, offset)
+    }
 
     var body: some View {
+        let zoom = zoomTransform
         ZStack {
             // Real dismiss for outside-panel clicks happens in AppKit
             // (OverlayWindowController.handleMouseDown) — SwiftUI's onTapGesture
@@ -85,7 +127,7 @@ struct FolderPopupView: View {
             // otherwise need many clicks before registering. This stays as a
             // fallback for any input path that doesn't go through the monitor.
             Color.black.opacity(0.45)
-                .opacity(revealed ? 1 : 0)
+                .opacity(Double(progress))
                 .contentShape(Rectangle())
                 .onTapGesture {
                     // Jiggle mode: first blank tap exits edit, not the folder.
@@ -95,7 +137,7 @@ struct FolderPopupView: View {
                         beginDismiss()
                     }
                 }
-                .allowsHitTesting(revealed && !isClosing)
+                .allowsHitTesting(progress > 0.85 && !isClosing)
 
             VStack(spacing: 20) {
                 titleView
@@ -117,7 +159,7 @@ struct FolderPopupView: View {
                 }
                 .frame(maxHeight: 560)
             }
-            .frame(width: 5 * folderTileWidth + 4 * 16 + 52)
+            .frame(width: panelWidth)
             .background(
                 Group {
                     if let wallpaperImage {
@@ -150,9 +192,10 @@ struct FolderPopupView: View {
                         }
                 }
             )
-            // Gradual enlarge on open / shrink on close (not just fade).
-            .scaleEffect(revealed ? 1 : collapsedScale)
-            .opacity(revealed ? 1 : 0)
+            // Zoom from the grid folder tile → center (and reverse on close).
+            // Source tile is hidden while open, so full opacity keeps the morph continuous.
+            .scaleEffect(zoom.scale, anchor: .center)
+            .offset(zoom.offset)
 
             if let dragID = reorderDragID,
                let dragMember = item.members.first(where: { $0.id == dragID }),
@@ -174,22 +217,22 @@ struct FolderPopupView: View {
     }
 
     private func playOpenAnimationIfNeeded() {
-        guard !revealed, !isClosing else { return }
+        guard progress < 1, !isClosing else { return }
         if animate {
-            revealed = false
+            progress = 0
             withAnimation(openSpring) {
-                revealed = true
+                progress = 1
             }
         } else {
-            revealed = true
+            progress = 1
         }
     }
 
-    /// Scale + fade out, then tell the parent to remove the popup from the tree.
+    /// Zoom back to the source tile, then tell the parent to remove the popup.
     private func beginDismiss() {
         guard !isClosing else { return }
 
-        guard animate, revealed else {
+        guard animate, progress > 0.01 else {
             if let onCloseAnimationFinished {
                 onCloseAnimationFinished()
             } else {
@@ -202,7 +245,7 @@ struct FolderPopupView: View {
         closeGeneration &+= 1
         let generation = closeGeneration
         withAnimation(closeSpring) {
-            revealed = false
+            progress = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + closeDuration) {
             guard generation == closeGeneration else { return }

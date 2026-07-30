@@ -48,19 +48,37 @@ final class LaunchpadViewModel {
     /// inside captured closures.
     var openFolder: LaunchpadDisplayItem?
 
+    /// Grid-tile frame (overlay coords) captured when the folder was opened —
+    /// drives zoom-from-tile / zoom-back-to-tile animation.
+    var openFolderSourceFrame: CGRect = .zero
+
     /// Bumped by `requestCloseFolder()` so `FolderPopupView` can play the
     /// scale-out animation before `finishClosingFolder()` clears `openFolder`.
     private(set) var folderCloseEpoch: Int = 0
 
+    /// Open a folder popup, remembering where the grid tile sat for zoom animation.
+    func openFolderPopup(_ item: LaunchpadDisplayItem) {
+        openFolderSourceFrame = tileFrames.first(where: { $0.id == item.id })?.frame ?? .zero
+        openFolder = item
+    }
+
     /// Ask the open folder popup to animate closed. No-op if nothing is open.
     func requestCloseFolder() {
         guard openFolder != nil else { return }
+        // Refresh source frame so close can target the tile's current position
+        // (page may have flipped / layout shifted while the popup was open).
+        if let id = openFolder?.id,
+           let live = tileFrames.first(where: { $0.id == id })?.frame,
+           live.width > 1, live.height > 1 {
+            openFolderSourceFrame = live
+        }
         folderCloseEpoch &+= 1
     }
 
     /// Called after the close animation finishes (or immediately when animation is off).
     func finishClosingFolder() {
         openFolder = nil
+        openFolderSourceFrame = .zero
         folderPanelFrame = .zero
     }
 
@@ -513,7 +531,8 @@ final class LaunchpadViewModel {
         guard let record = appIndex.records[appID] else { return }
         DiagLog.write("beginFloatingDragOut appID=\(appID) — closing folder")
         _ = layoutStore.extractAppFromFolder(appID)
-        openFolder = nil
+        // Instant close (drag continues on the grid) — skip zoom-back.
+        finishClosingFolder()
         floatingDragApp = record
         floatingDragItemID = appID
         floatingDragPoint = point

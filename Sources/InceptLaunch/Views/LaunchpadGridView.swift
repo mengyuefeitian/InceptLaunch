@@ -8,6 +8,8 @@ struct LaunchpadGridView: View {
     let onLaunch: (LaunchpadDisplayItem) -> Void
     /// Direct app launch from enlarged-folder mini icons (skips open-folder).
     var onLaunchApp: ((AppRecord) -> Void)? = nil
+    /// While a folder popup is open, hide that grid tile so zoom feels continuous.
+    var openFolderID: String? = nil
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
     let onHide: (LaunchpadDisplayItem) -> Void
@@ -233,7 +235,7 @@ struct LaunchpadGridView: View {
                 .shadow(color: isBeingDragged ? .black.opacity(0.45) : .clear, radius: 16, y: 8)
                 .rotationEffect(.degrees(angle))
                 .offset(dragTrans)
-                .opacity(isBeingDragged && animateDrag ? 0.0 : (isBeingDragged ? 0.92 : 1.0))
+                .opacity(tileOpacity(itemID: item.id, isBeingDragged: isBeingDragged))
         }
         // zIndex on the Layout child so the dragged tile paints above folders
         // (not under them mid-drag).
@@ -252,6 +254,14 @@ struct LaunchpadGridView: View {
         // fall through to page-level dismiss. Activate + drag live on icon/title
         // (or the full enlarged-folder chrome) only.
         .modifier(TileFramePreferenceModifier(id: item.id, isFolder: isFolder))
+    }
+
+    private func tileOpacity(itemID: String, isBeingDragged: Bool) -> Double {
+        // Hide source tile while its popup is open (zoom continuity).
+        if openFolderID == itemID { return 0 }
+        if isBeingDragged && animateDrag { return 0 }
+        if isBeingDragged { return 0.92 }
+        return 1
     }
 
     /// Shared drag handling for app tiles and enlarged folders.

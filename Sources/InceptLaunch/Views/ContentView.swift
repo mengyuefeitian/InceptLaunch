@@ -109,7 +109,9 @@ struct ContentView: View {
                         },
                         onPanelFrameChanged: { frame in
                             viewModel.folderPanelFrame = frame
-                        }
+                        },
+                        sourceFrame: viewModel.openFolderSourceFrame,
+                        overlaySize: geo.size
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
@@ -213,6 +215,7 @@ struct ContentView: View {
                 enlargedFolderIDs: viewModel.enlargedFolderIDs,
                 onLaunch: { item in handleTap(item) },
                 onLaunchApp: { record in launchAndDismiss(record) },
+                openFolderID: viewModel.openFolder?.id,
                 onDropItem: { sourceID, target in
                     viewModel.handleDrop(sourceID: sourceID, onto: target)
                 },
@@ -379,7 +382,8 @@ struct ContentView: View {
     /// Dismiss the overlay first, then open the app on the next main turn.
     /// Synchronous `NSWorkspace.open` must never block hide (cold start 2–5s).
     private func launchAndDismiss(_ record: AppRecord) {
-        viewModel.openFolder = nil
+        // Instant dismiss — no zoom-back when leaving Launchpad to open an app.
+        viewModel.finishClosingFolder()
         dismiss()
         DispatchQueue.main.async {
             _ = AppLauncher().launch(record)
@@ -391,9 +395,8 @@ struct ContentView: View {
         case .app(let record):
             launchAndDismiss(record)
         case .folder:
-            withAnimation(folderAnimation) {
-                viewModel.openFolder = item
-            }
+            // Capture tile frame then open — zoom animation lives in FolderPopupView.
+            viewModel.openFolderPopup(item)
         }
     }
 

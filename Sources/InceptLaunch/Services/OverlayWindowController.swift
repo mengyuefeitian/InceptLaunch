@@ -143,7 +143,7 @@ final class OverlayWindowController {
         scrollModel.update(isSearching: false, isFolderOpen: false)
         viewModel.tileFramesReady = false
         viewModel.tileFrames = []
-        viewModel.openFolder = nil
+        viewModel.finishClosingFolder()
         viewModel.editMode = false
         viewModel.editDragID = nil
         viewModel.editDragTranslation = .zero
