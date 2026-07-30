@@ -32,10 +32,10 @@ When a dragged tile enters a folder's acceptance threshold:
 
 ### Files Affected
 
-- `Sources/InceptLaunch/Views/FolderPopupView.swift` — accept wallpaper image
+- `Sources/iLaunch/Views/FolderPopupView.swift` — accept wallpaper image
   param, replace backdrop.
-- `Sources/InceptLaunch/Views/ContentView.swift` — pass wallpaper image down.
-- `Sources/InceptLaunch/Views/LaunchpadGridView.swift` — folder scale animation
+- `Sources/iLaunch/Views/ContentView.swift` — pass wallpaper image down.
+- `Sources/iLaunch/Views/LaunchpadGridView.swift` — folder scale animation
   state.
 
 ---
@@ -53,9 +53,9 @@ When a dragged tile enters a folder's acceptance threshold:
 
 ### Files Affected
 
-- `Sources/InceptLaunch/Support/Localizer.swift`
-- `Sources/InceptLaunch/Models/UserPreferences.swift`
-- `Sources/InceptLaunch/Views/SettingsView.swift`
+- `Sources/iLaunch/Support/Localizer.swift`
+- `Sources/iLaunch/Models/UserPreferences.swift`
+- `Sources/iLaunch/Views/SettingsView.swift`
 
 ---
 
@@ -117,14 +117,14 @@ New "图标" (Icons) section:
 
 ### Files Affected
 
-- `Sources/InceptLaunch/Models/UserPreferences.swift` — new keys + enum.
-- `Sources/InceptLaunch/Support/GridMetrics.swift` — dynamic rows/cols/iconSize.
-- `Sources/InceptLaunch/Views/LaunchpadGridLayout.swift` — accept cols param,
+- `Sources/iLaunch/Models/UserPreferences.swift` — new keys + enum.
+- `Sources/iLaunch/Support/GridMetrics.swift` — dynamic rows/cols/iconSize.
+- `Sources/iLaunch/Views/LaunchpadGridLayout.swift` — accept cols param,
   compute cell sizes from available space.
-- `Sources/InceptLaunch/Views/LaunchpadGridView.swift` — pass dynamic metrics.
-- `Sources/InceptLaunch/Views/ContentView.swift` — pass preferences to grid.
-- `Sources/InceptLaunch/Views/SettingsView.swift` — new UI sections.
-- `Sources/InceptLaunch/Support/Localizer.swift` — new keys for layout/icons
+- `Sources/iLaunch/Views/LaunchpadGridView.swift` — pass dynamic metrics.
+- `Sources/iLaunch/Views/ContentView.swift` — pass preferences to grid.
+- `Sources/iLaunch/Views/SettingsView.swift` — new UI sections.
+- `Sources/iLaunch/Support/Localizer.swift` — new keys for layout/icons
   labels in all languages (zh, en, ja, ko, ru).
 
 ---

@@ -24,19 +24,19 @@
 
 | File | Responsibility |
 |------|---------------|
-| `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift` | Add `liveReorder(draggedID:toIndex:page:)` and `liveReorderInFolder(folderID:appID:toIndex:)` methods; add `gridDragItem`/`gridDragLocation` state for overlay |
-| `Sources/InceptLaunch/Views/LaunchpadGridView.swift` | Change ForEach to ID-based identity; modify `directDragGesture` for live reorder; hide dragged tile; add `.animation(value:)` on grid container |
-| `Sources/InceptLaunch/Views/FolderPopupView.swift` | Wrap reorder in `withAnimation`; hide dragged member; add `.animation(value:)` on folder grid |
-| `Sources/InceptLaunch/Views/ContentView.swift` | Render floating drag overlay at top of ZStack; pass `gridDragLocation` |
-| `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift` | Unit tests for `liveReorder` and `liveReorderInFolder` |
+| `Sources/iLaunch/Stores/LaunchpadViewModel.swift` | Add `liveReorder(draggedID:toIndex:page:)` and `liveReorderInFolder(folderID:appID:toIndex:)` methods; add `gridDragItem`/`gridDragLocation` state for overlay |
+| `Sources/iLaunch/Views/LaunchpadGridView.swift` | Change ForEach to ID-based identity; modify `directDragGesture` for live reorder; hide dragged tile; add `.animation(value:)` on grid container |
+| `Sources/iLaunch/Views/FolderPopupView.swift` | Wrap reorder in `withAnimation`; hide dragged member; add `.animation(value:)` on folder grid |
+| `Sources/iLaunch/Views/ContentView.swift` | Render floating drag overlay at top of ZStack; pass `gridDragLocation` |
+| `Tests/iLaunchTests/LaunchpadViewModelTests.swift` | Unit tests for `liveReorder` and `liveReorderInFolder` |
 
 ---
 
 ### Task 1: ViewModel — Add `liveReorder` methods
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift:316-322`
-- Test: `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift:316-322`
+- Test: `Tests/iLaunchTests/LaunchpadViewModelTests.swift`
 
 **Interfaces:**
 - Consumes: `layoutStore.moveItem(id:toPage:index:)`, `layoutStore.reorderFolderItem(folderID:appID:toIndex:)`, `persistLayout()`
@@ -44,7 +44,7 @@
 
 - [ ] **Step 1: Write failing test for `liveReorder`**
 
-Add to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`:
+Add to `Tests/iLaunchTests/LaunchpadViewModelTests.swift`:
 
 ```swift
 @MainActor @Test func liveReorderMovesItemWithoutPersisting() {
@@ -75,7 +75,7 @@ Add to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`:
     #expect(visible.map(\.id) == [appC.id, appA.id, appB.id])
 
     // liveReorder must NOT persist (only final drop persists).
-    let saved = try? JSONDecoder.inceptLaunch.decode(
+    let saved = try? JSONDecoder.iLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: tempURL)
     )
     #expect(saved == nil || saved?.pages[0] != [.app(appC.id), .app(appA.id), .app(appB.id)])
@@ -144,7 +144,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Stores/LaunchpadViewModel.swift Tests/InceptLaunchTests/LaunchpadViewModelTests.swift
+git add Sources/iLaunch/Stores/LaunchpadViewModel.swift Tests/iLaunchTests/LaunchpadViewModelTests.swift
 git commit -m "feat: add liveReorder methods for mid-drag tile displacement"
 ```
 
@@ -153,7 +153,7 @@ git commit -m "feat: add liveReorder methods for mid-drag tile displacement"
 ### Task 2: Main grid — ID-based ForEach identity
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:106-118`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:106-118`
 
 **Interfaces:**
 - Consumes: `LaunchpadDisplayItem.id` (stable identity)
@@ -193,7 +193,7 @@ Expected: All tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/LaunchpadGridView.swift
+git add Sources/iLaunch/Views/LaunchpadGridView.swift
 git commit -m "refactor: use ID-based ForEach identity for grid animation support"
 ```
 
@@ -202,9 +202,9 @@ git commit -m "refactor: use ID-based ForEach identity for grid animation suppor
 ### Task 3: Main grid — Live reorder in DragGesture + hide dragged tile
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:185-228` (directDragGesture)
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:121-182` (tileCell)
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift` (add drag overlay state)
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:185-228` (directDragGesture)
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:121-182` (tileCell)
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift` (add drag overlay state)
 
 **Interfaces:**
 - Consumes: `liveReorder(draggedID:toIndex:page:)` from Task 1, `tileFrames` for hit-testing
@@ -264,11 +264,11 @@ private func directDragGesture(
             }
 
             NotificationCenter.default.post(
-                name: .inceptLaunchEditDragChanged,
+                name: .iLaunchEditDragChanged,
                 object: EditDragUpdate(id: item.id, translation: translation)
             )
             NotificationCenter.default.post(
-                name: .inceptLaunchGridDragMoved,
+                name: .iLaunchGridDragMoved,
                 object: GridDragLocationUpdate(id: item.id, location: value.location)
             )
         }
@@ -276,8 +276,8 @@ private func directDragGesture(
             defer {
                 isDraggingTile = false
                 dragPageOffset = 0
-                NotificationCenter.default.post(name: .inceptLaunchEditDragEnded, object: nil)
-                NotificationCenter.default.post(name: .inceptLaunchGridDragEnded, object: nil)
+                NotificationCenter.default.post(name: .iLaunchEditDragEnded, object: nil)
+                NotificationCenter.default.post(name: .iLaunchGridDragEnded, object: nil)
             }
 
             let translation = CGSize(
@@ -331,8 +331,8 @@ struct GridDragLocationUpdate {
 }
 
 extension Notification.Name {
-    static let inceptLaunchGridDragMoved = Notification.Name("inceptLaunchGridDragMoved")
-    static let inceptLaunchGridDragEnded = Notification.Name("inceptLaunchGridDragEnded")
+    static let iLaunchGridDragMoved = Notification.Name("iLaunchGridDragMoved")
+    static let iLaunchGridDragEnded = Notification.Name("iLaunchGridDragEnded")
 }
 ```
 
@@ -360,7 +360,7 @@ Expected: Build complete
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/LaunchpadGridView.swift Sources/InceptLaunch/Stores/LaunchpadViewModel.swift
+git add Sources/iLaunch/Views/LaunchpadGridView.swift Sources/iLaunch/Stores/LaunchpadViewModel.swift
 git commit -m "feat: live reorder in main grid drag gesture with tile hiding"
 ```
 
@@ -369,7 +369,7 @@ git commit -m "feat: live reorder in main grid drag gesture with tile hiding"
 ### Task 4: ContentView — Render floating drag overlay
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift:20-133`
+- Modify: `Sources/iLaunch/Views/ContentView.swift:20-133`
 
 **Interfaces:**
 - Consumes: `viewModel.gridDragItem`, `viewModel.gridDragLocation`, `GridDragLocationUpdate` notification
@@ -377,10 +377,10 @@ git commit -m "feat: live reorder in main grid drag gesture with tile hiding"
 
 - [ ] **Step 1: Add notification receivers for grid drag location**
 
-Add after the existing `.onReceive(.inceptLaunchEditDragEnded)` block in `ContentView.swift`:
+Add after the existing `.onReceive(.iLaunchEditDragEnded)` block in `ContentView.swift`:
 
 ```swift
-.onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragMoved)) { note in
+.onReceive(NotificationCenter.default.publisher(for: .iLaunchGridDragMoved)) { note in
     if let update = note.object as? GridDragLocationUpdate {
         if viewModel.gridDragItem == nil {
             viewModel.gridDragItem = viewModel.visiblePages
@@ -390,7 +390,7 @@ Add after the existing `.onReceive(.inceptLaunchEditDragEnded)` block in `Conten
         viewModel.gridDragLocation = update.location
     }
 }
-.onReceive(NotificationCenter.default.publisher(for: .inceptLaunchGridDragEnded)) { _ in
+.onReceive(NotificationCenter.default.publisher(for: .iLaunchGridDragEnded)) { _ in
     viewModel.gridDragItem = nil
     viewModel.gridDragLocation = .zero
 }
@@ -440,7 +440,7 @@ Expected: Build complete
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: render floating drag overlay during grid live reorder"
 ```
 
@@ -449,7 +449,7 @@ git commit -m "feat: render floating drag overlay during grid live reorder"
 ### Task 5: Main grid — Add `.animation(value:)` for non-drag reorder animation
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:106-118`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:106-118`
 
 **Interfaces:**
 - Consumes: `pages` array (item order as animation trigger)
@@ -488,7 +488,7 @@ Expected: Build complete, all tests pass
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/LaunchpadGridView.swift
+git add Sources/iLaunch/Views/LaunchpadGridView.swift
 git commit -m "feat: add implicit spring animation on grid tile position changes"
 ```
 
@@ -497,9 +497,9 @@ git commit -m "feat: add implicit spring animation on grid tile position changes
 ### Task 6: Folder interior — Animated live reorder
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/FolderPopupView.swift:121-170` (drag gesture)
-- Modify: `Sources/InceptLaunch/Views/FolderPopupView.swift:56-65` (LazyVGrid)
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift:81-86` (onReorder callback)
+- Modify: `Sources/iLaunch/Views/FolderPopupView.swift:121-170` (drag gesture)
+- Modify: `Sources/iLaunch/Views/FolderPopupView.swift:56-65` (LazyVGrid)
+- Modify: `Sources/iLaunch/Views/ContentView.swift:81-86` (onReorder callback)
 
 **Interfaces:**
 - Consumes: `liveReorderInFolder(folderID:appID:toIndex:)` from Task 1
@@ -592,7 +592,7 @@ Expected: Build complete, all tests pass
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/FolderPopupView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/FolderPopupView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: animated live reorder inside folder popup"
 ```
 
@@ -601,8 +601,8 @@ git commit -m "feat: animated live reorder inside folder popup"
 ### Task 7: Persist on drop + drag cancellation rollback
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift` (resolveDrop, clearFloatingDrag)
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift` (onEnded)
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift` (resolveDrop, clearFloatingDrag)
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift` (onEnded)
 
 **Interfaces:**
 - Consumes: `liveReorder` (already mutated model), `persistLayout()`
@@ -657,7 +657,7 @@ In `ContentView.swift`'s `onLiveReorder` closure, add at the start:
 viewModel.beginLiveReorder(draggedID: draggedID, page: page)
 ```
 
-In the `.onReceive(.inceptLaunchGridDragEnded)` handler, add:
+In the `.onReceive(.iLaunchGridDragEnded)` handler, add:
 
 ```swift
 viewModel.endLiveReorder()
@@ -703,7 +703,7 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Stores/LaunchpadViewModel.swift Sources/InceptLaunch/Views/ContentView.swift Tests/InceptLaunchTests/LaunchpadViewModelTests.swift
+git add Sources/iLaunch/Stores/LaunchpadViewModel.swift Sources/iLaunch/Views/ContentView.swift Tests/iLaunchTests/LaunchpadViewModelTests.swift
 git commit -m "feat: persist on drop and rollback on drag cancellation"
 ```
 
@@ -716,7 +716,7 @@ git commit -m "feat: persist on drop and rollback on drag cancellation"
 
 - [ ] **Step 1: Build and launch the app**
 
-Run: `swift build && .build/debug/InceptLaunch`
+Run: `swift build && .build/debug/iLaunch`
 
 - [ ] **Step 2: Test main grid live reorder**
 

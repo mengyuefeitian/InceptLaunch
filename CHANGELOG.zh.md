@@ -1,3 +1,9 @@
+## 1.8.0 - 2026-07-30
+
+### 新功能
+- 产品更名：**InceptLaunch → iLaunch**（应用标识、设置界面、打包 `.app`/DMG、Bundle ID `com.ilaunch.iLaunch`、README 与多语言文案统一）
+- 首次启动时将 `Application Support/InceptLaunch/` 下的已有数据迁移到 `iLaunch/`
+
 ## 1.7.22 - 2026-07-30
 
 ### 修复

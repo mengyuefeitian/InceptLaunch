@@ -1,4 +1,4 @@
-# InceptLaunch v0.4 功能设计规格
+# iLaunch v0.4 功能设计规格
 
 日期：2026-07-23
 

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="Resources/InceptLaunch-icon-source.png" width="160" alt="InceptLaunch" />
+<img src="Resources/iLaunch-icon-source.png" width="160" alt="iLaunch" />
 
-# InceptLaunch
+# iLaunch
 
 **把 macOS 26 拿走的 Launchpad 找回来——原生、飞快。**
 
@@ -11,7 +11,7 @@
 
 [![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos)
 [![Swift](https://img.shields.io/badge/Swift-6.3-orange?logo=swift)](https://www.swift.org)
-[![Release](https://img.shields.io/github/v/release/mengyuefeitian/InceptLaunch?label=release)](../../releases/latest)
+[![Release](https://img.shields.io/github/v/release/mengyuefeitian/iLaunch?label=release)](../../releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **简体中文** | [English](README_en.md)
@@ -24,7 +24,7 @@
 
 macOS 26 Tahoe 用类 Spotlight 的 Apps 入口取代了经典的 Launchpad。它搜索起来很高效，却丢掉了 Launchpad 最迷人的东西：**空间记忆**。知道某个应用在第几页、哪个角落，往往比每次都打字更快。
 
-InceptLaunch 把这种体验带了回来——一个安静、全屏的网格，整理一次，终生可靠。
+iLaunch 把这种体验带了回来——一个安静、全屏的网格，整理一次，终生可靠。
 
 ## 核心特性
 
@@ -49,13 +49,13 @@ InceptLaunch 把这种体验带了回来——一个安静、全屏的网格，�
 
 ## 安装
 
-从 [Releases](../../releases/latest) 下载最新的 `InceptLaunch-*.dmg`，打开后把 **InceptLaunch** 拖进 **Applications** 即可。
+从 [Releases](../../releases/latest) 下载最新的 `iLaunch-*.dmg`，打开后把 **iLaunch** 拖进 **Applications** 即可。
 
 > 当前版本为 ad-hoc 签名的个人分发包。首次启动可能需要右键 → **打开** 以绕过 Gatekeeper。
 
 ## 快速上手
 
-1. 启动 InceptLaunch（或从菜单栏 / Dock 打开）。
+1. 启动 iLaunch（或从菜单栏 / Dock 打开）。
 2. 用全局热键（默认 `⌥ Space`）打开网格。
 3. 点击应用即可启动；直接输入开始搜索。
 4. 拖动应用重新排列；把一个拖到另一个上即可建文件夹。
@@ -65,7 +65,7 @@ InceptLaunch 把这种体验带了回来——一个安静、全屏的网格，�
 
 ## 路线图
 
-InceptLaunch 的演进方向，对照最初的[设计规格](docs/superpowers/specs/2026-07-20-inceptlaunch-launchpad-replica-design.md)追踪。
+iLaunch 的演进方向，对照最初的[设计规格](docs/superpowers/specs/2026-07-20-ilaunch-launchpad-replica-design.md)追踪。
 
 | 阶段 | 重点 | 状态 |
 |------|------|------|
@@ -87,7 +87,7 @@ InceptLaunch 的演进方向，对照最初的[设计规格](docs/superpowers/sp
 
 ## 设计原则
 
-InceptLaunch 遵循「Launchpad 优先」的理念：
+iLaunch 遵循「Launchpad 优先」的理念：
 
 - 手动布局优先于智能排序。
 - 视觉网格优先于命令输入。

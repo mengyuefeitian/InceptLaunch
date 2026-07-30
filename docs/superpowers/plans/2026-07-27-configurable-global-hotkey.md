@@ -12,7 +12,7 @@
 
 - macOS 15 minimum (per `Package.swift`) — no availability guards needed for any API used here.
 - Follow the existing `UserPreferences` decode pattern: new/changed fields use `(try? c.decodeIfPresent(...)) ?? default` so old `preferences.json` files on disk keep loading.
-- Every new user-facing string needs an entry in all 5 language dictionaries in `Sources/InceptLaunch/Support/Localizer.swift` (en, zh, ja, ko, ru) — the existing pattern has no fallback for a missing key in a non-English language, so a skipped language shows a blank/garbled label.
+- Every new user-facing string needs an entry in all 5 language dictionaries in `Sources/iLaunch/Support/Localizer.swift` (en, zh, ja, ko, ru) — the existing pattern has no fallback for a missing key in a non-English language, so a skipped language shows a blank/garbled label.
 - Default behavior for existing users must stay Option+Space after upgrade.
 
 ---
@@ -20,15 +20,15 @@
 ### Task 1: Replace `hotKey: String` with `hotKeyCode`/`hotKeyModifiers` in `UserPreferences`
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Models/UserPreferences.swift`
-- Test: `Tests/InceptLaunchTests/PreferencesStoreTests.swift`
+- Modify: `Sources/iLaunch/Models/UserPreferences.swift`
+- Test: `Tests/iLaunchTests/PreferencesStoreTests.swift`
 
 **Interfaces:**
 - Produces: `UserPreferences.hotKeyCode: UInt32` (default `49`, i.e. `kVK_Space`), `UserPreferences.hotKeyModifiers: UInt32` (default `2048`, i.e. Carbon `optionKey`).
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `Tests/InceptLaunchTests/PreferencesStoreTests.swift`:
+Add to `Tests/iLaunchTests/PreferencesStoreTests.swift`:
 
 ```swift
 @Test func decodingLegacyPreferencesWithoutHotKeyFieldsUsesOptionSpaceDefault() throws {
@@ -47,7 +47,7 @@ Add to `Tests/InceptLaunchTests/PreferencesStoreTests.swift`:
         "scanDirectories": ["/Applications"]
     }
     """
-    let decoded = try JSONDecoder.inceptLaunch.decode(UserPreferences.self, from: Data(legacyJSON.utf8))
+    let decoded = try JSONDecoder.iLaunch.decode(UserPreferences.self, from: Data(legacyJSON.utf8))
     #expect(decoded.hotKeyCode == 49)
     #expect(decoded.hotKeyModifiers == 2048)
 }
@@ -56,8 +56,8 @@ Add to `Tests/InceptLaunchTests/PreferencesStoreTests.swift`:
     var preferences = UserPreferences.default
     preferences.hotKeyCode = 40 // kVK_ANSI_K
     preferences.hotKeyModifiers = 256 | 512 // cmdKey | shiftKey
-    let data = try JSONEncoder.inceptLaunch.encode(preferences)
-    let decoded = try JSONDecoder.inceptLaunch.decode(UserPreferences.self, from: data)
+    let data = try JSONEncoder.iLaunch.encode(preferences)
+    let decoded = try JSONDecoder.iLaunch.decode(UserPreferences.self, from: data)
     #expect(decoded.hotKeyCode == 40)
     #expect(decoded.hotKeyModifiers == 768)
 }
@@ -70,7 +70,7 @@ Expected: FAIL to compile — `hotKeyCode`/`hotKeyModifiers` don't exist on `Use
 
 - [ ] **Step 3: Update `UserPreferences`**
 
-In `Sources/InceptLaunch/Models/UserPreferences.swift`:
+In `Sources/iLaunch/Models/UserPreferences.swift`:
 
 Replace:
 ```swift
@@ -117,12 +117,12 @@ with:
 
 - [ ] **Step 3b: Interim fix so the rest of the project still builds**
 
-`Sources/InceptLaunch/Views/SettingsView.swift` (`GeneralSettingsView`) still references
+`Sources/iLaunch/Views/SettingsView.swift` (`GeneralSettingsView`) still references
 the now-removed `preferences.hotKey` in two places. Task 5 replaces this UI with the real
 hotkey recorder, but until then the project must still build. Apply this interim,
 non-interactive placeholder now.
 
-In `Sources/InceptLaunch/Views/SettingsView.swift`, replace:
+In `Sources/iLaunch/Views/SettingsView.swift`, replace:
 ```swift
                 TextField(Localizer.t("settings.hotKey"), text: $preferences.hotKey)
 ```
@@ -155,7 +155,7 @@ Include the `SettingsView.swift` interim fix in this commit — it is scaffoldin
 introduced to keep the build green, not scope creep.
 
 ```bash
-git add Sources/InceptLaunch/Models/UserPreferences.swift Sources/InceptLaunch/Views/SettingsView.swift Tests/InceptLaunchTests/PreferencesStoreTests.swift
+git add Sources/iLaunch/Models/UserPreferences.swift Sources/iLaunch/Views/SettingsView.swift Tests/iLaunchTests/PreferencesStoreTests.swift
 git commit -m "feat: replace dead hotKey string preference with keycode/modifiers"
 ```
 
@@ -164,8 +164,8 @@ git commit -m "feat: replace dead hotKey string preference with keycode/modifier
 ### Task 2: `HotKeyCapture` — pure validation, modifier translation, and display string
 
 **Files:**
-- Create: `Sources/InceptLaunch/Services/HotKeyCapture.swift`
-- Test: Create `Tests/InceptLaunchTests/HotKeyCaptureTests.swift`
+- Create: `Sources/iLaunch/Services/HotKeyCapture.swift`
+- Test: Create `Tests/iLaunchTests/HotKeyCaptureTests.swift`
 
 **Interfaces:**
 - Consumes: nothing (pure, standalone).
@@ -173,13 +173,13 @@ git commit -m "feat: replace dead hotKey string preference with keycode/modifier
 
 - [ ] **Step 1: Write the failing test**
 
-Create `Tests/InceptLaunchTests/HotKeyCaptureTests.swift`:
+Create `Tests/iLaunchTests/HotKeyCaptureTests.swift`:
 
 ```swift
 import AppKit
 import Carbon
 import Testing
-@testable import InceptLaunch
+@testable import iLaunch
 
 @Test func rejectsComboWithNoModifier() {
     #expect(HotKeyCapture.isValid(keyCode: UInt32(kVK_ANSI_K), modifiers: 0) == false)
@@ -224,7 +224,7 @@ Expected: FAIL to compile — `HotKeyCapture` doesn't exist yet.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `Sources/InceptLaunch/Services/HotKeyCapture.swift`:
+Create `Sources/iLaunch/Services/HotKeyCapture.swift`:
 
 ```swift
 import AppKit
@@ -333,7 +333,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Services/HotKeyCapture.swift Tests/InceptLaunchTests/HotKeyCaptureTests.swift
+git add Sources/iLaunch/Services/HotKeyCapture.swift Tests/iLaunchTests/HotKeyCaptureTests.swift
 git commit -m "feat: add HotKeyCapture validation and display-string logic"
 ```
 
@@ -342,8 +342,8 @@ git commit -m "feat: add HotKeyCapture validation and display-string logic"
 ### Task 3: `GlobalHotKeyManager.updateHotKey` with rollback on conflict
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Services/GlobalHotKeyManager.swift`
-- Modify: `Sources/InceptLaunch/App/AppDelegate.swift`
+- Modify: `Sources/iLaunch/Services/GlobalHotKeyManager.swift`
+- Modify: `Sources/iLaunch/App/AppDelegate.swift`
 
 **Interfaces:**
 - Consumes: `HotKeyCapture` is not required here (manager stays keycode/modifier-agnostic).
@@ -353,7 +353,7 @@ There is no automated test for this task (see spec's Testing section — a live 
 
 - [ ] **Step 1: Modify `GlobalHotKeyManager`**
 
-In `Sources/InceptLaunch/Services/GlobalHotKeyManager.swift`, replace the `start()` method and the two stored properties `hotKeyRef`/`eventHandlerRef` handling with:
+In `Sources/iLaunch/Services/GlobalHotKeyManager.swift`, replace the `start()` method and the two stored properties `hotKeyRef`/`eventHandlerRef` handling with:
 
 ```swift
 final class GlobalHotKeyManager: @unchecked Sendable {
@@ -479,7 +479,7 @@ final class GlobalHotKeyManager: @unchecked Sendable {
 
 - [ ] **Step 2: Update the call site in `AppDelegate`**
 
-In `Sources/InceptLaunch/App/AppDelegate.swift`, replace:
+In `Sources/iLaunch/App/AppDelegate.swift`, replace:
 ```swift
         hotKeyManager?.start()
 ```
@@ -501,7 +501,7 @@ Expected: builds clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Services/GlobalHotKeyManager.swift Sources/InceptLaunch/App/AppDelegate.swift
+git add Sources/iLaunch/Services/GlobalHotKeyManager.swift Sources/iLaunch/App/AppDelegate.swift
 git commit -m "feat: support live hotkey re-registration with conflict rollback"
 ```
 
@@ -510,10 +510,10 @@ git commit -m "feat: support live hotkey re-registration with conflict rollback"
 ### Task 4: Thread `GlobalHotKeyManager` down to Settings
 
 **Files:**
-- Modify: `Sources/InceptLaunch/App/AppDelegate.swift`
-- Modify: `Sources/InceptLaunch/Services/MenuBarController.swift`
-- Modify: `Sources/InceptLaunch/Services/SettingsWindowController.swift`
-- Modify: `Sources/InceptLaunch/Views/SettingsView.swift`
+- Modify: `Sources/iLaunch/App/AppDelegate.swift`
+- Modify: `Sources/iLaunch/Services/MenuBarController.swift`
+- Modify: `Sources/iLaunch/Services/SettingsWindowController.swift`
+- Modify: `Sources/iLaunch/Views/SettingsView.swift`
 
 **Interfaces:**
 - Consumes: `GlobalHotKeyManager` from Task 3 (no new methods needed here beyond what Task 3 produced).
@@ -523,7 +523,7 @@ No test for this task — it's plumbing a reference through four view/controller
 
 - [ ] **Step 1: `AppDelegate` creates the hotkey manager before `MenuBarController` and passes it in**
 
-In `Sources/InceptLaunch/App/AppDelegate.swift`, reorder `applicationDidFinishLaunching` so `hotKeyManager` exists before `MenuBarController` is constructed, and pass it in:
+In `Sources/iLaunch/App/AppDelegate.swift`, reorder `applicationDidFinishLaunching` so `hotKeyManager` exists before `MenuBarController` is constructed, and pass it in:
 
 ```swift
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -548,7 +548,7 @@ In `Sources/InceptLaunch/App/AppDelegate.swift`, reorder `applicationDidFinishLa
 
 - [ ] **Step 2: `MenuBarController` accepts and forwards the manager**
 
-In `Sources/InceptLaunch/Services/MenuBarController.swift`, add a stored property and thread it through `init` and `openSettings`:
+In `Sources/iLaunch/Services/MenuBarController.swift`, add a stored property and thread it through `init` and `openSettings`:
 
 Replace:
 ```swift
@@ -591,7 +591,7 @@ with:
 
 - [ ] **Step 3: `SettingsWindowController` accepts and forwards the manager**
 
-In `Sources/InceptLaunch/Services/SettingsWindowController.swift`, replace:
+In `Sources/iLaunch/Services/SettingsWindowController.swift`, replace:
 ```swift
     private var window: NSWindow?
     private weak var viewModel: LaunchpadViewModel?
@@ -642,7 +642,7 @@ with:
 
 - [ ] **Step 4: `SettingsView` accepts and forwards the manager to `GeneralSettingsView`**
 
-In `Sources/InceptLaunch/Views/SettingsView.swift`, replace:
+In `Sources/iLaunch/Views/SettingsView.swift`, replace:
 ```swift
     private let preferencesStore = PreferencesStore()
     weak var viewModel: LaunchpadViewModel?
@@ -673,7 +673,7 @@ Expected: FAILS at this point — `GeneralSettingsView` doesn't declare a `hotKe
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/InceptLaunch/App/AppDelegate.swift Sources/InceptLaunch/Services/MenuBarController.swift Sources/InceptLaunch/Services/SettingsWindowController.swift Sources/InceptLaunch/Views/SettingsView.swift
+git add Sources/iLaunch/App/AppDelegate.swift Sources/iLaunch/Services/MenuBarController.swift Sources/iLaunch/Services/SettingsWindowController.swift Sources/iLaunch/Views/SettingsView.swift
 git commit -m "feat: thread GlobalHotKeyManager reference down to Settings"
 ```
 
@@ -682,9 +682,9 @@ git commit -m "feat: thread GlobalHotKeyManager reference down to Settings"
 ### Task 5: `HotKeyRecorderRow` — the recording UI
 
 **Files:**
-- Create: `Sources/InceptLaunch/Views/HotKeyRecorderRow.swift`
-- Modify: `Sources/InceptLaunch/Views/SettingsView.swift`
-- Modify: `Sources/InceptLaunch/Support/Localizer.swift`
+- Create: `Sources/iLaunch/Views/HotKeyRecorderRow.swift`
+- Modify: `Sources/iLaunch/Views/SettingsView.swift`
+- Modify: `Sources/iLaunch/Support/Localizer.swift`
 
 **Interfaces:**
 - Consumes: `HotKeyCapture.isValid`/`carbonModifiers`/`displayString` (Task 2), `GlobalHotKeyManager.updateHotKey` (Task 3), `UserPreferences.hotKeyCode`/`hotKeyModifiers` (Task 1).
@@ -694,7 +694,7 @@ No automated test — this is a SwiftUI view driving a live `NSEvent` monitor an
 
 - [ ] **Step 1: Add the new localization keys**
 
-In `Sources/InceptLaunch/Support/Localizer.swift`, add four new keys next to each language's existing `"settings.hotKey"` entry (5 edits total — one per language block).
+In `Sources/iLaunch/Support/Localizer.swift`, add four new keys next to each language's existing `"settings.hotKey"` entry (5 edits total — one per language block).
 
 English block — replace:
 ```swift
@@ -763,7 +763,7 @@ with:
 
 - [ ] **Step 2: Create `HotKeyRecorderRow`**
 
-Create `Sources/InceptLaunch/Views/HotKeyRecorderRow.swift`:
+Create `Sources/iLaunch/Views/HotKeyRecorderRow.swift`:
 
 ```swift
 import AppKit
@@ -857,7 +857,7 @@ struct HotKeyRecorderRow: View {
 
 - [ ] **Step 3: Wire it into `GeneralSettingsView`**
 
-In `Sources/InceptLaunch/Views/SettingsView.swift`, replace:
+In `Sources/iLaunch/Views/SettingsView.swift`, replace:
 ```swift
 struct GeneralSettingsView: View {
     @Binding var preferences: UserPreferences
@@ -912,7 +912,7 @@ Expected: all tests pass (existing suite + Task 1's and Task 2's new tests).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/HotKeyRecorderRow.swift Sources/InceptLaunch/Views/SettingsView.swift Sources/InceptLaunch/Support/Localizer.swift
+git add Sources/iLaunch/Views/HotKeyRecorderRow.swift Sources/iLaunch/Views/SettingsView.swift Sources/iLaunch/Support/Localizer.swift
 git commit -m "feat: add hotkey recorder UI with live conflict detection"
 ```
 

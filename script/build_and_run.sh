@@ -8,8 +8,8 @@ if [ -d "$SWIFTLY_TOOLCHAIN" ]; then
 fi
 
 MODE="${1:-run}"
-APP_NAME="InceptLaunch"
-BUNDLE_ID="com.inceptlaunch.InceptLaunch"
+APP_NAME="iLaunch"
+BUNDLE_ID="com.ilaunch.iLaunch"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,10 +23,10 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 # NOTE: no pkill here. This step only rebuilds the bundle on disk — `rm -rf`
 # on a running app's bundle is safe on macOS (a running process keeps its own
 # handle to the now-unlinked files), and killing by process name can't tell
-# a real interactive session (the user's own dist/InceptLaunch.app, which
+# a real interactive session (the user's own dist/iLaunch.app, which
 # they routinely launch directly to test) from anything else with the same
 # name. Four separate "my folders got reset" reports turned out to be this
-# script's own `pkill -x InceptLaunch` + `--verify`'s auto-launched, blank/
+# script's own `pkill -x iLaunch` + `--verify`'s auto-launched, blank/
 # isolated-data overlay replacing the user's live session mid-use. Only the
 # modes below that actually intend to relaunch the app kill first, and only
 # right before they do so.
@@ -66,9 +66,9 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.7.22</string>
+  <string>1.8.0</string>
   <key>CFBundleVersion</key>
-  <string>1.7.22</string>
+  <string>1.8.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
@@ -82,7 +82,7 @@ PLIST
 # Ad-hoc sign the bundle for local distribution (no Developer ID / notarization).
 codesign --force --deep --sign - "$APP_BUNDLE"
 
-# Kills any InceptLaunch process by name right before (re)launching one of
+# Kills any iLaunch process by name right before (re)launching one of
 # our own — only called from modes below that are about to open a new
 # instance themselves, never as an unconditional side effect of building.
 kill_running_app() {

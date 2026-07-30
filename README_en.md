@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="Resources/InceptLaunch-icon-source.png" width="160" alt="InceptLaunch" />
+<img src="Resources/iLaunch-icon-source.png" width="160" alt="iLaunch" />
 
-# InceptLaunch
+# iLaunch
 
 **The Launchpad macOS 26 took away — brought back, native and fast.**
 
@@ -11,7 +11,7 @@ built with SwiftUI + AppKit for macOS Tahoe and newer.
 
 [![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos)
 [![Swift](https://img.shields.io/badge/Swift-6.3-orange?logo=swift)](https://www.swift.org)
-[![Release](https://img.shields.io/github/v/release/mengyuefeitian/InceptLaunch?label=release)](../../releases/latest)
+[![Release](https://img.shields.io/github/v/release/mengyuefeitian/iLaunch?label=release)](../../releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [简体中文](README.md) | **English**
@@ -27,7 +27,7 @@ launcher. It is efficient for searching, but it throws away what made
 Launchpad lovable: **spatial memory**. Knowing *which page, which corner* your  
 app lives in is faster than typing every time.
 
-InceptLaunch restores that experience — a calm, full-screen grid you can  
+iLaunch restores that experience — a calm, full-screen grid you can  
 arrange once and rely on forever.
 
 ## Highlights
@@ -71,8 +71,8 @@ arrange once and rely on forever.
 
 ## Install
 
-Download the latest `InceptLaunch-*.dmg` from  
-[Releases](../../releases/latest), open it, and drag **InceptLaunch** into  
+Download the latest `iLaunch-*.dmg` from  
+[Releases](../../releases/latest), open it, and drag **iLaunch** into  
 **Applications**.
 
 > The current build is ad-hoc signed for personal distribution. On first  
@@ -80,7 +80,7 @@ Download the latest `InceptLaunch-*.dmg` from
 
 ## Quick start
 
-1. Launch InceptLaunch (or open from the menu bar / Dock).
+1. Launch iLaunch (or open from the menu bar / Dock).
 2. Press the global hotkey (default `⌥ Space`) to open the grid.
 3. Click an app to launch it, or start typing to search.
 4. Drag apps to rearrange; drop one onto another to make a folder.
@@ -91,8 +91,8 @@ Download the latest `InceptLaunch-*.dmg` from
 
 ## Roadmap
 
-Where InceptLaunch is headed, tracked against the original  
-[design spec](docs/superpowers/specs/2026-07-20-inceptlaunch-launchpad-replica-design.md).
+Where iLaunch is headed, tracked against the original  
+[design spec](docs/superpowers/specs/2026-07-20-ilaunch-launchpad-replica-design.md).
 
 | Stage | Focus | Status |
 |-------|-------|--------|
@@ -117,7 +117,7 @@ Where InceptLaunch is headed, tracked against the original
 
 ## Design principles
 
-InceptLaunch follows a “Launchpad first” philosophy:
+iLaunch follows a “Launchpad first” philosophy:
 
 - Manual layout over smart sorting.
 - Visual grid over command input.

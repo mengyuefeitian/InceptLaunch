@@ -7,13 +7,13 @@ if [ -d "$SWIFTLY_TOOLCHAIN" ]; then
   export PATH="$SWIFTLY_TOOLCHAIN:$PATH"
 fi
 
-# Packages the assembled InceptLaunch.app into a distributable DMG.
+# Packages the assembled iLaunch.app into a distributable DMG.
 # Mirrors the autoprint flow: stage app + Applications symlink, render a
 # background, create a writable image, lay out the Finder window with
 # osascript, then convert to a compressed read-only image and verify.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="InceptLaunch"
+APP_NAME="iLaunch"
 APP="$ROOT/dist/$APP_NAME.app"
 PLIST="$APP/Contents/Info.plist"
 VERSION="${1:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")}"
@@ -67,7 +67,7 @@ let gradient = NSGradient(
 gradient?.draw(in: NSBezierPath(rect: NSRect(origin: .zero, size: size)), angle: -90)
 
 let title = "拖入应用程序"
-let subtitle = "Drag InceptLaunch into Applications"
+let subtitle = "Drag iLaunch into Applications"
 let titleAttributes: [NSAttributedString.Key: Any] = [
     .font: NSFont.systemFont(ofSize: 28, weight: .bold),
     .foregroundColor: NSColor(calibratedRed: 0.10, green: 0.13, blue: 0.22, alpha: 1.0)

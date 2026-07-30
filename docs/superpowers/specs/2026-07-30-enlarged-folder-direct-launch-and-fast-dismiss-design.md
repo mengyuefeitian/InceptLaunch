@@ -2,7 +2,7 @@
 
 ## Objective
 
-Two related UX fixes for InceptLaunch:
+Two related UX fixes for iLaunch:
 
 1. **Direct launch from enlarged folder previews** — On a 2×2 enlarged folder tile (not the full-screen folder popup), the user can click an individual mini app icon and launch that app immediately, without first opening the folder popup.
 2. **Fast dismiss on app launch** — Clicking any app currently freezes the fullscreen overlay for ~2–5 seconds before it exits. The overlay must dismiss immediately; app launch must not block that dismiss.
@@ -79,7 +79,7 @@ Minimum viable fix (acceptable if async workspace API is awkward to mock):
 
 ```swift
 // ContentView / popup onLaunch
-dismiss()                          // post .inceptLaunchDismiss immediately
+dismiss()                          // post .iLaunchDismiss immediately
 DispatchQueue.main.async {
   _ = AppLauncher().launch(record) // open after hide has started
 }

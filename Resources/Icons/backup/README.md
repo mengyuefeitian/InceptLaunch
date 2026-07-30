@@ -1,7 +1,7 @@
 # Full-resolution icon sources (not packaged)
 
 These PNG files are master artwork used by `script/optimize_icons.sh` to rebuild
-compact `.icns` files. They are **not** copied into `InceptLaunch.app`.
+compact `.icns` files. They are **not** copied into `iLaunch.app`.
 
 Runtime shipping assets (in the app bundle):
 

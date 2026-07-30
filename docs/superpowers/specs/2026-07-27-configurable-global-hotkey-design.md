@@ -3,7 +3,7 @@
 ## Problem
 
 `GlobalHotKeyManager` hardcodes Option+Space as the overlay toggle
-(`Sources/InceptLaunch/Services/GlobalHotKeyManager.swift`). `UserPreferences.hotKey`
+(`Sources/iLaunch/Services/GlobalHotKeyManager.swift`). `UserPreferences.hotKey`
 is a `String` bound to a `TextField` in Settings, but it is never parsed or fed
 back into the manager — it's dead UI. Users cannot change the hotkey, and there
 is no conflict detection against other apps that may already own the same

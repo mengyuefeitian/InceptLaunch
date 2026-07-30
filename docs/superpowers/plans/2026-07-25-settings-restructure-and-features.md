@@ -23,26 +23,26 @@
 
 | File | Responsibility |
 |------|---------------|
-| `Sources/InceptLaunch/Models/UserPreferences.swift` | Add `showHiddenInSearch` field |
-| `Sources/InceptLaunch/Stores/LayoutStore.swift` | Add `reorderFolderItem` method |
-| `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift` | Add `showSystemApplications`/`showHiddenInSearch` properties, fix `visiblePages`, add `reorderInFolder`, add `isHiddenApp` to `LaunchpadDisplayItem` |
-| `Sources/InceptLaunch/Views/FolderPopupView.swift` | Internal drag-reorder logic |
-| `Sources/InceptLaunch/Views/AppIconView.swift` | Eye badge overlay |
-| `Sources/InceptLaunch/Views/SearchResultsView.swift` | Pass `isHiddenApp` through |
-| `Sources/InceptLaunch/Views/SettingsView.swift` | Restructure into NavigationSplitView + 4 sub-views |
-| `Sources/InceptLaunch/Services/SettingsWindowController.swift` | Window size 700x520 |
-| `Sources/InceptLaunch/Support/Localizer.swift` | New i18n keys |
-| `Tests/InceptLaunchTests/LayoutStoreTests.swift` | Test `reorderFolderItem` |
-| `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift` | Test system-app filter, hidden-in-search, reorder |
+| `Sources/iLaunch/Models/UserPreferences.swift` | Add `showHiddenInSearch` field |
+| `Sources/iLaunch/Stores/LayoutStore.swift` | Add `reorderFolderItem` method |
+| `Sources/iLaunch/Stores/LaunchpadViewModel.swift` | Add `showSystemApplications`/`showHiddenInSearch` properties, fix `visiblePages`, add `reorderInFolder`, add `isHiddenApp` to `LaunchpadDisplayItem` |
+| `Sources/iLaunch/Views/FolderPopupView.swift` | Internal drag-reorder logic |
+| `Sources/iLaunch/Views/AppIconView.swift` | Eye badge overlay |
+| `Sources/iLaunch/Views/SearchResultsView.swift` | Pass `isHiddenApp` through |
+| `Sources/iLaunch/Views/SettingsView.swift` | Restructure into NavigationSplitView + 4 sub-views |
+| `Sources/iLaunch/Services/SettingsWindowController.swift` | Window size 700x520 |
+| `Sources/iLaunch/Support/Localizer.swift` | New i18n keys |
+| `Tests/iLaunchTests/LayoutStoreTests.swift` | Test `reorderFolderItem` |
+| `Tests/iLaunchTests/LaunchpadViewModelTests.swift` | Test system-app filter, hidden-in-search, reorder |
 
 ---
 
 ### Task 1: Model & Store Layer — `showHiddenInSearch` preference + `reorderFolderItem`
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Models/UserPreferences.swift`
-- Modify: `Sources/InceptLaunch/Stores/LayoutStore.swift`
-- Test: `Tests/InceptLaunchTests/LayoutStoreTests.swift`
+- Modify: `Sources/iLaunch/Models/UserPreferences.swift`
+- Modify: `Sources/iLaunch/Stores/LayoutStore.swift`
+- Test: `Tests/iLaunchTests/LayoutStoreTests.swift`
 
 **Interfaces:**
 - Produces: `UserPreferences.showHiddenInSearch: Bool` (default `true`)
@@ -50,7 +50,7 @@
 
 - [ ] **Step 1: Write failing test for `reorderFolderItem`**
 
-Add to `Tests/InceptLaunchTests/LayoutStoreTests.swift`:
+Add to `Tests/iLaunchTests/LayoutStoreTests.swift`:
 
 ```swift
 @Test func reorderFolderItemMovesAppToNewIndex() {
@@ -116,12 +116,12 @@ Add to `Tests/InceptLaunchTests/LayoutStoreTests.swift`:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test --filter reorderFolderItem 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test --filter reorderFolderItem 2>&1 | tail -20`
 Expected: Compilation error — `reorderFolderItem` not defined.
 
 - [ ] **Step 3: Implement `reorderFolderItem` in LayoutStore**
 
-Add to `Sources/InceptLaunch/Stores/LayoutStore.swift` after the `renameFolder` method:
+Add to `Sources/iLaunch/Stores/LayoutStore.swift` after the `renameFolder` method:
 
 ```swift
 mutating func reorderFolderItem(folderID: String, appID: String, toIndex: Int) {
@@ -135,7 +135,7 @@ mutating func reorderFolderItem(folderID: String, appID: String, toIndex: Int) {
 
 - [ ] **Step 4: Add `showHiddenInSearch` to UserPreferences**
 
-In `Sources/InceptLaunch/Models/UserPreferences.swift`:
+In `Sources/iLaunch/Models/UserPreferences.swift`:
 
 1. Add property after `animateSearch`:
 ```swift
@@ -163,19 +163,19 @@ showHiddenInSearch = (try? c.decodeIfPresent(Bool.self, forKey: .showHiddenInSea
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test --filter reorderFolderItem 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test --filter reorderFolderItem 2>&1 | tail -20`
 Expected: All 3 tests PASS.
 
 - [ ] **Step 6: Run full test suite to check for regressions**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test 2>&1 | tail -30`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test 2>&1 | tail -30`
 Expected: All tests PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
-git add Sources/InceptLaunch/Models/UserPreferences.swift Sources/InceptLaunch/Stores/LayoutStore.swift Tests/InceptLaunchTests/LayoutStoreTests.swift
+cd /Users/xiaoan/Documents/code/iLaunch
+git add Sources/iLaunch/Models/UserPreferences.swift Sources/iLaunch/Stores/LayoutStore.swift Tests/iLaunchTests/LayoutStoreTests.swift
 git commit -m "feat: add showHiddenInSearch preference and reorderFolderItem to LayoutStore"
 ```
 
@@ -184,8 +184,8 @@ git commit -m "feat: add showHiddenInSearch preference and reorderFolderItem to 
 ### Task 2: ViewModel — System App Filter Fix + Hidden-in-Search + Reorder
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift`
-- Test: `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift`
+- Test: `Tests/iLaunchTests/LaunchpadViewModelTests.swift`
 
 **Interfaces:**
 - Consumes: `UserPreferences.showHiddenInSearch`, `LayoutStore.reorderFolderItem(folderID:appID:toIndex:)`
@@ -193,7 +193,7 @@ git commit -m "feat: add showHiddenInSearch preference and reorderFolderItem to 
 
 - [ ] **Step 1: Write failing test for system app filtering**
 
-Add to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`:
+Add to `Tests/iLaunchTests/LaunchpadViewModelTests.swift`:
 
 ```swift
 @MainActor @Test func systemAppsHiddenWhenToggleOff() {
@@ -308,7 +308,7 @@ Add to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`:
 
     viewModel.reorderInFolder(folderID: "folder:test", appID: appC.id, toIndex: 0)
 
-    let saved = try JSONDecoder.inceptLaunch.decode(
+    let saved = try JSONDecoder.iLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: tempURL)
     )
     #expect(saved.folders[0].items == [appC.id, appA.id, appB.id])
@@ -318,12 +318,12 @@ Add to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test --filter "systemAppsHidden|searchIncludesHidden|reorderInFolder" 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test --filter "systemAppsHidden|searchIncludesHidden|reorderInFolder" 2>&1 | tail -20`
 Expected: Compilation errors — `showSystemApplications`, `showHiddenInSearch`, `isHiddenApp`, `reorderInFolder` not defined.
 
 - [ ] **Step 3: Add `isHiddenApp` to `LaunchpadDisplayItem`**
 
-In `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift`, modify the struct:
+In `Sources/iLaunch/Stores/LaunchpadViewModel.swift`, modify the struct:
 
 ```swift
 struct LaunchpadDisplayItem: Identifiable, Equatable {
@@ -409,19 +409,19 @@ showHiddenInSearch = preferences.showHiddenInSearch
 
 - [ ] **Step 8: Run tests to verify they pass**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test --filter "systemAppsHidden|searchIncludesHidden|reorderInFolder" 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test --filter "systemAppsHidden|searchIncludesHidden|reorderInFolder" 2>&1 | tail -20`
 Expected: All 3 tests PASS.
 
 - [ ] **Step 9: Run full test suite**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test 2>&1 | tail -30`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test 2>&1 | tail -30`
 Expected: All tests PASS.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
-git add Sources/InceptLaunch/Stores/LaunchpadViewModel.swift Tests/InceptLaunchTests/LaunchpadViewModelTests.swift
+cd /Users/xiaoan/Documents/code/iLaunch
+git add Sources/iLaunch/Stores/LaunchpadViewModel.swift Tests/iLaunchTests/LaunchpadViewModelTests.swift
 git commit -m "feat: fix system app toggle, add hidden-in-search and folder reorder to ViewModel"
 ```
 
@@ -430,7 +430,7 @@ git commit -m "feat: fix system app toggle, add hidden-in-search and folder reor
 ### Task 3: FolderPopupView — Drag-to-Reorder Inside Folders
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/FolderPopupView.swift`
+- Modify: `Sources/iLaunch/Views/FolderPopupView.swift`
 
 **Interfaces:**
 - Consumes: `LaunchpadViewModel.reorderInFolder(folderID:appID:toIndex:)`
@@ -438,7 +438,7 @@ git commit -m "feat: fix system app toggle, add hidden-in-search and folder reor
 
 - [ ] **Step 1: Add `onReorder` callback and member frame tracking**
 
-In `Sources/InceptLaunch/Views/FolderPopupView.swift`, add a new property after `onDragOutEnded`:
+In `Sources/iLaunch/Views/FolderPopupView.swift`, add a new property after `onDragOutEnded`:
 
 ```swift
 var onReorder: ((String, Int) -> Void)? = nil
@@ -498,7 +498,7 @@ Replace the `.gesture(DragGesture(...))` block:
                 leftFolder = true
                 reorderDragID = nil
                 NotificationCenter.default.post(
-                    name: .inceptLaunchEditDragChanged,
+                    name: .iLaunchEditDragChanged,
                     object: EditDragUpdate(id: member.id, translation: value.translation)
                 )
                 onDragOutBegan?(member.id, value.location)
@@ -584,19 +584,19 @@ func refreshOpenFolder() {
 
 - [ ] **Step 7: Build and verify compilation**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1 | tail -20`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 8: Run full test suite**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test 2>&1 | tail -30`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test 2>&1 | tail -30`
 Expected: All tests PASS.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
-git add Sources/InceptLaunch/Views/FolderPopupView.swift Sources/InceptLaunch/Views/ContentView.swift Sources/InceptLaunch/Stores/LaunchpadViewModel.swift
+cd /Users/xiaoan/Documents/code/iLaunch
+git add Sources/iLaunch/Views/FolderPopupView.swift Sources/iLaunch/Views/ContentView.swift Sources/iLaunch/Stores/LaunchpadViewModel.swift
 git commit -m "feat: support drag-to-reorder apps inside folder popups"
 ```
 
@@ -605,8 +605,8 @@ git commit -m "feat: support drag-to-reorder apps inside folder popups"
 ### Task 4: Eye Badge for Hidden Apps in Search Results
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/AppIconView.swift`
-- Modify: `Sources/InceptLaunch/Views/SearchResultsView.swift`
+- Modify: `Sources/iLaunch/Views/AppIconView.swift`
+- Modify: `Sources/iLaunch/Views/SearchResultsView.swift`
 
 **Interfaces:**
 - Consumes: `LaunchpadDisplayItem.isHiddenApp: Bool`
@@ -614,7 +614,7 @@ git commit -m "feat: support drag-to-reorder apps inside folder popups"
 
 - [ ] **Step 1: Add eye badge overlay to `AppIconView`**
 
-In `Sources/InceptLaunch/Views/AppIconView.swift`, add a new optional parameter and overlay:
+In `Sources/iLaunch/Views/AppIconView.swift`, add a new optional parameter and overlay:
 
 ```swift
 struct AppIconView: View {
@@ -650,7 +650,7 @@ struct AppIconView: View {
 
 - [ ] **Step 2: Pass `showHiddenBadge` in `SearchResultsView`**
 
-In `Sources/InceptLaunch/Views/SearchResultsView.swift`, update the `AppIconView` instantiation:
+In `Sources/iLaunch/Views/SearchResultsView.swift`, update the `AppIconView` instantiation:
 
 ```swift
 AppIconView(
@@ -663,19 +663,19 @@ AppIconView(
 
 - [ ] **Step 3: Build and verify compilation**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1 | tail -20`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 4: Run full test suite**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test 2>&1 | tail -30`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test 2>&1 | tail -30`
 Expected: All tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
-git add Sources/InceptLaunch/Views/AppIconView.swift Sources/InceptLaunch/Views/SearchResultsView.swift
+cd /Users/xiaoan/Documents/code/iLaunch
+git add Sources/iLaunch/Views/AppIconView.swift Sources/iLaunch/Views/SearchResultsView.swift
 git commit -m "feat: add eye badge for hidden apps in search results"
 ```
 
@@ -684,9 +684,9 @@ git commit -m "feat: add eye badge for hidden apps in search results"
 ### Task 5: Settings UI Restructure + About Page + Localization
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/SettingsView.swift` (full rewrite)
-- Modify: `Sources/InceptLaunch/Services/SettingsWindowController.swift`
-- Modify: `Sources/InceptLaunch/Support/Localizer.swift`
+- Modify: `Sources/iLaunch/Views/SettingsView.swift` (full rewrite)
+- Modify: `Sources/iLaunch/Services/SettingsWindowController.swift`
+- Modify: `Sources/iLaunch/Support/Localizer.swift`
 
 **Interfaces:**
 - Consumes: `UserPreferences.showHiddenInSearch`, `LaunchpadViewModel.showSystemApplications`, `LaunchpadViewModel.showHiddenInSearch`
@@ -694,7 +694,7 @@ git commit -m "feat: add eye badge for hidden apps in search results"
 
 - [ ] **Step 1: Add localization keys**
 
-In `Sources/InceptLaunch/Support/Localizer.swift`, add to `enStrings`:
+In `Sources/iLaunch/Support/Localizer.swift`, add to `enStrings`:
 
 ```swift
 // Settings navigation
@@ -1007,7 +1007,7 @@ struct AboutView: View {
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(radius: 4)
 
-            Text("InceptLaunch")
+            Text("iLaunch")
                 .font(.title2.weight(.semibold))
 
             Text("\(Localizer.t("about.version")) \(versionString)")
@@ -1061,7 +1061,7 @@ struct AboutView: View {
 
 - [ ] **Step 7: Update `SettingsWindowController` window size**
 
-In `Sources/InceptLaunch/Services/SettingsWindowController.swift`, change the window size:
+In `Sources/iLaunch/Services/SettingsWindowController.swift`, change the window size:
 
 ```swift
 let window = NSWindow(
@@ -1074,19 +1074,19 @@ let window = NSWindow(
 
 - [ ] **Step 8: Build and verify compilation**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1 | tail -20`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1 | tail -20`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 9: Run full test suite**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift test 2>&1 | tail -30`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift test 2>&1 | tail -30`
 Expected: All tests PASS.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
-git add Sources/InceptLaunch/Views/SettingsView.swift Sources/InceptLaunch/Services/SettingsWindowController.swift Sources/InceptLaunch/Support/Localizer.swift
+cd /Users/xiaoan/Documents/code/iLaunch
+git add Sources/iLaunch/Views/SettingsView.swift Sources/iLaunch/Services/SettingsWindowController.swift Sources/iLaunch/Support/Localizer.swift
 git commit -m "feat: restructure settings into sidebar navigation with About page"
 ```
 
@@ -1099,12 +1099,12 @@ git commit -m "feat: restructure settings into sidebar navigation with About pag
 
 - [ ] **Step 1: Build release binary**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && swift build -c release 2>&1 | tail -10`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && swift build -c release 2>&1 | tail -10`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 2: Launch the app and verify settings sidebar**
 
-Run: `cd /Users/xiaoan/Documents/code/InceptLaunch && .build/release/InceptLaunch &`
+Run: `cd /Users/xiaoan/Documents/code/iLaunch && .build/release/iLaunch &`
 
 Verify:
 - Settings window opens at 700x520
@@ -1141,7 +1141,7 @@ Verify:
 - [ ] **Step 6: Final commit (if any fixes needed)**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch
+cd /Users/xiaoan/Documents/code/iLaunch
 git add -A
 git commit -m "fix: integration fixes for settings restructure and features"
 ```

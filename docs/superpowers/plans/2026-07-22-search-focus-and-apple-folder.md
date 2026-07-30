@@ -17,17 +17,17 @@
   export PATH="$HOME/Library/Developer/Toolchains/swift-6.3.3-RELEASE.xctoolchain/usr/bin:$PATH"
   ```
 - Run tests with `swift test`. Filter a single test with `swift test --filter <nameSubstring>`.
-- Project root: `/Users/xiaoan/Documents/code/InceptLaunch`.
+- Project root: `/Users/xiaoan/Documents/code/iLaunch`.
 - Tests must NEVER use the default `LayoutPersistenceStore`/`PreferencesStore` (they write to the user's real Application Support files). Always inject a `JSONFileStore` pointed at a temp URL, as the existing tests do.
 
 ## File Structure
 
-- Modify: `Sources/InceptLaunch/Views/SearchFieldView.swift` — accept a `@FocusState.Binding` and attach `.focused`.
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift` — own `@FocusState`, pass binding, request focus on appear.
-- Modify: `Sources/InceptLaunch/Stores/LayoutStore.swift` — add `syncAppleFolder(appleAppIDs:name:now:)` and `appleFolderID`.
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift` — route Apple records in `applyScanResult`.
-- Test: `Tests/InceptLaunchTests/LayoutStoreTests.swift` — 4 new tests.
-- Test: `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift` — 1 new bootstrap test + helper.
+- Modify: `Sources/iLaunch/Views/SearchFieldView.swift` — accept a `@FocusState.Binding` and attach `.focused`.
+- Modify: `Sources/iLaunch/Views/ContentView.swift` — own `@FocusState`, pass binding, request focus on appear.
+- Modify: `Sources/iLaunch/Stores/LayoutStore.swift` — add `syncAppleFolder(appleAppIDs:name:now:)` and `appleFolderID`.
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift` — route Apple records in `applyScanResult`.
+- Test: `Tests/iLaunchTests/LayoutStoreTests.swift` — 4 new tests.
+- Test: `Tests/iLaunchTests/LaunchpadViewModelTests.swift` — 1 new bootstrap test + helper.
 
 ---
 
@@ -36,8 +36,8 @@
 This is pure SwiftUI focus wiring with no unit-testable surface; it is verified by building and by real-app visual check in Task 4.
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/SearchFieldView.swift`
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift`
+- Modify: `Sources/iLaunch/Views/SearchFieldView.swift`
+- Modify: `Sources/iLaunch/Views/ContentView.swift`
 
 - [ ] **Step 1: Add a focus binding to SearchFieldView**
 
@@ -110,7 +110,7 @@ Expected: `Build complete!` with no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/SearchFieldView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/SearchFieldView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: focus search field automatically when overlay opens"
 ```
 
@@ -119,12 +119,12 @@ git commit -m "feat: focus search field automatically when overlay opens"
 ## Task 2: LayoutStore.syncAppleFolder (TDD)
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Stores/LayoutStore.swift`
-- Test: `Tests/InceptLaunchTests/LayoutStoreTests.swift`
+- Modify: `Sources/iLaunch/Stores/LayoutStore.swift`
+- Test: `Tests/iLaunchTests/LayoutStoreTests.swift`
 
 - [ ] **Step 1: Write the four failing tests**
 
-Append to `Tests/InceptLaunchTests/LayoutStoreTests.swift`:
+Append to `Tests/iLaunchTests/LayoutStoreTests.swift`:
 
 ```swift
 @Test func syncAppleFolderCreatesFolderForAppleApps() {
@@ -269,7 +269,7 @@ Expected: 4 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Stores/LayoutStore.swift Tests/InceptLaunchTests/LayoutStoreTests.swift
+git add Sources/iLaunch/Stores/LayoutStore.swift Tests/iLaunchTests/LayoutStoreTests.swift
 git commit -m "feat: add LayoutStore.syncAppleFolder for managed Apple apps folder"
 ```
 
@@ -278,12 +278,12 @@ git commit -m "feat: add LayoutStore.syncAppleFolder for managed Apple apps fold
 ## Task 3: Route Apple apps in the view model (TDD)
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift`
-- Test: `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift`
+- Test: `Tests/iLaunchTests/LaunchpadViewModelTests.swift`
 
 - [ ] **Step 1: Write the failing bootstrap test + helper**
 
-Append to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift` (before the `private final class RecordingTrasher` line):
+Append to `Tests/iLaunchTests/LaunchpadViewModelTests.swift` (before the `private final class RecordingTrasher` line):
 
 ```swift
 @MainActor @Test func bootstrapRoutesAppleAppsToAppleFolder() throws {
@@ -311,7 +311,7 @@ Append to `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift` (before the `p
     )
     viewModel.bootstrapScan()
 
-    let saved = try JSONDecoder.inceptLaunch.decode(
+    let saved = try JSONDecoder.iLaunch.decode(
         LaunchpadLayout.self, from: Data(contentsOf: layoutURL)
     )
     let folder = saved.folders.first(where: { $0.id == "folder:apple" })
@@ -404,7 +404,7 @@ Expected: all tests pass (previous 34 + 4 LayoutStore + 1 ViewModel = 39).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Stores/LaunchpadViewModel.swift Tests/InceptLaunchTests/LaunchpadViewModelTests.swift
+git add Sources/iLaunch/Stores/LaunchpadViewModel.swift Tests/iLaunchTests/LaunchpadViewModelTests.swift
 git commit -m "feat: route com.apple.* apps into managed Apple folder on scan"
 ```
 
@@ -416,17 +416,17 @@ git commit -m "feat: route com.apple.* apps into managed Apple folder on scan"
 
 - [ ] **Step 1: Build and refresh the dist bundle**
 
-The computer_use tools attach to `dist/InceptLaunch.app`, so copy the fresh binary in first:
+The computer_use tools attach to `dist/iLaunch.app`, so copy the fresh binary in first:
 
 ```bash
-export PATH="$HOME/Library/Developer/Toolchains/swift-6.3.3-RELEASE.xctoolchain/usr/bin:$PATH" && swift build && cp .build/debug/InceptLaunch dist/InceptLaunch.app/Contents/MacOS/InceptLaunch
+export PATH="$HOME/Library/Developer/Toolchains/swift-6.3.3-RELEASE.xctoolchain/usr/bin:$PATH" && swift build && cp .build/debug/iLaunch dist/iLaunch.app/Contents/MacOS/iLaunch
 ```
 Expected: `Build complete!`.
 
 - [ ] **Step 2: Launch the app**
 
 ```bash
-pkill -f "InceptLaunch.app/Contents/MacOS"; open dist/InceptLaunch.app
+pkill -f "iLaunch.app/Contents/MacOS"; open dist/iLaunch.app
 ```
 
 - [ ] **Step 3: Verify search auto-focus**
@@ -440,6 +440,6 @@ Reopen the overlay and confirm an "Apple" folder tile is present on the grid. Op
 - [ ] **Step 5: Clean up and final commit (if any tweaks were needed)**
 
 ```bash
-pkill -f "InceptLaunch.app/Contents/MacOS"
+pkill -f "iLaunch.app/Contents/MacOS"
 ```
 If verification required code tweaks, re-run `swift test`, then commit them. Otherwise no commit is needed for this task.

@@ -1,3 +1,9 @@
+## 1.8.0 - 2026-07-30
+
+### Features
+- Product rename: **InceptLaunch → iLaunch** across app identity, settings UI, packaging (`.app` / DMG), bundle ID (`com.ilaunch.iLaunch`), README, and localization
+- Existing Application Support data under `InceptLaunch/` is migrated to `iLaunch/` on first launch
+
 ## 1.7.22 - 2026-07-30
 
 ### Fixes

@@ -3,7 +3,7 @@
 ## Objective
 
 The small, closed-state folder tile on the main Launchpad grid (`FolderTileView`
-in `Sources/InceptLaunch/Views/AppIconView.swift`) currently previews only 4
+in `Sources/iLaunch/Views/AppIconView.swift`) currently previews only 4
 member app icons in a 2x2 grid. Native macOS Launchpad/Finder folder icons show
 a 3x3 grid of up to 9 member icons. Match that.
 

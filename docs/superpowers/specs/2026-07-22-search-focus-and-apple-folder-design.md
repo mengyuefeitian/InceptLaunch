@@ -5,7 +5,7 @@
 
 ## 背景
 
-InceptLaunch 是 macOS Launchpad 替代品（SwiftPM + SwiftUI + AppKit）。本次新增两个体验改进：
+iLaunch 是 macOS Launchpad 替代品（SwiftPM + SwiftUI + AppKit）。本次新增两个体验改进：
 
 1. 打开 overlay 后无需鼠标点击，键盘输入直接进入搜索框开始搜索（与原生 Launchpad 一致）。
 2. 自动将苹果官方应用统一收纳进一个文件夹，减少网格杂乱。
@@ -97,9 +97,9 @@ SwiftUI 焦点状态无法单元测试，靠真机验证：打开 overlay 后直
 
 ## 涉及文件
 
-- `Sources/InceptLaunch/Views/SearchFieldView.swift`（焦点绑定）
-- `Sources/InceptLaunch/Views/ContentView.swift`（@FocusState + onAppear）
-- `Sources/InceptLaunch/Stores/LayoutStore.swift`（syncAppleFolder）
-- `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift`（applyScanResult 分流）
-- `Tests/InceptLaunchTests/LayoutStoreTests.swift`
-- `Tests/InceptLaunchTests/LaunchpadViewModelTests.swift`
+- `Sources/iLaunch/Views/SearchFieldView.swift`（焦点绑定）
+- `Sources/iLaunch/Views/ContentView.swift`（@FocusState + onAppear）
+- `Sources/iLaunch/Stores/LayoutStore.swift`（syncAppleFolder）
+- `Sources/iLaunch/Stores/LaunchpadViewModel.swift`（applyScanResult 分流）
+- `Tests/iLaunchTests/LayoutStoreTests.swift`
+- `Tests/iLaunchTests/LaunchpadViewModelTests.swift`

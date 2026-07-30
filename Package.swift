@@ -2,22 +2,22 @@
 import PackageDescription
 
 let package = Package(
-    name: "InceptLaunch",
+    name: "iLaunch",
     platforms: [
         .macOS(.v15)
     ],
     products: [
-        .executable(name: "InceptLaunch", targets: ["InceptLaunch"])
+        .executable(name: "iLaunch", targets: ["iLaunch"])
     ],
     targets: [
         .executableTarget(
-            name: "InceptLaunch",
-            path: "Sources/InceptLaunch"
+            name: "iLaunch",
+            path: "Sources/iLaunch"
         ),
         .testTarget(
-            name: "InceptLaunchTests",
-            dependencies: ["InceptLaunch"],
-            path: "Tests/InceptLaunchTests"
+            name: "iLaunchTests",
+            dependencies: ["iLaunch"],
+            path: "Tests/iLaunchTests"
         )
     ]
 )

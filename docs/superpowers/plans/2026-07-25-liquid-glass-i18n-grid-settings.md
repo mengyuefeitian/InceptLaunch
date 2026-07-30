@@ -22,7 +22,7 @@
 ### Task 1: Add New Preference Keys
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Models/UserPreferences.swift`
+- Modify: `Sources/iLaunch/Models/UserPreferences.swift`
 
 **Interfaces:**
 - Produces: `UserPreferences.gridRows: Int` (0=auto, 4, 5, 6), `UserPreferences.gridColumns: Int` (6–10), `UserPreferences.iconSizeLevel: IconSizeLevel`, `UserPreferences.showAppNames: Bool`, `UserPreferences.Language.russian`
@@ -123,7 +123,7 @@ Expected: Build succeeds (or only unrelated warnings).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Models/UserPreferences.swift
+git add Sources/iLaunch/Models/UserPreferences.swift
 git commit -m "feat: add gridRows, gridColumns, iconSizeLevel, showAppNames, russian language preferences"
 ```
 
@@ -132,7 +132,7 @@ git commit -m "feat: add gridRows, gridColumns, iconSizeLevel, showAppNames, rus
 ### Task 2: Russian i18n + New Localization Keys
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Support/Localizer.swift`
+- Modify: `Sources/iLaunch/Support/Localizer.swift`
 
 **Interfaces:**
 - Consumes: `UserPreferences.Language.russian` (from Task 1)
@@ -242,7 +242,7 @@ static let ruStrings: [String: String] = [
     "settings.about": "О программе",
     "settings.systemApps": "Системные приложения",
     "settings.showHiddenInSearch": "Показывать скрытые в поиске",
-    "settings.title": "Настройки InceptLaunch",
+    "settings.title": "Настройки iLaunch",
 
     // About
     "about.version": "Версия",
@@ -265,7 +265,7 @@ static let ruStrings: [String: String] = [
     "settings.chooseImage": "Выбрать изображение",
 
     // Menu bar
-    "menubar.open": "Открыть InceptLaunch",
+    "menubar.open": "Открыть iLaunch",
     "menubar.settings": "Настройки…",
     "menubar.logs": "Открыть файл журнала",
     "menubar.quit": "Выйти",
@@ -274,7 +274,7 @@ static let ruStrings: [String: String] = [
     "search.placeholder": "Поиск",
 
     // Accessibility
-    "accessibility.prompt": "InceptLaunch требует разрешения на универсальный доступ для использования глобальных сочетаний клавиш. Включите его в Системные настройки > Конфиденциальность и безопасность > Универсальный доступ.",
+    "accessibility.prompt": "iLaunch требует разрешения на универсальный доступ для использования глобальных сочетаний клавиш. Включите его в Системные настройки > Конфиденциальность и безопасность > Универсальный доступ.",
 
     // Layout settings
     "settings.layout": "Раскладка",
@@ -297,7 +297,7 @@ Expected: Build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Support/Localizer.swift
+git add Sources/iLaunch/Support/Localizer.swift
 git commit -m "feat: add Russian i18n and layout/icon localization keys"
 ```
 
@@ -306,10 +306,10 @@ git commit -m "feat: add Russian i18n and layout/icon localization keys"
 ### Task 3: Dynamic Grid Layout from Preferences
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Support/GridMetrics.swift`
-- Modify: `Sources/InceptLaunch/Stores/LaunchpadViewModel.swift:83-85`
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:46-48`
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridLayout.swift`
+- Modify: `Sources/iLaunch/Support/GridMetrics.swift`
+- Modify: `Sources/iLaunch/Stores/LaunchpadViewModel.swift:83-85`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:46-48`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridLayout.swift`
 
 **Interfaces:**
 - Consumes: `UserPreferences.gridRows`, `UserPreferences.gridColumns` (from Task 1)
@@ -413,7 +413,7 @@ Expected: Build succeeds.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Support/GridMetrics.swift Sources/InceptLaunch/Stores/LaunchpadViewModel.swift Sources/InceptLaunch/Views/LaunchpadGridView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Support/GridMetrics.swift Sources/iLaunch/Stores/LaunchpadViewModel.swift Sources/iLaunch/Views/LaunchpadGridView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: dynamic grid rows/columns from user preferences"
 ```
 
@@ -422,8 +422,8 @@ git commit -m "feat: dynamic grid rows/columns from user preferences"
 ### Task 4: Icon Size Adaptive + Show App Names
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/AppIconView.swift`
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift`
+- Modify: `Sources/iLaunch/Views/AppIconView.swift`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift`
 
 **Interfaces:**
 - Consumes: `UserPreferences.IconSizeLevel.multiplier`, `UserPreferences.showAppNames` (from Task 1)
@@ -507,7 +507,7 @@ Expected: Build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/AppIconView.swift Sources/InceptLaunch/Views/LaunchpadGridView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/AppIconView.swift Sources/iLaunch/Views/LaunchpadGridView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: icon size adaptive (S/M/L) and show/hide app names toggle"
 ```
 
@@ -516,7 +516,7 @@ git commit -m "feat: icon size adaptive (S/M/L) and show/hide app names toggle"
 ### Task 5: Settings UI — Layout & Icon Sections
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/SettingsView.swift:127-187`
+- Modify: `Sources/iLaunch/Views/SettingsView.swift:127-187`
 
 **Interfaces:**
 - Consumes: `UserPreferences.gridRows`, `.gridColumns`, `.iconSizeLevel`, `.showAppNames` (from Task 1); localization keys (from Task 2)
@@ -583,7 +583,7 @@ Expected: Build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/SettingsView.swift
+git add Sources/iLaunch/Views/SettingsView.swift
 git commit -m "feat: settings UI for grid layout, icon size, and app name visibility"
 ```
 
@@ -592,8 +592,8 @@ git commit -m "feat: settings UI for grid layout, icon size, and app name visibi
 ### Task 6: Folder Popup — Blurred Wallpaper Background
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/FolderPopupView.swift:6-12,42-44`
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift:46-99`
+- Modify: `Sources/iLaunch/Views/FolderPopupView.swift:6-12,42-44`
+- Modify: `Sources/iLaunch/Views/ContentView.swift:46-99`
 
 **Interfaces:**
 - Consumes: `DesktopWallpaperCapture.currentImage` (existing static), `UserPreferences.backgroundBlur`
@@ -658,7 +658,7 @@ Expected: Build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/FolderPopupView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/FolderPopupView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: folder popup uses blurred wallpaper background (Liquid Glass aesthetic)"
 ```
 
@@ -667,7 +667,7 @@ git commit -m "feat: folder popup uses blurred wallpaper background (Liquid Glas
 ### Task 7: Folder Drag-Over Scale Animation
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift:126-187`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift:126-187`
 
 **Interfaces:**
 - Consumes: `animateDrag` preference, tile frame data from `TileFramePreferenceKey`
@@ -724,7 +724,7 @@ Expected: Build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/LaunchpadGridView.swift
+git add Sources/iLaunch/Views/LaunchpadGridView.swift
 git commit -m "feat: folder tiles scale up when dragged app enters acceptance threshold"
 ```
 
