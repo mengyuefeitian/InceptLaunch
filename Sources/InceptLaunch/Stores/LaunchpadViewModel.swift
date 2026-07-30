@@ -48,6 +48,81 @@ final class LaunchpadViewModel {
     /// inside captured closures.
     var openFolder: LaunchpadDisplayItem?
 
+    /// Grid-tile frame (overlay coords) captured when the folder was opened —
+    /// drives zoom-from-tile / zoom-back-to-tile animation.
+    var openFolderSourceFrame: CGRect = .zero
+
+    /// Bumped by `requestCloseFolder()` so `FolderPopupView` can play the
+    /// scale-out animation before `finishClosingFolder()` clears `openFolder`.
+    private(set) var folderCloseEpoch: Int = 0
+
+    /// True while FolderPopupView is playing the close zoom. A second close
+    /// request (Esc / blank click) force-finishes so a stuck animation cannot
+    /// freeze the overlay forever.
+    var isFolderClosing = false
+
+    /// Open a folder popup, remembering where the grid tile sat for zoom animation.
+    func openFolderPopup(_ item: LaunchpadDisplayItem) {
+        // Always clear any prior open/close first. Stale close timers must not
+        // run against the new popup (they used to nil a freshly opened folder).
+        if openFolder != nil || isFolderClosing {
+            DiagLog.write(
+                "openFolderPopup: clearing previous openFolder=\(openFolder?.id ?? "nil") closing=\(isFolderClosing)"
+            )
+            finishClosingFolder()
+        }
+        let frame = tileFrames.first(where: { $0.id == item.id })?.frame ?? .zero
+        openFolderSourceFrame = frame
+        DiagLog.write(
+            "openFolderPopup id=\(item.id) members=\(item.members.count) sourceFrame=\(NSStringFromRect(frame))"
+        )
+        openFolder = item
+    }
+
+    /// Ask the open folder popup to animate closed. No-op if nothing is open.
+    /// Second call while already closing force-finishes (recovery from hang).
+    func requestCloseFolder() {
+        guard openFolder != nil else { return }
+        if isFolderClosing {
+            DiagLog.write("requestCloseFolder: already closing — force finish")
+            finishClosingFolder()
+            return
+        }
+        // Refresh source frame so close can target the tile's current position
+        // (page may have flipped / layout shifted while the popup was open).
+        if let id = openFolder?.id,
+           let live = tileFrames.first(where: { $0.id == id })?.frame,
+           live.width > 1, live.height > 1 {
+            openFolderSourceFrame = live
+        }
+        isFolderClosing = true
+        DiagLog.write("requestCloseFolder id=\(openFolder?.id ?? "?") epoch→\(folderCloseEpoch &+ 1)")
+        folderCloseEpoch &+= 1
+    }
+
+    /// Called after the close animation finishes (or immediately when animation is off).
+    func finishClosingFolder() {
+        if openFolder != nil || isFolderClosing || folderPanelFrame != .zero {
+            DiagLog.write("finishClosingFolder id=\(openFolder?.id ?? "nil")")
+        }
+        // Bump epoch so any in-flight FolderPopupView close timer/watchdog
+        // becomes a no-op (must not finish-close a *newer* open).
+        folderCloseEpoch &+= 1
+        openFolder = nil
+        openFolderSourceFrame = .zero
+        folderPanelFrame = .zero
+        isFolderClosing = false
+    }
+
+    /// Only finish if this folder is still the one open (guards stale asyncAfter).
+    func finishClosingFolderIfOpen(id: String) {
+        guard openFolder?.id == id else {
+            DiagLog.write("finishClosingFolderIfOpen skip stale id=\(id) current=\(openFolder?.id ?? "nil")")
+            return
+        }
+        finishClosingFolder()
+    }
+
     /// Mirrors FolderPopupView's internal `panelFrame` (overlay coordinate
     /// space, origin top-left). The click monitor uses this to tell blank
     /// backdrop clicks (outside the panel — dismiss) from clicks that must
@@ -497,7 +572,8 @@ final class LaunchpadViewModel {
         guard let record = appIndex.records[appID] else { return }
         DiagLog.write("beginFloatingDragOut appID=\(appID) — closing folder")
         _ = layoutStore.extractAppFromFolder(appID)
-        openFolder = nil
+        // Instant close (drag continues on the grid) — skip zoom-back.
+        finishClosingFolder()
         floatingDragApp = record
         floatingDragItemID = appID
         floatingDragPoint = point

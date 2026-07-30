@@ -80,6 +80,8 @@ private struct SearchChromeFrostBackground: View {
 /// itself (i.e. no subview claimed the point) makes the empty regions
 /// click-through while the capsule and its children keep working normally.
 private final class ClickThroughContainerView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         let result = super.hitTest(point)
         return result === self ? nil : result

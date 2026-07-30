@@ -16,6 +16,14 @@ struct ContentView: View {
 
     private var animEnabled: Bool { !preferences.reduceMotion }
 
+    /// Folder open/close spring — used with `withAnimation` so removal transitions run
+    /// even when dismiss comes from AppKit (which does not wrap the assignment).
+    private var folderAnimation: Animation? {
+        (animEnabled && preferences.animateFolder)
+            ? .spring(response: 0.32, dampingFraction: 0.82)
+            : nil
+    }
+
     /// Must match AppKit search chrome so results/grid never paint under it.
     private var searchChromeHeight: CGFloat { OverlaySearchChrome.chromeHeight }
 
@@ -56,10 +64,16 @@ struct ContentView: View {
                             Task { await viewModel.moveToTrash(record.id) }
                             viewModel.openFolder?.members.removeAll { $0.id == record.id }
                             if viewModel.openFolder?.members.isEmpty == true {
-                                viewModel.openFolder = nil
+                                closeFolderPopup()
                             }
                         },
-                        onClose: { viewModel.openFolder = nil },
+                        onClose: { closeFolderPopup() },
+                        onCloseAnimationFinished: {
+                            // Only clear if this folder is still open — stale close
+                            // timers from a previous popup must not kill a new one.
+                            viewModel.finishClosingFolderIfOpen(id: folder.id)
+                        },
+                        closeEpoch: viewModel.folderCloseEpoch,
                         animate: animEnabled && preferences.animateFolder,
                         wallpaperImage: DesktopWallpaperCapture.currentImage,
                         backgroundBlur: preferences.backgroundBlur,
@@ -97,8 +111,13 @@ struct ContentView: View {
                         },
                         onPanelFrameChanged: { frame in
                             viewModel.folderPanelFrame = frame
-                        }
+                        },
+                        sourceFrame: viewModel.openFolderSourceFrame,
+                        overlaySize: geo.size
                     )
+                    // Force fresh @State (progress/isClosing) per folder — reusing
+                    // the same view left isClosing=true and stuck mid-zoom shells.
+                    .id(folder.id)
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
                 }
@@ -201,6 +220,7 @@ struct ContentView: View {
                 enlargedFolderIDs: viewModel.enlargedFolderIDs,
                 onLaunch: { item in handleTap(item) },
                 onLaunchApp: { record in launchAndDismiss(record) },
+                openFolderID: viewModel.openFolder?.id,
                 onDropItem: { sourceID, target in
                     viewModel.handleDrop(sourceID: sourceID, onto: target)
                 },
@@ -348,10 +368,16 @@ struct ContentView: View {
             viewModel.editMode = false
         } else if viewModel.openFolder != nil {
             DiagLog.write("handleBlankTap closing folder")
-            viewModel.openFolder = nil
+            closeFolderPopup()
         } else if viewModel.floatingDragItemID == nil {
             dismiss()
         }
+    }
+
+    /// User dismiss (backdrop / Esc / blank). FolderPopupView plays scale-out,
+    /// then `finishClosingFolder` removes it. Launch / drag-out still clear immediately.
+    private func closeFolderPopup() {
+        viewModel.requestCloseFolder()
     }
 
     private func syncScrollHijack() {
@@ -361,7 +387,8 @@ struct ContentView: View {
     /// Dismiss the overlay first, then open the app on the next main turn.
     /// Synchronous `NSWorkspace.open` must never block hide (cold start 2–5s).
     private func launchAndDismiss(_ record: AppRecord) {
-        viewModel.openFolder = nil
+        // Instant dismiss — no zoom-back when leaving Launchpad to open an app.
+        viewModel.finishClosingFolder()
         dismiss()
         DispatchQueue.main.async {
             _ = AppLauncher().launch(record)
@@ -373,7 +400,8 @@ struct ContentView: View {
         case .app(let record):
             launchAndDismiss(record)
         case .folder:
-            viewModel.openFolder = item
+            // Capture tile frame then open — zoom animation lives in FolderPopupView.
+            viewModel.openFolderPopup(item)
         }
     }
 
