@@ -40,21 +40,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Render the DMG background image (light gradient panel with instructions and
-# a drag arrow between the app and the Applications folder). The swiftly
-# toolchain's `swift -` JIT mode cannot resolve AppKit symbols, so compile a
-# throwaway binary with swiftc, linking the macOS SDK and AppKit explicitly.
+# Render the DMG background image (gradient + titles + a single curved arrow).
+# Do NOT paint app/Applications icons or labels here — Finder places the real
+# items; drawing them on the background causes double icons and overflow.
+# The swiftly toolchain's `swift -` JIT mode cannot resolve AppKit symbols, so
+# compile a throwaway binary with swiftc, linking the macOS SDK and AppKit.
 SDK_PATH="$(xcrun --show-sdk-path)"
 BG_SWIFT="$STAGING/render_background.swift"
 BG_BIN="$STAGING/render_background"
 cat > "$BG_SWIFT" <<'SWIFT'
 import AppKit
+import Foundation
 
 let output = CommandLine.arguments[1]
+// Window content size matches Finder bounds width/height below (640×420).
 let size = NSSize(width: 640, height: 420)
 let image = NSImage(size: size)
 image.lockFocus()
 
+// y increases upward in AppKit image coordinates.
 let gradient = NSGradient(
     starting: NSColor(calibratedRed: 0.93, green: 0.95, blue: 1.0, alpha: 1.0),
     ending: NSColor(calibratedRed: 0.86, green: 0.90, blue: 0.98, alpha: 1.0)
@@ -71,30 +75,60 @@ let subtitleAttributes: [NSAttributedString.Key: Any] = [
     .font: NSFont.systemFont(ofSize: 15, weight: .medium),
     .foregroundColor: NSColor(calibratedRed: 0.36, green: 0.42, blue: 0.52, alpha: 1.0)
 ]
-(title as NSString).draw(at: NSPoint(x: 218, y: 322), withAttributes: titleAttributes)
-(subtitle as NSString).draw(at: NSPoint(x: 198, y: 294), withAttributes: subtitleAttributes)
+// Center titles horizontally.
+let titleSize = (title as NSString).size(withAttributes: titleAttributes)
+let subtitleSize = (subtitle as NSString).size(withAttributes: subtitleAttributes)
+(title as NSString).draw(
+    at: NSPoint(x: (size.width - titleSize.width) / 2, y: 322),
+    withAttributes: titleAttributes
+)
+(subtitle as NSString).draw(
+    at: NSPoint(x: (size.width - subtitleSize.width) / 2, y: 294),
+    withAttributes: subtitleAttributes
+)
 
-let arrow = NSBezierPath()
-arrow.lineWidth = 8
-arrow.lineCapStyle = .round
-arrow.lineJoinStyle = .round
-arrow.move(to: NSPoint(x: 244, y: 206))
-arrow.curve(to: NSPoint(x: 397, y: 206), controlPoint1: NSPoint(x: 290, y: 260), controlPoint2: NSPoint(x: 350, y: 260))
-arrow.move(to: NSPoint(x: 365, y: 238))
-arrow.line(to: NSPoint(x: 399, y: 206))
-arrow.line(to: NSPoint(x: 358, y: 184))
-NSColor(calibratedRed: 0.24, green: 0.42, blue: 0.85, alpha: 0.9).setStroke()
-arrow.stroke()
+// Curved arrow between the two icon slots (icon centers ~160 and ~480 in Finder).
+// Arc runs left → right with a slight arch; filled arrowhead follows end tangent.
+let start = CGPoint(x: 248, y: 200)
+let tip = CGPoint(x: 392, y: 200)
+let cp1 = CGPoint(x: 298, y: 258)
+let cp2 = CGPoint(x: 338, y: 258)
 
-let hintAttributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-    .foregroundColor: NSColor(calibratedRed: 0.43, green: 0.49, blue: 0.58, alpha: 1.0)
-]
-if let applicationsIcon = NSImage(contentsOfFile: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ApplicationsFolderIcon.icns") {
-    applicationsIcon.draw(in: NSRect(x: 432, y: 166, width: 96, height: 96), from: .zero, operation: .sourceOver, fraction: 1.0)
-}
-("InceptLaunch" as NSString).draw(at: NSPoint(x: 118, y: 96), withAttributes: hintAttributes)
-("Applications" as NSString).draw(at: NSPoint(x: 444, y: 96), withAttributes: hintAttributes)
+// Tangent at t=1 of cubic Bezier ≈ (tip - cp2)
+var tx = tip.x - cp2.x
+var ty = tip.y - cp2.y
+let tlen = max(0.001, hypot(tx, ty))
+tx /= tlen
+ty /= tlen
+let px = -ty
+let py = tx
+
+let headLen: CGFloat = 26
+let headHalf: CGFloat = 13
+// Stop the shaft inside the head so the round line-cap does not stick out.
+let shaftEnd = CGPoint(x: tip.x - tx * (headLen * 0.55), y: tip.y - ty * (headLen * 0.55))
+
+let stroke = NSColor(calibratedRed: 0.24, green: 0.42, blue: 0.85, alpha: 0.92)
+
+let shaft = NSBezierPath()
+shaft.lineWidth = 7
+shaft.lineCapStyle = .round
+shaft.lineJoinStyle = .round
+shaft.move(to: start)
+shaft.curve(to: shaftEnd, controlPoint1: cp1, controlPoint2: cp2)
+stroke.setStroke()
+shaft.stroke()
+
+let base = CGPoint(x: tip.x - tx * headLen, y: tip.y - ty * headLen)
+let left = CGPoint(x: base.x + px * headHalf, y: base.y + py * headHalf)
+let right = CGPoint(x: base.x - px * headHalf, y: base.y - py * headHalf)
+let head = NSBezierPath()
+head.move(to: tip)
+head.line(to: left)
+head.line(to: right)
+head.close()
+stroke.setFill()
+head.fill()
 
 image.unlockFocus()
 guard let data = image.tiffRepresentation,
@@ -116,9 +150,12 @@ if [[ -z "${volume_path:-}" || ! -d "$volume_path" ]]; then
   volume_path="/Volumes/$APP_NAME"
 fi
 
-rm -rf "$volume_path/.fseventsd"
+rm -rf "$volume_path/.fseventsd" "$volume_path/.Spotlight-V100" "$volume_path/.Trashes" 2>/dev/null || true
+# Hide support folder from Finder (flag + invisible name flag).
 chflags hidden "$volume_path/.background" >/dev/null 2>&1 || true
-SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
+if command -v SetFile >/dev/null 2>&1; then
+  SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
+fi
 
 osascript <<APPLESCRIPT
 tell application "Finder"
@@ -128,16 +165,24 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
+        -- 640×420 content area (matches background.png)
         set bounds of container window to {120, 120, 760, 540}
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 96
+        set text size of theViewOptions to 12
         set background picture of theViewOptions to file ".background:background.png"
+        -- Icon positions: centers aligned under the arrow (Finder coords, top-left origin).
         try
             set position of item "$APP_NAME.app" of container window to {160, 210}
         end try
         try
             set position of item "Applications" of container window to {480, 210}
+        end try
+        -- Park .background off-screen (bottom-right outside the window) so it
+        -- never appears as a visible folder even if hidden flags fail.
+        try
+            set position of item ".background" of container window to {1200, 900}
         end try
         update without registering applications
         delay 2
@@ -146,9 +191,33 @@ tell application "Finder"
 end tell
 APPLESCRIPT
 
-rm -rf "$volume_path/.fseventsd"
+rm -rf "$volume_path/.fseventsd" "$volume_path/.Spotlight-V100" "$volume_path/.Trashes" 2>/dev/null || true
 chflags hidden "$volume_path/.background" >/dev/null 2>&1 || true
-SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
+if command -v SetFile >/dev/null 2>&1; then
+  SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
+fi
+# Re-apply off-screen position after flags (Finder may re-layout).
+osascript <<APPLESCRIPT
+tell application "Finder"
+    try
+        set volumeAlias to POSIX file "$volume_path" as alias
+        tell folder volumeAlias
+            open
+            try
+                set position of item ".background" of container window to {1200, 900}
+            end try
+            try
+                set position of item "$APP_NAME.app" of container window to {160, 210}
+            end try
+            try
+                set position of item "Applications" of container window to {480, 210}
+            end try
+            delay 1
+            close
+        end tell
+    end try
+end tell
+APPLESCRIPT
 sync
 hdiutil detach "$device" >/dev/null
 hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
