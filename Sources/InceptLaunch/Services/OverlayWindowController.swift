@@ -28,10 +28,22 @@ final class OverlayWindow: NSWindow {
     override var acceptsFirstResponder: Bool { true }
 }
 
+/// After `NSApp.hide` → `unhide` + activate, the first click on a normal
+/// `NSView` is often treated as “make key only” and never reaches SwiftUI
+/// (`onTapGesture` / drag). Returning true here delivers that first click.
+private final class FirstMouseView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Same first-mouse fix for the SwiftUI hosting surface (grid / folders / apps).
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 @MainActor
 final class OverlayWindowController {
     private var window: OverlayWindow?
-    private var hostingView: NSHostingView<ContentView>?
+    private var hostingView: FirstMouseHostingView<ContentView>?
     private var dismissObserver: NSObjectProtocol?
     private var floatingDragStartObserver: NSObjectProtocol?
     private var focusSearchObserver: NSObjectProtocol?
@@ -44,6 +56,8 @@ final class OverlayWindowController {
     private let scrollModel = OverlayScrollModel()
     private let viewModel = LaunchpadViewModel()
     private let preferencesStore = PreferencesStore()
+    /// Logs the first mouseDown after each show() to diagnose “first click dies”.
+    private var loggedFirstClickAfterShow = false
 
     var exposedViewModel: LaunchpadViewModel { viewModel }
 
@@ -150,6 +164,7 @@ final class OverlayWindowController {
         viewModel.currentPage = 0
         viewModel.searchText = ""
         viewModel.clearFloatingDrag()
+        loggedFirstClickAfterShow = false
 
         let prefs = (try? preferencesStore.load()) ?? .default
         Localizer.setLanguage(prefs.language)
@@ -158,11 +173,13 @@ final class OverlayWindowController {
         DiagLog.write("show() pid=\(ProcessInfo.processInfo.processIdentifier) bundle=\(Bundle.main.bundlePath) loaded prefs: showSystemApps=\(prefs.showSystemApplications) showHidden=\(prefs.showHiddenInSearch)")
 
         // Root container: hosting view (full) + AppKit search on top.
-        let container = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        // FirstMouseView: first click after NSApp.unhide must reach the grid
+        // (otherwise every first tap — app / folder / blank dismiss — is a no-op).
+        let container = FirstMouseView(frame: NSRect(origin: .zero, size: frame.size))
         container.wantsLayer = true
         container.layer?.backgroundColor = NSColor.clear.cgColor
 
-        let hosting = NSHostingView(rootView: ContentView(
+        let hosting = FirstMouseHostingView(rootView: ContentView(
             scrollModel: scrollModel,
             viewModel: viewModel,
             preferences: prefs
@@ -200,6 +217,8 @@ final class OverlayWindowController {
             NSApp.unhide(nil)
         }
         NSApp.setActivationPolicy(.regular)
+        // Always force activation — after hide(), the next user click is otherwise
+        // spent activating the app and never reaches the overlay content.
         if #available(macOS 14.0, *) {
             NSApp.activate()
         } else {
@@ -207,7 +226,11 @@ final class OverlayWindowController {
         }
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
-        if window.firstResponder == nil || window.firstResponder === window {
+        // Prefer the SwiftUI host as first responder so the first click is not
+        // eaten as “activate contentView only”.
+        if let hosting = hostingView {
+            window.makeFirstResponder(hosting)
+        } else if window.firstResponder == nil || window.firstResponder === window {
             window.makeFirstResponder(window.contentView)
         }
         installKeyMonitor(window: window)
@@ -222,7 +245,11 @@ final class OverlayWindowController {
             }
             window.makeKeyAndOrderFront(nil)
             if !(window.firstResponder is NSTextField || window.firstResponder is NSTextView) {
-                window.makeFirstResponder(window.contentView)
+                if let hosting = self.hostingView {
+                    window.makeFirstResponder(hosting)
+                } else {
+                    window.makeFirstResponder(window.contentView)
+                }
             }
             // Diagnostic for reports of an overlay that renders but takes no
             // input (unresponsive to click/Esc/scroll) right after macOS
@@ -231,7 +258,9 @@ final class OverlayWindowController {
             // (high window level) while keyboard/mouse events are still being
             // routed to whatever app the system considers actually active —
             // NSApp.activate() can silently no-op in that relaunch context.
-            DiagLog.write("activate: isActive=\(NSApp.isActive) isKey=\(window.isKeyWindow) policy=\(NSApp.activationPolicy().rawValue)")
+            DiagLog.write(
+                "activate: isActive=\(NSApp.isActive) isKey=\(window.isKeyWindow) policy=\(NSApp.activationPolicy().rawValue) firstResponder=\(String(describing: type(of: window.firstResponder)))"
+            )
         }
     }
 
@@ -291,6 +320,13 @@ final class OverlayWindowController {
     private func handleMouseDown(_ event: NSEvent) -> NSEvent? {
         guard let eventWindow = event.window, eventWindow is OverlayWindow else {
             return event
+        }
+
+        if !loggedFirstClickAfterShow {
+            loggedFirstClickAfterShow = true
+            DiagLog.write(
+                "firstClick after show: isActive=\(NSApp.isActive) isKey=\(eventWindow.isKeyWindow) firstResponder=\(String(describing: type(of: eventWindow.firstResponder))) loc=\(event.locationInWindow)"
+            )
         }
 
         // Floating drag owns the pointer (app or folder handoff / drag-out).
