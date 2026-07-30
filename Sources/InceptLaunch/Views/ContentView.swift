@@ -16,6 +16,14 @@ struct ContentView: View {
 
     private var animEnabled: Bool { !preferences.reduceMotion }
 
+    /// Folder open/close spring — used with `withAnimation` so removal transitions run
+    /// even when dismiss comes from AppKit (which does not wrap the assignment).
+    private var folderAnimation: Animation? {
+        (animEnabled && preferences.animateFolder)
+            ? .spring(response: 0.32, dampingFraction: 0.82)
+            : nil
+    }
+
     /// Must match AppKit search chrome so results/grid never paint under it.
     private var searchChromeHeight: CGFloat { OverlaySearchChrome.chromeHeight }
 
@@ -56,10 +64,10 @@ struct ContentView: View {
                             Task { await viewModel.moveToTrash(record.id) }
                             viewModel.openFolder?.members.removeAll { $0.id == record.id }
                             if viewModel.openFolder?.members.isEmpty == true {
-                                viewModel.openFolder = nil
+                                closeFolderPopup()
                             }
                         },
-                        onClose: { viewModel.openFolder = nil },
+                        onClose: { closeFolderPopup() },
                         animate: animEnabled && preferences.animateFolder,
                         wallpaperImage: DesktopWallpaperCapture.currentImage,
                         backgroundBlur: preferences.backgroundBlur,
@@ -101,6 +109,8 @@ struct ContentView: View {
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
+                    // Removal fade (open spring is driven inside FolderPopupView via `revealed`).
+                    .transition(.opacity)
                 }
 
                 if let dragItem = viewModel.gridDragItem {
@@ -348,9 +358,17 @@ struct ContentView: View {
             viewModel.editMode = false
         } else if viewModel.openFolder != nil {
             DiagLog.write("handleBlankTap closing folder")
-            viewModel.openFolder = nil
+            closeFolderPopup()
         } else if viewModel.floatingDragItemID == nil {
             dismiss()
+        }
+    }
+
+    /// Animated folder close when the user dismisses the popup (not used for
+    /// launch/drag-out paths that should hide immediately).
+    private func closeFolderPopup() {
+        withAnimation(folderAnimation) {
+            viewModel.openFolder = nil
         }
     }
 
@@ -373,7 +391,9 @@ struct ContentView: View {
         case .app(let record):
             launchAndDismiss(record)
         case .folder:
-            viewModel.openFolder = item
+            withAnimation(folderAnimation) {
+                viewModel.openFolder = item
+            }
         }
     }
 

@@ -43,6 +43,9 @@ struct FolderPopupView: View {
     @State private var reorderDragID: String? = nil
     @State private var folderDragLocation: CGPoint = .zero
     @State private var panelFrame: CGRect = .zero
+    /// Drives open spring (scale + fade). Transitions on always-present children
+    /// never fire when the whole popup is inserted, so we animate explicitly.
+    @State private var revealed = false
     @FocusState private var nameFieldFocused: Bool
 
     private var folderTileWidth: CGFloat { GridMetrics.tileWidth * iconSizeLevel.multiplier }
@@ -53,6 +56,10 @@ struct FolderPopupView: View {
         Array(repeating: GridItem(.fixed(folderTileWidth), spacing: 16), count: 5)
     }
 
+    private var openSpring: Animation {
+        .spring(response: 0.32, dampingFraction: 0.82)
+    }
+
     var body: some View {
         ZStack {
             // Real dismiss for outside-panel clicks happens in AppKit
@@ -61,6 +68,7 @@ struct FolderPopupView: View {
             // otherwise need many clicks before registering. This stays as a
             // fallback for any input path that doesn't go through the monitor.
             Color.black.opacity(0.45)
+                .opacity(revealed ? 1 : 0)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if editMode {
@@ -123,11 +131,8 @@ struct FolderPopupView: View {
                         }
                 }
             )
-            .transition(
-                animate
-                    ? .scale(scale: 0.6).combined(with: .opacity)
-                    : .opacity
-            )
+            .scaleEffect(revealed ? 1 : 0.62)
+            .opacity(revealed ? 1 : 0)
 
             if let dragID = reorderDragID,
                let dragMember = item.members.first(where: { $0.id == dragID }),
@@ -141,6 +146,20 @@ struct FolderPopupView: View {
                     .allowsHitTesting(false)
                     .zIndex(10)
             }
+        }
+        .onAppear { playOpenAnimationIfNeeded() }
+    }
+
+    private func playOpenAnimationIfNeeded() {
+        guard !revealed else { return }
+        if animate {
+            // Ensure first frame is collapsed, then spring open.
+            revealed = false
+            withAnimation(openSpring) {
+                revealed = true
+            }
+        } else {
+            revealed = true
         }
     }
 

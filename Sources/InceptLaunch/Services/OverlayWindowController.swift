@@ -330,7 +330,9 @@ final class OverlayWindowController {
                 let panel = viewModel.folderPanelFrame
                 let insidePanel = panel.width > 1 && panel.height > 1 && panel.contains(point)
                 if !insidePanel {
-                    viewModel.openFolder = nil
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        viewModel.openFolder = nil
+                    }
                     return nil
                 }
             }
@@ -615,7 +617,9 @@ final class OverlayWindowController {
             return
         }
         if viewModel.openFolder != nil {
-            viewModel.openFolder = nil
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                viewModel.openFolder = nil
+            }
             return
         }
         // Searching or idle → leave fullscreen.
