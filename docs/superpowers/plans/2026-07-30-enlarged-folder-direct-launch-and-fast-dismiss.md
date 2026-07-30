@@ -6,7 +6,7 @@
 
 **Architecture:** Add per-member tap handlers on `EnlargedFolderTileView` (visible carousel page only). Wire them through `LaunchpadGridView` to a shared `ContentView.launchAndDismiss(_:)` helper that posts dismiss first, then launches on the next main-queue turn. Keep `AppLauncher.launch` synchronous for tests; UI never waits on it before hide.
 
-**Tech Stack:** SwiftUI + AppKit, Swift Testing, existing `AppLauncher` / `Notification.Name.inceptLaunchDismiss`.
+**Tech Stack:** SwiftUI + AppKit, Swift Testing, existing `AppLauncher` / `Notification.Name.iLaunchDismiss`.
 
 **Spec:** `docs/superpowers/specs/2026-07-30-enlarged-folder-direct-launch-and-fast-dismiss-design.md`
 
@@ -16,9 +16,9 @@
 
 | File | Responsibility |
 |------|----------------|
-| `Sources/InceptLaunch/Views/EnlargedFolderTileView.swift` | Mini-icon hit targets + `onActivateMember` callback |
-| `Sources/InceptLaunch/Views/LaunchpadGridView.swift` | Wire `onLaunchApp` from enlarged folder members; edit-mode gate |
-| `Sources/InceptLaunch/Views/ContentView.swift` | `launchAndDismiss(record)` used by grid, search, popup, mini icons |
+| `Sources/iLaunch/Views/EnlargedFolderTileView.swift` | Mini-icon hit targets + `onActivateMember` callback |
+| `Sources/iLaunch/Views/LaunchpadGridView.swift` | Wire `onLaunchApp` from enlarged folder members; edit-mode gate |
+| `Sources/iLaunch/Views/ContentView.swift` | `launchAndDismiss(record)` used by grid, search, popup, mini icons |
 | `script/build_and_run.sh` | Patch version bump after feature (1.7.12 → 1.7.13) |
 
 No model or persistence changes. `AppLauncher.swift` stays as-is unless a tiny helper is cleaner; plan uses dismiss-first + `DispatchQueue.main.async` around existing `launch`.
@@ -28,7 +28,7 @@ No model or persistence changes. `AppLauncher.swift` stays as-is unless a tiny h
 ### Task 1: Fast dismiss — shared `launchAndDismiss` in ContentView
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift`
+- Modify: `Sources/iLaunch/Views/ContentView.swift`
 - Test: manual / existing `AppLauncherTests` unchanged
 
 - [ ] **Step 1: Add `launchAndDismiss` and switch all app-launch call sites**
@@ -97,7 +97,7 @@ Search results already go through `handleTap` via `onLaunch: { item in handleTap
 Run:
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1
+cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1
 ```
 
 Expected: build succeeds (exit 0).
@@ -105,7 +105,7 @@ Expected: build succeeds (exit 0).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/ContentView.swift
 git commit -m "fix: dismiss overlay before launching apps to remove launch lag"
 ```
 
@@ -114,7 +114,7 @@ git commit -m "fix: dismiss overlay before launching apps to remove launch lag"
 ### Task 2: Mini-icon activate on EnlargedFolderTileView
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/EnlargedFolderTileView.swift`
+- Modify: `Sources/iLaunch/Views/EnlargedFolderTileView.swift`
 
 - [ ] **Step 1: Add `onActivateMember` and per-icon taps**
 
@@ -195,7 +195,7 @@ Notes:
 - [ ] **Step 2: Build**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1
+cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1
 ```
 
 Expected: success.
@@ -203,7 +203,7 @@ Expected: success.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/EnlargedFolderTileView.swift
+git add Sources/iLaunch/Views/EnlargedFolderTileView.swift
 git commit -m "feat: allow tapping mini icons on enlarged folder tiles"
 ```
 
@@ -212,8 +212,8 @@ git commit -m "feat: allow tapping mini icons on enlarged folder tiles"
 ### Task 3: Wire grid callback through LaunchpadGridView → ContentView
 
 **Files:**
-- Modify: `Sources/InceptLaunch/Views/LaunchpadGridView.swift`
-- Modify: `Sources/InceptLaunch/Views/ContentView.swift`
+- Modify: `Sources/iLaunch/Views/LaunchpadGridView.swift`
+- Modify: `Sources/iLaunch/Views/ContentView.swift`
 
 - [ ] **Step 1: Add `onLaunchApp` to LaunchpadGridView**
 
@@ -272,7 +272,7 @@ If the memberwise init fails because `onLaunchApp` is not the next labeled arg p
 - [ ] **Step 3: Build + test**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch && swift build 2>&1 && swift test 2>&1
+cd /Users/xiaoan/Documents/code/iLaunch && swift build 2>&1 && swift test 2>&1
 ```
 
 Expected: build and tests pass.
@@ -280,7 +280,7 @@ Expected: build and tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Sources/InceptLaunch/Views/LaunchpadGridView.swift Sources/InceptLaunch/Views/ContentView.swift
+git add Sources/iLaunch/Views/LaunchpadGridView.swift Sources/iLaunch/Views/ContentView.swift
 git commit -m "feat: wire enlarged-folder mini icon launch to dismiss path"
 ```
 
@@ -305,7 +305,7 @@ In `script/build_and_run.sh`, set both:
 - [ ] **Step 2: Build & run package**
 
 ```bash
-cd /Users/xiaoan/Documents/code/InceptLaunch/script && bash build_and_run.sh run
+cd /Users/xiaoan/Documents/code/iLaunch/script && bash build_and_run.sh run
 ```
 
 Expected: compiles, assembles `.app`, codesigns, launches.

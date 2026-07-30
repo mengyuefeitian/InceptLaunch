@@ -4,7 +4,7 @@ Date: 2026-07-25
 
 ## Overview
 
-Four changes to InceptLaunch v1.3.20:
+Four changes to iLaunch v1.3.20:
 1. Settings UI restructure with sidebar navigation
 2. Fix system app toggle not refreshing the grid
 3. Drag-to-reorder apps inside folder popups

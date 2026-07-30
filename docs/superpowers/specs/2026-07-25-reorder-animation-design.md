@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implement iOS-style real-time "make way" animation for app tile reordering in InceptLaunch. When dragging an app over other tiles, they spring-animate out of the way in real time (before drop). Applies to both the main Launchpad grid and folder interiors.
+Implement iOS-style real-time "make way" animation for app tile reordering in iLaunch. When dragging an app over other tiles, they spring-animate out of the way in real time (before drop). Applies to both the main Launchpad grid and folder interiors.
 
 ## Approach
 

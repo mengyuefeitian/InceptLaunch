@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ICONS="$ROOT/Resources/Icons"
 BACKUP="$ICONS/backup"
-MAIN_ICNS="$ROOT/Resources/InceptLaunch.icns"
+MAIN_ICNS="$ROOT/Resources/iLaunch.icns"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/incept-icons.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -127,7 +127,7 @@ echo "Optimizing icons (CONTENT_RATIO=$CONTENT_RATIO)..."
 mkdir -p "$BACKUP"
 
 normalize_one() {
-  local name="$1"   # e.g. InceptLaunch-D or icon01
+  local name="$1"   # e.g. iLaunch-D or icon01
   local src_icns="$2"
   local out_icns="$3"
 
@@ -135,13 +135,13 @@ normalize_one() {
   local src_for_norm=""
 
   # Prefer existing master PNG, else icns, else special main source
-  if [ -f "$BACKUP/${name}.png" ] && [ "$name" != "InceptLaunch" ]; then
+  if [ -f "$BACKUP/${name}.png" ] && [ "$name" != "iLaunch" ]; then
     # Re-normalize from current master (already RGBA with alpha)
     src_for_norm="$BACKUP/${name}.png"
   elif [ -f "$src_icns" ]; then
     src_for_norm="$src_icns"
-  elif [ -f "$ROOT/Resources/backup/InceptLaunch-icon-source.png" ] && { [ "$name" = "InceptLaunch" ] || [ "$name" = "InceptLaunch-D" ]; }; then
-    src_for_norm="$ROOT/Resources/backup/InceptLaunch-icon-source.png"
+  elif [ -f "$ROOT/Resources/backup/iLaunch-icon-source.png" ] && { [ "$name" = "iLaunch" ] || [ "$name" = "iLaunch-D" ]; }; then
+    src_for_norm="$ROOT/Resources/backup/iLaunch-icon-source.png"
   else
     echo "  skip $name (no source)"
     return 0
@@ -163,12 +163,12 @@ for icns in "$ICONS"/*.icns; do
 done
 
 # Main app icon tracks the default D variant when present
-if [ -f "$ICONS/InceptLaunch-D.icns" ]; then
-  echo "InceptLaunch.icns (sync from D)"
-  cp -f "$ICONS/InceptLaunch-D.icns" "$MAIN_ICNS"
-  cp -f "$BACKUP/InceptLaunch-D.png" "$BACKUP/InceptLaunch-main-normalized.png" 2>/dev/null || true
+if [ -f "$ICONS/iLaunch-D.icns" ]; then
+  echo "iLaunch.icns (sync from D)"
+  cp -f "$ICONS/iLaunch-D.icns" "$MAIN_ICNS"
+  cp -f "$BACKUP/iLaunch-D.png" "$BACKUP/iLaunch-main-normalized.png" 2>/dev/null || true
 elif [ -f "$MAIN_ICNS" ]; then
-  normalize_one "InceptLaunch" "$MAIN_ICNS" "$MAIN_ICNS"
+  normalize_one "iLaunch" "$MAIN_ICNS" "$MAIN_ICNS"
 fi
 
 echo
