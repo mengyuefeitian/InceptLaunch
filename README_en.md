@@ -53,18 +53,14 @@ arrange once and rely on forever.
 - **Internationalization** — System language plus Chinese / English / Japanese /  
   Korean / Russian, switchable at runtime.
 
-## What's new in v1.7
+## What's new in v1.8
 
-- **Folder zoom animation** — the popup grows from its grid tile and shrinks  
-  back on close (stays 3×3-shaped mid-flight).
-- **Direct mini-icon launch** — on enlarged 2×2 folders, tap a mini member icon  
-  to launch without opening the full popup.
-- **Fast dismiss on launch** — leave fullscreen first, then open the app  
-  asynchronously (no 2–5s freeze).
-- **First click works** — the first tap after opening the overlay (launch /  
-  open folder / blank dismiss) is reliable.
-- **Smoother interaction** — no stuck half-open folders; focus returns to the  
-  previous frontmost app when the overlay closes.
+- **Product renamed: InceptLaunch → iLaunch** — app identity, Settings UI,  
+  packaging (`.app` / DMG), bundle ID (`com.ilaunch.iLaunch`), README, and  
+  localization all unified under the new name.
+- **Seamless data migration** — existing data under  
+  `Application Support/InceptLaunch/` is migrated to `iLaunch/` on first  
+  launch, with layout and settings preserved.
 
 > Full history: [CHANGELOG](CHANGELOG.md) / [中文](CHANGELOG.zh.md). Latest  
 > package: [Releases](../../releases/latest).
@@ -103,6 +99,7 @@ Where iLaunch is headed, tracked against the original
 | **v1.5** Experience upgrade | Live drag-reorder animation, i18n (ja/ko), settings restructure, hidden apps | ✅ Done |
 | **v1.6** Visual & control | Liquid Glass folders, grid/icon settings, Russian, drag-out sensing | ✅ Done |
 | **v1.7** Fluid interaction | Folder zoom open/close, mini-icon launch, fast dismiss, first-click fix | ✅ Done |
+| **v1.8** Rebrand | InceptLaunch → iLaunch rename, seamless data migration | ✅ Done |
 | **v2.0** Stable release | Multi-display & Spaces, performance, first-run guide, auto-update, signing & notarization | 📋 Planned |
 
 ### Coming next
