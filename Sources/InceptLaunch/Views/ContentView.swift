@@ -200,6 +200,7 @@ struct ContentView: View {
                 columns: viewModel.gridColumns,
                 enlargedFolderIDs: viewModel.enlargedFolderIDs,
                 onLaunch: { item in handleTap(item) },
+                onLaunchApp: { record in launchAndDismiss(record) },
                 onDropItem: { sourceID, target in
                     viewModel.handleDrop(sourceID: sourceID, onto: target)
                 },
