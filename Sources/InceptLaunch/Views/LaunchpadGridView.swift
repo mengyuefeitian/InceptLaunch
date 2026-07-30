@@ -6,6 +6,8 @@ struct LaunchpadGridView: View {
     let columns: Int
     let enlargedFolderIDs: Set<String>
     let onLaunch: (LaunchpadDisplayItem) -> Void
+    /// Direct app launch from enlarged-folder mini icons (skips open-folder).
+    var onLaunchApp: ((AppRecord) -> Void)? = nil
     let onDropItem: (String, LaunchpadDisplayItem) -> Void
     let onTrash: (LaunchpadDisplayItem) -> Void
     let onHide: (LaunchpadDisplayItem) -> Void
@@ -486,7 +488,15 @@ struct LaunchpadGridView: View {
                 tileWidth: tileWidth,
                 tileHeight: tileHeight,
                 iconSize: iconSize,
-                showName: showAppNames
+                showName: showAppNames,
+                onActivateMember: { record in
+                    // IMPORTANT gesture fix: when already in edit mode, ignore mini-icon taps
+                    // (do NOT call onCancelEditMode). Parent long-press can set editMode=true and
+                    // then finger-up fires TapGesture; cancelling would make long-press-to-jiggle
+                    // on mini icons impossible. Chrome .onTapGesture still cancels edit as before.
+                    guard !editMode else { return }
+                    onLaunchApp?(record)
+                }
             )
                 .onTapGesture {
                     if editMode {
