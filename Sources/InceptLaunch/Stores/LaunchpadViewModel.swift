@@ -63,9 +63,12 @@ final class LaunchpadViewModel {
 
     /// Open a folder popup, remembering where the grid tile sat for zoom animation.
     func openFolderPopup(_ item: LaunchpadDisplayItem) {
-        // Never stack a new open on top of a half-closed shell.
-        if isFolderClosing {
-            DiagLog.write("openFolderPopup: force-finish previous close first id=\(item.id)")
+        // Always clear any prior open/close first. Stale close timers must not
+        // run against the new popup (they used to nil a freshly opened folder).
+        if openFolder != nil || isFolderClosing {
+            DiagLog.write(
+                "openFolderPopup: clearing previous openFolder=\(openFolder?.id ?? "nil") closing=\(isFolderClosing)"
+            )
             finishClosingFolder()
         }
         let frame = tileFrames.first(where: { $0.id == item.id })?.frame ?? .zero
@@ -102,10 +105,22 @@ final class LaunchpadViewModel {
         if openFolder != nil || isFolderClosing || folderPanelFrame != .zero {
             DiagLog.write("finishClosingFolder id=\(openFolder?.id ?? "nil")")
         }
+        // Bump epoch so any in-flight FolderPopupView close timer/watchdog
+        // becomes a no-op (must not finish-close a *newer* open).
+        folderCloseEpoch &+= 1
         openFolder = nil
         openFolderSourceFrame = .zero
         folderPanelFrame = .zero
         isFolderClosing = false
+    }
+
+    /// Only finish if this folder is still the one open (guards stale asyncAfter).
+    func finishClosingFolderIfOpen(id: String) {
+        guard openFolder?.id == id else {
+            DiagLog.write("finishClosingFolderIfOpen skip stale id=\(id) current=\(openFolder?.id ?? "nil")")
+            return
+        }
+        finishClosingFolder()
     }
 
     /// Mirrors FolderPopupView's internal `panelFrame` (overlay coordinate

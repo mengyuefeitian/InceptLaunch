@@ -347,9 +347,14 @@ final class OverlayWindowController {
             return nil
         }
 
-        // Defocus search if it somehow held focus while empty.
+        // Defocus search if it somehow held focus while empty — but do NOT blur
+        // on the same mouseDown that should activate a tile. Resigning first
+        // responder mid-event drops the first grid/folder tap after show()
+        // (only the second click worked). Blur on mouseUp instead.
         if eventWindow.firstResponder is NSTextView || eventWindow.firstResponder is NSTextField {
-            searchChrome.blur()
+            DispatchQueue.main.async { [weak self] in
+                self?.searchChrome.blur()
+            }
         }
         return event
     }

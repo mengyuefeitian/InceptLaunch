@@ -69,7 +69,9 @@ struct ContentView: View {
                         },
                         onClose: { closeFolderPopup() },
                         onCloseAnimationFinished: {
-                            viewModel.finishClosingFolder()
+                            // Only clear if this folder is still open — stale close
+                            // timers from a previous popup must not kill a new one.
+                            viewModel.finishClosingFolderIfOpen(id: folder.id)
                         },
                         closeEpoch: viewModel.folderCloseEpoch,
                         animate: animEnabled && preferences.animateFolder,
@@ -113,6 +115,9 @@ struct ContentView: View {
                         sourceFrame: viewModel.openFolderSourceFrame,
                         overlaySize: geo.size
                     )
+                    // Force fresh @State (progress/isClosing) per folder — reusing
+                    // the same view left isClosing=true and stuck mid-zoom shells.
+                    .id(folder.id)
                     .frame(width: geo.size.width, height: geo.size.height)
                     .zIndex(2)
                 }

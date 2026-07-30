@@ -218,15 +218,18 @@ struct FolderPopupView: View {
         }
     }
 
-    /// 3×3 closed-folder chrome — what the grid tile looks like.
+    /// 3×3 closed-folder chrome — always a *small* square icon look (not a
+    /// stretched 2×2 panel). Mid-zoom shells read as normal folder tiles.
     private var compactTileLayer: some View {
-        let side = min(panelWidth, max(120, estimatedPanelHeight)) * 0.72
+        let panelH = max(120, estimatedPanelHeight)
+        // Prefer the grid tile's own size so open/close match the real icon.
+        let fromSource = min(sourceFrame.width, sourceFrame.height)
+        let side = max(72, min(fromSource > 2 ? fromSource * 0.92 : 110, min(panelWidth, panelH) * 0.42))
         return ZStack {
-            RoundedRectangle(cornerRadius: min(28, side * 0.22), style: .continuous)
-                .fill(Color.white.opacity(0.14))
+            Color.clear
             FolderTileView(members: item.members, size: side)
         }
-        .frame(width: panelWidth, height: max(120, estimatedPanelHeight))
+        .frame(width: panelWidth, height: panelH)
     }
 
     /// Full open folder panel (title + 5-column member grid).
@@ -273,17 +276,22 @@ struct FolderPopupView: View {
     }
 
     private func playOpenAnimationIfNeeded() {
-        guard progress < 1, !isClosing else { return }
-        DiagLog.write("folderOpen begin id=\(item.id) animate=\(animate) source=\(NSStringFromRect(sourceFrame))")
+        // Always reset local close flags — view identity is per folder id, but
+        // be defensive if SwiftUI ever reuses storage.
+        isClosing = false
+        closeGeneration &+= 1
+        let openGen = closeGeneration
+        DiagLog.write(
+            "folderOpen begin id=\(item.id) animate=\(animate) source=\(NSStringFromRect(sourceFrame))"
+        )
         if animate {
             progress = 0
             withAnimation(openSpring) {
                 progress = 1
             }
-            // Watchdog: if spring stalls (GPU/layout jam), snap open so UI stays usable.
-            let generation = closeGeneration
+            // Watchdog: if spring stalls, snap open so UI stays usable.
             DispatchQueue.main.asyncAfter(deadline: .now() + openWatchdog) {
-                guard generation == closeGeneration, !isClosing, progress < 0.99 else { return }
+                guard openGen == closeGeneration, !isClosing, progress < 0.99 else { return }
                 DiagLog.write("folderOpen WATCHDOG snap progress=\(progress) → 1")
                 var t = Transaction()
                 t.disablesAnimations = true
@@ -297,7 +305,9 @@ struct FolderPopupView: View {
     /// Zoom back to the source tile (as 3×3), then remove the popup from the tree.
     private func beginDismiss() {
         guard !isClosing else {
-            DiagLog.write("folderClose beginDismiss ignored (already closing)")
+            // Second dismiss while animating: finish immediately (matches VM force path).
+            DiagLog.write("folderClose beginDismiss re-entry → finish id=\(item.id)")
+            finishDismiss()
             return
         }
 
@@ -311,6 +321,7 @@ struct FolderPopupView: View {
         isClosing = true
         closeGeneration &+= 1
         let generation = closeGeneration
+        let closedItemID = item.id
         panelFrame = .zero
         onPanelFrameChanged?(.zero)
         withAnimation(closeSpring) {
@@ -318,18 +329,19 @@ struct FolderPopupView: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + closeDuration) {
             guard generation == closeGeneration else { return }
-            DiagLog.write("folderClose finished id=\(item.id)")
+            DiagLog.write("folderClose finished id=\(closedItemID)")
             finishDismiss()
         }
         // Watchdog if asyncAfter is delayed by main-thread load.
         DispatchQueue.main.asyncAfter(deadline: .now() + closeWatchdog) {
             guard generation == closeGeneration, isClosing else { return }
-            DiagLog.write("folderClose WATCHDOG force finish id=\(item.id)")
+            DiagLog.write("folderClose WATCHDOG force finish id=\(closedItemID)")
             finishDismiss()
         }
     }
 
     private func finishDismiss() {
+        isClosing = false
         if let onCloseAnimationFinished {
             onCloseAnimationFinished()
         } else {
