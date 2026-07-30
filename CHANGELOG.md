@@ -1,3 +1,8 @@
+## 1.7.22 - 2026-07-30
+
+### Fixes
+- DMG installer layout: curved arrow aligned with arc, Applications drop-target icon restored via Finder alias, `.background` folder hidden off-screen
+
 ## 1.7.21 - 2026-07-30
 
 ### Features
