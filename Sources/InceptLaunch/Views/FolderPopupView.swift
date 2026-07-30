@@ -85,10 +85,27 @@ struct FolderPopupView: View {
     }
 
     private var closeSpring: Animation {
-        .spring(response: 0.36, dampingFraction: 0.90)
+        .spring(response: 0.38, dampingFraction: 0.90)
     }
 
-    private var closeDuration: TimeInterval { 0.36 }
+    /// Must outlast the close spring so we never remove the view while a 5-col
+    /// panel is still visible at tile scale (that looked like a “stuck 5×4 folder”).
+    private var closeDuration: TimeInterval { 0.42 }
+
+    /// 0 at tile, 1 when fully open — how much of the 5-column popup is shown.
+    /// Stays near 0 longer on close so the last frames are 3×3, not 5×4.
+    private var expandedContentReveal: CGFloat {
+        // Smoothstep from progress 0.22 → 0.72
+        let t = (progress - 0.22) / 0.50
+        let x = min(1, max(0, t))
+        return x * x * (3 - 2 * x)
+    }
+
+    /// Motion blur while zooming (stronger near the tile, clear when fully open).
+    private var motionBlurRadius: CGFloat {
+        guard animate else { return 0 }
+        return (1 - progress) * 10
+    }
 
     /// Scale + offset that place the full-size panel over the source tile at `progress == 0`.
     private var zoomTransform: (scale: CGFloat, offset: CGSize) {
@@ -120,6 +137,7 @@ struct FolderPopupView: View {
 
     var body: some View {
         let zoom = zoomTransform
+        let reveal = expandedContentReveal
         ZStack {
             // Real dismiss for outside-panel clicks happens in AppKit
             // (OverlayWindowController.handleMouseDown) — SwiftUI's onTapGesture
@@ -128,6 +146,8 @@ struct FolderPopupView: View {
             // fallback for any input path that doesn't go through the monitor.
             Color.black.opacity(0.45)
                 .opacity(Double(progress))
+                // Soft blur on the dim layer while in transit.
+                .blur(radius: motionBlurRadius * 0.35)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     // Jiggle mode: first blank tap exits edit, not the folder.
@@ -139,67 +159,44 @@ struct FolderPopupView: View {
                 }
                 .allowsHitTesting(progress > 0.85 && !isClosing)
 
-            VStack(spacing: 20) {
-                titleView
-                    .padding(.top, 26)
+            // Morphing shell: 3×3 tile look near the source, full 5-col popup when open.
+            // Without this, scaling the 5-col layout down to the tile looked like the
+            // folder “became” a 5×4 expanded panel.
+            ZStack {
+                compactTileLayer
+                    .opacity(Double(1 - reveal))
+                    .allowsHitTesting(false)
 
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 24) {
-                        ForEach(item.members) { member in
-                            folderMemberCell(member: member)
-                        }
-                    }
-                    .coordinateSpace(name: "folderGrid")
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 26)
-                    .animation(
-                        animate ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
-                        value: item.members.map(\.id)
-                    )
-                }
-                .frame(maxHeight: 560)
+                expandedPanelLayer
+                    .opacity(Double(reveal))
+                    .allowsHitTesting(reveal > 0.9 && !isClosing)
             }
-            .frame(width: panelWidth)
-            .background(
-                Group {
-                    if let wallpaperImage {
-                        Image(nsImage: wallpaperImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .blur(radius: 50)
-                            .overlay(Color.white.opacity(0.08))
-                    } else {
-                        Rectangle().fill(.white.opacity(0.12))
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .frame(width: panelWidth, height: max(120, estimatedPanelHeight))
+            .compositingGroup()
+            .blur(radius: motionBlurRadius)
+            .scaleEffect(zoom.scale, anchor: .center)
+            .offset(zoom.offset)
             .background(
                 GeometryReader { geo in
                     Color.clear
                         .onAppear {
-                            panelFrame = geo.frame(in: .named("overlay"))
-                            onPanelFrameChanged?(panelFrame)
+                            // Hit-test frame must track the *visual* bounds after transform
+                            // once fully open; during transit AppKit should not treat the
+                            // shrinking shell as a persistent 5×4 folder on the grid.
+                            reportPanelFrame(geo.frame(in: .named("overlay")), visual: zoom)
+                        }
+                        .onChange(of: progress) { _, _ in
+                            reportPanelFrame(geo.frame(in: .named("overlay")), visual: zoomTransform)
                         }
                         .onChange(of: geo.frame(in: .named("overlay"))) { _, f in
-                            panelFrame = f
-                            onPanelFrameChanged?(f)
+                            reportPanelFrame(f, visual: zoomTransform)
                         }
                 }
             )
-            // Zoom from the grid folder tile → center (and reverse on close).
-            // Source tile is hidden while open, so full opacity keeps the morph continuous.
-            .scaleEffect(zoom.scale, anchor: .center)
-            .offset(zoom.offset)
 
             if let dragID = reorderDragID,
                let dragMember = item.members.first(where: { $0.id == dragID }),
-               animate {
+               animate, reveal > 0.9 {
                 RealAppIcon(record: dragMember)
                     .frame(width: folderIconSize, height: folderIconSize)
                     .scaleEffect(1.15)
@@ -216,6 +213,83 @@ struct FolderPopupView: View {
         }
     }
 
+    /// 3×3 closed-folder chrome — what the grid tile looks like.
+    private var compactTileLayer: some View {
+        let side = min(panelWidth, max(120, estimatedPanelHeight)) * 0.72
+        return ZStack {
+            RoundedRectangle(cornerRadius: min(28, side * 0.22), style: .continuous)
+                .fill(Color.white.opacity(0.14))
+            FolderTileView(members: item.members, size: side)
+        }
+        .frame(width: panelWidth, height: max(120, estimatedPanelHeight))
+    }
+
+    /// Full open folder panel (title + 5-column member grid).
+    private var expandedPanelLayer: some View {
+        VStack(spacing: 20) {
+            titleView
+                .padding(.top, 26)
+
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 24) {
+                    ForEach(item.members) { member in
+                        folderMemberCell(member: member)
+                    }
+                }
+                .coordinateSpace(name: "folderGrid")
+                .padding(.horizontal, 26)
+                .padding(.bottom, 26)
+                .animation(
+                    animate ? .spring(response: 0.3, dampingFraction: 0.7) : nil,
+                    value: item.members.map(\.id)
+                )
+            }
+            .frame(maxHeight: 560)
+        }
+        .frame(width: panelWidth)
+        .frame(maxHeight: max(120, estimatedPanelHeight))
+        .background(
+            Group {
+                if let wallpaperImage {
+                    Image(nsImage: wallpaperImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .blur(radius: 50)
+                        .overlay(Color.white.opacity(0.08))
+                } else {
+                    Rectangle().fill(.white.opacity(0.12))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+    }
+
+    /// Publish panel frame for AppKit. While mostly closed, report `.zero` so a
+    /// shrinking popup is not treated as a permanent hit target on the grid.
+    private func reportPanelFrame(_ layoutFrame: CGRect, visual zoom: (scale: CGFloat, offset: CGSize)) {
+        if progress < 0.5 || (isClosing && progress < 0.85) {
+            if panelFrame != .zero {
+                panelFrame = .zero
+                onPanelFrameChanged?(.zero)
+            }
+            return
+        }
+        // Apply the same scale/offset the user sees (layout is pre-transform).
+        var f = layoutFrame
+        let cx = f.midX + zoom.offset.width
+        let cy = f.midY + zoom.offset.height
+        let w = f.width * zoom.scale
+        let h = f.height * zoom.scale
+        f = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+        panelFrame = f
+        onPanelFrameChanged?(f)
+    }
+
     private func playOpenAnimationIfNeeded() {
         guard progress < 1, !isClosing else { return }
         if animate {
@@ -228,32 +302,35 @@ struct FolderPopupView: View {
         }
     }
 
-    /// Zoom back to the source tile, then tell the parent to remove the popup.
+    /// Zoom back to the source tile (as 3×3), then remove the popup from the tree.
     private func beginDismiss() {
         guard !isClosing else { return }
 
         guard animate, progress > 0.01 else {
-            if let onCloseAnimationFinished {
-                onCloseAnimationFinished()
-            } else {
-                onClose()
-            }
+            finishDismiss()
             return
         }
 
         isClosing = true
         closeGeneration &+= 1
         let generation = closeGeneration
+        // Clear hit frame immediately so AppKit never “sticks” on a tiny 5×4.
+        panelFrame = .zero
+        onPanelFrameChanged?(.zero)
         withAnimation(closeSpring) {
             progress = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + closeDuration) {
             guard generation == closeGeneration else { return }
-            if let onCloseAnimationFinished {
-                onCloseAnimationFinished()
-            } else {
-                onClose()
-            }
+            finishDismiss()
+        }
+    }
+
+    private func finishDismiss() {
+        if let onCloseAnimationFinished {
+            onCloseAnimationFinished()
+        } else {
+            onClose()
         }
     }
 
