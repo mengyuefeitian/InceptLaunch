@@ -32,7 +32,8 @@ fi
 rm -rf "$STAGING" "$MOUNT_POINT" "$RW_DMG" "$DMG"
 mkdir -p "$STAGING/.background"
 cp -R "$APP" "$STAGING/$APP_NAME.app"
-ln -s /Applications "$STAGING/Applications"
+# Applications is created after mount as a Finder alias (not a plain symlink).
+# Plain `ln -s /Applications` often shows a blank generic icon in the DMG window.
 
 cleanup() {
   hdiutil detach "/Volumes/$APP_NAME" >/dev/null 2>&1 || true
@@ -157,6 +158,47 @@ if command -v SetFile >/dev/null 2>&1; then
   SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
 fi
 
+# Create Applications as a Finder alias (keeps the blue Applications folder icon).
+# A plain symlink often renders as an empty/generic icon in the DMG window.
+rm -f "$volume_path/Applications"
+osascript <<APPLESCRIPT
+tell application "Finder"
+    set dest to POSIX file "$volume_path" as alias
+    set appsFolder to POSIX file "/Applications" as alias
+    make new alias file at dest to appsFolder with properties {name:"Applications"}
+end tell
+APPLESCRIPT
+
+# Force the standard Applications folder icon onto the alias (belt-and-suspenders).
+ICON_SWIFT="$STAGING/set_apps_icon.swift"
+ICON_BIN="$STAGING/set_apps_icon"
+cat > "$ICON_SWIFT" <<'SWIFT'
+import AppKit
+let path = CommandLine.arguments[1]
+let candidates = [
+    "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ApplicationsFolderIcon.icns",
+    "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericFolderIcon.icns",
+]
+var icon: NSImage?
+for c in candidates {
+    if let img = NSImage(contentsOfFile: c) {
+        icon = img
+        break
+    }
+}
+// Prefer workspace icon for /Applications when available.
+let ws = NSWorkspace.shared.icon(forFile: "/Applications")
+if ws.size.width > 0 { icon = ws }
+guard let icon else { exit(1) }
+if !NSWorkspace.shared.setIcon(icon, forFile: path, options: []) {
+    // Non-fatal on some systems; alias may already show the right icon.
+    fputs("warning: setIcon failed for \(path)\n", stderr)
+}
+SWIFT
+swiftc -sdk "$SDK_PATH" -framework AppKit "$ICON_SWIFT" -o "$ICON_BIN"
+"$ICON_BIN" "$volume_path/Applications" || true
+rm -f "$ICON_SWIFT" "$ICON_BIN"
+
 osascript <<APPLESCRIPT
 tell application "Finder"
     set volumeAlias to POSIX file "$volume_path" as alias
@@ -196,7 +238,7 @@ chflags hidden "$volume_path/.background" >/dev/null 2>&1 || true
 if command -v SetFile >/dev/null 2>&1; then
   SetFile -a V "$volume_path/.background" >/dev/null 2>&1 || true
 fi
-# Re-apply off-screen position after flags (Finder may re-layout).
+# Re-apply positions after flags (Finder may re-layout).
 osascript <<APPLESCRIPT
 tell application "Finder"
     try
