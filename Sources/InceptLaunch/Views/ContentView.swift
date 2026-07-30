@@ -46,9 +46,7 @@ struct ContentView: View {
                     FolderPopupView(
                         item: folder,
                         onLaunch: { record in
-                            _ = AppLauncher().launch(record)
-                            viewModel.openFolder = nil
-                            dismiss()
+                            launchAndDismiss(record)
                         },
                         onRename: { newName in
                             viewModel.renameFolder(id: folder.id, name: newName)
@@ -359,11 +357,20 @@ struct ContentView: View {
         scrollModel.update(isSearching: isSearching, isFolderOpen: viewModel.openFolder != nil)
     }
 
+    /// Dismiss the overlay first, then open the app on the next main turn.
+    /// Synchronous `NSWorkspace.open` must never block hide (cold start 2–5s).
+    private func launchAndDismiss(_ record: AppRecord) {
+        viewModel.openFolder = nil
+        dismiss()
+        DispatchQueue.main.async {
+            _ = AppLauncher().launch(record)
+        }
+    }
+
     private func handleTap(_ item: LaunchpadDisplayItem) {
         switch item.kind {
         case .app(let record):
-            _ = AppLauncher().launch(record)
-            dismiss()
+            launchAndDismiss(record)
         case .folder:
             viewModel.openFolder = item
         }
