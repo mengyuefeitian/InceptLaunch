@@ -1,3 +1,11 @@
+## 1.7.13 - 2026-07-30
+
+### Features
+- Enlarged (2×2) folder tiles: tap a mini member icon to launch that app without opening the folder popup
+
+### Fixes
+- App launch no longer freezes the fullscreen overlay for 2–5 seconds — dismiss first, then open the app asynchronously
+
 ## 1.6.19 - 2026-07-26
 
 ### Features
